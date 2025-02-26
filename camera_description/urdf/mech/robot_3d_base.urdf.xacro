@@ -13,6 +13,8 @@
 <xacro:property name="base_mass" value="4.6" />
 
 <xacro:macro name="robot_3d_base" params="prefix">
+
+  
   <link name="${prefix}base_footprint"/>
   <link name="${prefix}base_link">
     <visual>

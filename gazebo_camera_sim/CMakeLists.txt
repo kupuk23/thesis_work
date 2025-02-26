@@ -9,7 +9,12 @@ endif()
 find_package(ament_cmake REQUIRED)
 # uncomment the following section in order to fill in
 # further dependencies manually.
-find_package(urdf_tutorial REQUIRED)
+find_package(ros_gz_sim REQUIRED)
+
+install(DIRECTORY
+  launch worlds models 
+  DESTINATION share/${PROJECT_NAME}
+)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
