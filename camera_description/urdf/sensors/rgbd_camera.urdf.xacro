@@ -30,7 +30,7 @@
         <inertia ixx="${ixx}" ixy="${ixy}" ixz="${ixz}" iyy="${iyy}" iyz="${iyz}" izz="${izz}" />
       </inertial>
     </link>
-
+    
     <joint name="${prefix}${camera_name}_joint" type="fixed">
       <parent link="${prefix}${parent}"/>
       <child link="${prefix}${camera_name}_link" />
@@ -84,7 +84,7 @@
       <parent link="${prefix}${camera_name}_link" />
       <child link="${prefix}${camera_name}_color_frame" />
     </joint>
-    <link name="${prefix}${camera_name}_color_frame"/>
+    <link name="${prefix}${camera_n</robot>ame}_color_frame"/>
 
     <joint name="${prefix}${camera_name}_color_optical_joint" type="fixed">
       <origin xyz="${optical_xyz_offset}" rpy="${optical_rpy_offset}" />
@@ -93,26 +93,6 @@
     </joint>
     <link name="${prefix}${camera_name}_color_optical_frame"/>
 
-    <gazebo reference="${prefix}${camera_name}_link">
-      <sensor name="${prefix}${camera_name}" type="rgbd_camera">
-        <camera>
-          <horizontal_fov>${horizontal_fov}</horizontal_fov>
-          <image>
-            <width>${image_width}</width>
-            <height>${image_height}</height>
-          </image>
-          <clip>
-            <near>${clip_near}</near>
-            <far>${clip_far}</far>
-          </clip>
-        </camera>
-        <always_on>${always_on}</always_on>
-        <gz_frame_id>${prefix}${camera_name}_link</gz_frame_id>
-        <topic>${camera_name}</topic>
-        <update_rate>${update_rate}</update_rate>
-        <visualize>${visualize}</visualize>
-      </sensor>
-    </gazebo>
 
   </xacro:macro>
 </robot>
