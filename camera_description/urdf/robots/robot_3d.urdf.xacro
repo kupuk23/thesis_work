@@ -12,6 +12,7 @@
     <xacro:include filename="$(find camera_description)/urdf/sensors/rgbd_camera.urdf.xacro"/>
     <xacro:include filename="$(find camera_description)/urdf/control/camera_control.gazebo"/>
 
+
     <xacro:robot_3d_base prefix="$(arg prefix)"/>
 
     <xacro:mecanum_wheel
