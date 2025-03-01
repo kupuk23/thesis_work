@@ -28,7 +28,7 @@ def generate_launch_description():
 
     world_arg = DeclareLaunchArgument(
         "world",
-        default_value="world.sdf",
+        default_value="world_cam_handrail.sdf",
         description="Name of the Gazebo world file to load",
     )
 
@@ -117,7 +117,6 @@ def generate_launch_description():
             "/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock",  # [ means the message type is from gazebo
             "/cmd_vel@geometry_msgs/msg/Twist@gz.msgs.Twist",  # @ means the message type is bi directional
             "/odom@nav_msgs/msg/Odometry@gz.msgs.Odometry",
-            "/joint_states@sensor_msgs/msg/JointState@gz.msgs.Model",
             "/tf@tf2_msgs/msg/TFMessage@gz.msgs.Pose_V",
             "/cam_1/depth_image@sensor_msgs/msg/Image[gz.msgs.Image",
             "/cam_1/points@sensor_msgs/msg/PointCloud2[gz.msgs.PointCloudPacked",
@@ -133,20 +132,20 @@ def generate_launch_description():
     )
 
     # Node to bridge camera image with image_transport and compressed_image_transport
-    # gz_image_bridge_node = Node(
-    #     package="ros_gz_image",
-    #     executable="image_bridge",
-    #     arguments=[
-    #         "/cam_1/image",
-    #     ],
-    #     output="screen",
-    #     parameters=[
-    #         {
-    #             "use_sim_time": LaunchConfiguration("use_sim_time"),
-    #             "camera.image.compressed.jpeg_quality": 75,
-    #         },
-    #     ],
-    # )
+    gz_image_bridge_node = Node(
+        package="ros_gz_image",
+        executable="image_bridge",
+        arguments=[
+            "/cam_1/image",
+        ],
+        output="screen",
+        parameters=[
+            {
+                "use_sim_time": LaunchConfiguration("use_sim_time"),
+                "camera.image.compressed.jpeg_quality": 75,
+            },
+        ],
+    )
 
     # Relay node to republish /camera/camera_info to /camera/image/camera_info
     relay_camera_info_node = Node(
@@ -170,9 +169,9 @@ def generate_launch_description():
     launchDescriptionObject.add_action(rviz_node)
     launchDescriptionObject.add_action(spawn_urdf_node)
     launchDescriptionObject.add_action(robot_state_publisher_node)
-    launchDescriptionObject.add_action(gz_bridge_node)
+    # launchDescriptionObject.add_action(gz_bridge_node)
     # launchDescriptionObject.add_action(gz_image_bridge_node)
-    launchDescriptionObject.add_action(relay_camera_info_node)
+    # launchDescriptionObject.add_action(relay_camera_info_node)
     # launchDescriptionObject.add_action(joint_state_publisher_gui_node)
 
     return launchDescriptionObject

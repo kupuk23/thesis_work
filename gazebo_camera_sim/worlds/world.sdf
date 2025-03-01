@@ -49,21 +49,21 @@
     </gui> -->
 
 
-      <light type="directional" name="sun">
-        <cast_shadows>true</cast_shadows>
-        <pose>0 0 10 0 0 0</pose>
-        <diffuse>0.8 0.8 0.8 1</diffuse>
-        <specular>0.2 0.2 0.2 1</specular>
-        <attenuation>
-          <range>1000</range>
-          <constant>0.9</constant>
-          <linear>0.01</linear>
-          <quadratic>0.001</quadratic>
-        </attenuation>
-        <direction>-0.5 0.1 -0.9</direction>
-      </light>
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
 
-      <!-- <gravity>0 0 -9.8000000000000007</gravity>
+    <!-- <gravity>0 0 -9.8000000000000007</gravity>
   <magnetic_field>5.5644999999999998e-06 2.2875799999999999e-05 -4.2388400000000002e-05</magnetic_field>
   <atmosphere type='adiabatic'/>
   <scene>
@@ -72,72 +72,72 @@
     <shadows>true</shadows>
   </scene> -->
 
-      <model name="ground_plane">
-        <static>true</static>
-        <link name="link">
-          <collision name="collision">
-            <geometry>
-              <plane>
-                <normal>0 0 1</normal>
-                <size>100 100</size>
-              </plane>
-            </geometry>
-            <surface>
-              <friction>
-                <ode>
-                  <mu>50</mu>
-                </ode>
-              </friction>
-              <bounce/>
-              <contact/>
-            </surface>
-          </collision>
-          <visual name="visual">
-            <geometry>
-              <plane>
-                <normal>0 0 1</normal>
-                <size>100 100</size>
-              </plane>
-            </geometry>
-            <material>
-              <ambient>0.8 0.8 0.8 1</ambient>
-              <diffuse>0.8 0.8 0.8 1</diffuse>
-              <specular>0.8 0.8 0.8 1</specular>
-            </material>
-          </visual>
-        </link>
-      </model>
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>100 100</size>
+            </plane>
+          </geometry>
+          <surface>
+            <friction>
+              <ode>
+                <mu>50</mu>
+              </ode>
+            </friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>100 100</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.8 0.8 0.8 1</ambient>
+            <diffuse>0.8 0.8 0.8 1</diffuse>
+            <specular>0.8 0.8 0.8 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
 
-      <!-- Spawn Handrail -->
+    <!-- Spawn Handrail -->
 
-      <model name='handrail'>
-        <static>true</static>
-        <link name='body'>
-          <collision name='body_collision_collision'>
-            <pose>0 0 0 0 0 0</pose>
-            <geometry>
-              <mesh>
-                <scale>1 1 1</scale>
-                <uri>file:///home/tafarrel/gazebo_models/astrobee_handrail_8_5/meshes/handrail_8_5.dae</uri>
-              </mesh>
-            </geometry>
-          </collision>
-          <visual name='visual'>
-            <pose>0 0 0 0 0 0</pose>
-            <geometry>
-              <mesh>
-                <scale>1 1 1</scale>
-                <uri>file:///home/tafarrel/gazebo_models/astrobee_handrail_8_5/meshes/handrail_8_5.dae</uri>
-              </mesh>
-            </geometry>
-          </visual>
+    <model name='handrail'>
+      <static>true</static>
+      <link name='body'>
+        <collision name='body_collision_collision'>
           <pose>0 0 0 0 0 0</pose>
-          <enable_wind>false</enable_wind>
-        </link>
-        <static>true</static>
-        <pose>0 1 1 0 0 0</pose>
-        <self_collide>false</self_collide>
-      </model>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///home/tafarrel/gazebo_models/astrobee_handrail_8_5/meshes/handrail_8_5.dae</uri>
+            </mesh>
+          </geometry>
+        </collision>
+        <visual name='visual'>
+          <pose>0 0 0 0 0 0</pose>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///home/tafarrel/gazebo_models/astrobee_handrail_8_5/meshes/handrail_8_5.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <pose>0 1 1 0 0 0</pose>
+      <self_collide>false</self_collide>
+    </model>
 
-    </world>
-  </sdf>
+  </world>
+</sdf>
