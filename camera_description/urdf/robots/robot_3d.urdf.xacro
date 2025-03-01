@@ -12,25 +12,34 @@
   <xacro:include filename="$(find camera_description)/urdf/sensors/rgbd_camera.urdf.xacro"/>
   <xacro:include filename="$(find camera_description)/urdf/control/camera_control.gazebo"/>
 
-  <xacro:rgbd_camera prefix="$(arg prefix)" camera_name="cam_1" xyz_offset="0.105 0 0.03" rpy_offset="0 0 0" material_color="0.5 0.2 0.2 1" />
+  <!-- Define box dimensions as variables -->
+  <xacro:property name="box_length" value="0.15" />
+  <xacro:property name="box_width" value="0.1" />
+  <xacro:property name="box_height" value="0.05" />
+
+  <!-- Define camera placement properties -->
+  <xacro:property name="camera_z_offset" value="0" />
+  <xacro:property name="camera_x_offset" value="0" />
+  <xacro:property name="camera_y_offset" value="${box_width/2+0.02}" /> <!-- add 2cm offset form camera origin -->
+  <xacro:property name="camera_rx_offset" value="0" />
+  <xacro:property name="camera_ry_offset" value="0" />
+  <xacro:property name="camera_rz_offset" value="${3.14/2}" />
+
+  <xacro:rgbd_camera prefix="$(arg prefix)" mass = "0.01" camera_name="cam_1" xyz_offset="${camera_x_offset} ${camera_y_offset} ${camera_z_offset}" rpy_offset="${camera_rx_offset} ${camera_ry_offset} ${camera_rz_offset}" material_color="0.5 0.2 0.2 1" />
+
 
 
   <link name="base_link">
-    <!-- <inertial>
-      <mass value="1.0"/>
-      <origin xyz="0 0 0" rpy="0 0 0"/>
-      <inertia ixx="0.01" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/>
-    </inertial> -->
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <box size="0.1 0.2 0.1"/>
+        <box size="${box_length} ${box_width} ${box_height}"/>
       </geometry>
     </collision>
     <visual>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
-        <box size="0.1 0.2 0.1"/>
+        <box size="${box_length} ${box_width} ${box_height}"/>
       </geometry>
       <material name="red">
         <color rgba="1 0.2 0.2 1.0"/>
@@ -38,10 +47,13 @@
     </visual>
   </link>
 
-
+  <gazebo reference="base_link">
+    <gravity>0</gravity>
+  </gazebo>
 
   <gazebo reference="camera_link">
     <material>Gazebo/Red</material>
+    <gravity>0</gravity>
   </gazebo>
 
 

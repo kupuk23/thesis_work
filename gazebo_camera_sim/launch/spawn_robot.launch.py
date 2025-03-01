@@ -88,6 +88,8 @@ def generate_launch_description():
             "0.5",
             "-Y",
             "0.0",  # Initial spawn position
+            "-P",
+            "0"
         ],
         output="screen",
         parameters=[
