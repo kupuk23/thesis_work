@@ -12,19 +12,33 @@
       <xyz_offset>0 0 0</xyz_offset>
       <rpy_offset>0 0 0</rpy_offset>
     </plugin>
-
-<!--    <plugin filename="gz-sim-joint-state-publisher-system" name="gz::sim::systems::JointStatePublisher">
-      <topic>joint_states</topic>
-      <joint_name>front_left_wheel_joint</joint_name>
-      <joint_name>front_right_wheel_joint</joint_name>
-      <joint_name>back_left_wheel_joint</joint_name>
-      <joint_name>back_right_wheel_joint</joint_name>
-    </plugin>-->
   </gazebo>
 
-  <!-- 7 - Camera Gazebo Plugin -->
   <gazebo reference="camera_link">
     <sensor name="rgbd_camera" type="rgbd_camera">
+      <camera>
+        <horizontal_fov>1.25</horizontal_fov>
+        <image>
+          <width>320</width>
+          <height>240</height>
+        </image>
+        <clip>
+          <near>0.3</near>
+          <far>15</far>
+        </clip>
+        <optical_frame_id>camera_color_frame</optical_frame_id>
+      </camera>
+      <always_on>1</always_on>
+      <update_rate>20</update_rate>
+      <visualize>true</visualize>
+      <topic>camera</topic>
+      <gz_frame_id>camera_link</gz_frame_id>
+    </sensor>
+  </gazebo>
+
+  <!--<!~~ 7 - Camera Gazebo Plugin ~~>
+  <gazebo reference="camera_link">
+    <sensor name="camera" type="camera">
       <camera>
         <horizontal_fov>1.25</horizontal_fov>
         <image>
@@ -40,13 +54,13 @@
       <always_on>1</always_on>
       <update_rate>20</update_rate>
       <visualize>true</visualize>
-      <topic>topic_camera</topic>
+      <topic>camera/image</topic>
       <gz_frame_id>camera_link</gz_frame_id>
     </sensor>
   </gazebo>
 
 
-  <!-- 7.1 - Depth Camera Gazebo Plugin -->
+  <!~~ 7.1 - Depth Camera Gazebo Plugin ~~>
   <gazebo reference="depth_camera_link">
     <sensor name="depth_camera1" type="depth_camera">
       <camera>
@@ -54,7 +68,7 @@
         <image>
           <width>640</width>
           <height>480</height>
-          <!-- <format>R8G8B8</format> -->
+          <!~~ <format>R8G8B8</format> ~~>
         </image>
         <clip>
           <near>0.3</near>
@@ -65,8 +79,8 @@
       <always_on>1</always_on>
       <update_rate>10</update_rate>
       <visualize>true</visualize>
-      <topic>topic_camera</topic>
+      <topic>camera/depth</topic>
       <gz_frame_id>camera_link</gz_frame_id>
     </sensor>
-  </gazebo>
+  </gazebo>-->
 </robot>

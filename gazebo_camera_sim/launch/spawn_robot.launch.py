@@ -120,12 +120,10 @@ def generate_launch_description():
             "/cmd_vel@geometry_msgs/msg/Twist@gz.msgs.Twist",  # @ means the message type is bi directional
             "/odom@nav_msgs/msg/Odometry@gz.msgs.Odometry",
             "/tf@tf2_msgs/msg/TFMessage@gz.msgs.Pose_V",
-            "/cam_1/depth_image@sensor_msgs/msg/Image[gz.msgs.Image",
-            "/cam_1/points@sensor_msgs/msg/PointCloud2[gz.msgs.PointCloudPacked",
-            "/cam_1/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo",
-            "/cam_1/image@sensor_msgs/msg/Image[gz.msgs.Image",
-            # "/camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo",
-            # "/camera/image@sensor_msgs/msg/Image[gz.msgs.Image",
+            "/camera/image@sensor_msgs/msg/Image[gz.msgs.Image",
+            "/camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo",
+            "/camera/depth@sensor_msgs/msg/Image[gz.msgs.Image",
+            "/camera/points@sensor_msgs/msg/PointCloud2@gz.msgs.PointCloudPacked",
         ],
         output="screen",
         parameters=[
@@ -171,7 +169,7 @@ def generate_launch_description():
     launchDescriptionObject.add_action(rviz_node)
     launchDescriptionObject.add_action(spawn_urdf_node)
     launchDescriptionObject.add_action(robot_state_publisher_node)
-    # launchDescriptionObject.add_action(gz_bridge_node)
+    launchDescriptionObject.add_action(gz_bridge_node)
     # launchDescriptionObject.add_action(gz_image_bridge_node)
     # launchDescriptionObject.add_action(relay_camera_info_node)
     # launchDescriptionObject.add_action(joint_state_publisher_gui_node)

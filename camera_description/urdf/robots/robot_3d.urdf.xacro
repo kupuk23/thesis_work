@@ -20,16 +20,35 @@
   <!-- Define camera placement properties -->
   <xacro:property name="camera_z_offset" value="0" />
   <xacro:property name="camera_x_offset" value="0" />
-  <xacro:property name="camera_y_offset" value="${box_width/2+0.02}" /> <!-- add 2cm offset form camera origin -->
+  <xacro:property name="camera_y_offset" value="${box_width/2+0.02}" />
+  <!-- add 2cm offset form camera origin -->
   <xacro:property name="camera_rx_offset" value="0" />
   <xacro:property name="camera_ry_offset" value="0" />
   <xacro:property name="camera_rz_offset" value="${3.14/2}" />
 
-  <xacro:rgbd_camera prefix="$(arg prefix)" mass = "0.01" camera_name="cam_1" xyz_offset="${camera_x_offset} ${camera_y_offset} ${camera_z_offset}" rpy_offset="${camera_rx_offset} ${camera_ry_offset} ${camera_rz_offset}" material_color="0.5 0.2 0.2 1" />
+  <xacro:rgbd_camera prefix="$(arg prefix)" mass = "0.01" camera_name="camera" xyz_offset="${camera_x_offset} ${camera_y_offset} ${camera_z_offset}" rpy_offset="${camera_rx_offset} ${camera_ry_offset} ${camera_rz_offset}" material_color="0.5 0.2 0.2 1" />
 
 
+
+  <!-- Define the new root link (dummy_link) -->
+  <link name="dummy_link">
+    <visual>
+      <geometry>
+        <box size="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="transparent">
+        <color rgba="0 0 0 0"/>
+        <!-- Making it invisible -->
+      </material>
+    </visual>
+  </link>
 
   <link name="base_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.1" ixy="0" ixz="0" iyy="0.1" iyz="0" izz="0.1"/>
+    </inertial>
     <collision>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <geometry>
@@ -47,14 +66,64 @@
     </visual>
   </link>
 
+  <!-- Fixed joint connecting dummy_link to base_link -->
+  <joint name="dummy_to_base" type="fixed">
+    <parent link="dummy_link"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+
+
   <gazebo reference="base_link">
     <gravity>0</gravity>
   </gazebo>
 
+
+  <!-- STEP 7 - Camera -->
+  <!-- <joint type="fixed" name="camera_joint">
+    <origin xyz="${camera_x_offset} ${camera_y_offset} ${camera_z_offset}" rpy="${camera_rx_offset} ${camera_ry_offset} ${camera_rz_offset}"/>
+    <child link="camera_link"/>
+    <parent link="base_link"/>
+    <axis xyz="0 1 0" />
+  </joint>
+
+  <link name='camera_link'>
+    <pose>0 0 0 0 0 0</pose>
+    <inertial>
+      <mass value="0.1"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6" />
+    </inertial>
+
+    <collision name='collision'>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size=".03 .03 .03"/>
+      </geometry>
+    </collision>
+
+    <visual name='camera_link_visual'>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size=".03 .03 .03"/>
+      </geometry>
+    </visual>
+
+  </link> -->
+
   <gazebo reference="camera_link">
-    <material>Gazebo/Red</material>
-    <gravity>0</gravity>
+    <material>Gazebo/Blue</material>
   </gazebo>
+
+  <!-- <joint type="fixed" name="camera_optical_joint">
+    <origin xyz="0 0 0" rpy="-1.5707 0 -1.5707"/>
+    <child link="camera_link_optical"/>
+    <parent link="camera_link"/>
+  </joint>
+
+  <link name="camera_link_optical">
+  </link> -->
 
 
   <!-- 2.5.1 End -->
