@@ -136,7 +136,7 @@ def generate_launch_description():
         package="ros_gz_image",
         executable="image_bridge",
         arguments=[
-            "/cam_1/image",
+            "/camera/image",
         ],
         output="screen",
         parameters=[
@@ -153,7 +153,18 @@ def generate_launch_description():
         executable="relay",
         name="relay_camera_info",
         output="screen",
-        arguments=["cam_1/camera_info", "cam_1/image/camera_info"],
+        arguments=["camera/camera_info", "camera/image/camera_info"], 
+        parameters=[
+            {"use_sim_time": LaunchConfiguration("use_sim_time")},
+        ],
+    )
+
+    relay_cmd_vel = Node(
+        package="topic_tools",
+        executable="relay",
+        name="relay_cmd_vel",
+        output="screen",
+        arguments=["/cmd_vel", "model/my_robot/cmd_vel"], 
         parameters=[
             {"use_sim_time": LaunchConfiguration("use_sim_time")},
         ],
@@ -170,8 +181,8 @@ def generate_launch_description():
     launchDescriptionObject.add_action(spawn_urdf_node)
     launchDescriptionObject.add_action(robot_state_publisher_node)
     launchDescriptionObject.add_action(gz_bridge_node)
-    # launchDescriptionObject.add_action(gz_image_bridge_node)
-    # launchDescriptionObject.add_action(relay_camera_info_node)
-    # launchDescriptionObject.add_action(joint_state_publisher_gui_node)
+    launchDescriptionObject.add_action(gz_image_bridge_node)
+    launchDescriptionObject.add_action(relay_camera_info_node)
+    # launchDescriptionObject.add_action(relay_cmd_vel)
 
     return launchDescriptionObject
