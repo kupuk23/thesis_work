@@ -8,6 +8,7 @@
       <real_time_factor>1.0</real_time_factor>
 
     </physics>
+    <plugin filename='gz-sim-user-commands-system' name='gz::sim::systems::UserCommands' />
     <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics">
       <gravity>0 0 0</gravity>
     </plugin>
@@ -165,106 +166,6 @@
       <direction>-0.5 0.1 -0.9</direction>
     </light>
 
-    <!--
-   <model name="camera">
-    <pose>4 0 1.0 0 0.0 3.14</pose>
-    <link name="camera_link">
-      <pose>0.05 0.05 0.05 0 0 0</pose>
-      <inertial>
-        <mass>0.1</mass>
-        <inertia>
-          <ixx>0.000166667</ixx>
-          <iyy>0.000166667</iyy>
-          <izz>0.000166667</izz>
-        </inertia>
-      </inertial>
-      <collision name="collision">
-        <geometry>
-          <box>
-            <size>0.1 0.1 0.1</size>
-          </box>
-        </geometry>
-      </collision>
-      <visual name="visual">
-        <geometry>
-          <box>
-            <size>0.1 0.1 0.1</size>
-          </box>
-        </geometry>
-      </visual>
-      <sensor name="camera" type="camera">
-        <camera>
-          <horizontal_fov>1.25</horizontal_fov>
-          <image>
-            <width>640</width>
-            <height>480</height>
-          </image>
-          <clip>
-            <near>0.3</near>
-            <far>15</far>
-          </clip>
-        </camera>
-        <always_on>1</always_on>
-        <update_rate>20</update_rate>
-        <visualize>true</visualize>
-        <topic>topic_camera</topic>
-        <frame_name>camera_link_optical</frame_name>
-      </sensor>
-    </link>
-  </model>  
-
-
-    <model name="depth_camera">
-      <pose>4 0.2 1 0 0.0 3.14</pose>
-      <link name="link">
-        <pose>0.05 0.05 0.05 0 0 0</pose>
-        <inertial>
-          <mass>0.1</mass>
-          <inertia>
-            <ixx>0.000166667</ixx>
-            <iyy>0.000166667</iyy>
-            <izz>0.000166667</izz>
-          </inertia>
-        </inertial>
-        <collision name="collision">
-          <geometry>
-            <box>
-              <size>0.1 0.1 0.1</size>
-            </box>
-          </geometry>
-        </collision>
-        <visual name="visual">
-          <geometry>
-            <box>
-              <size>0.1 0.1 0.1</size>
-            </box>
-          </geometry>
-          <material>
-            <ambient>1 0 0 1</ambient>
-            <diffuse>1 0 0 1</diffuse>
-            <specular>1 0 0 1</specular>
-          </material>
-        </visual>
-        <sensor name="depth_camera1" type="depth_camera">
-          <update_rate>10</update_rate>
-          <topic>depth_camera</topic>
-          <camera>
-            <horizontal_fov>1.05</horizontal_fov>
-            <image>
-              <width>256</width>
-              <height>256</height>
-              <format>R_FLOAT32</format>
-            </image>
-            <clip>
-              <near>0.1</near>
-              <far>10.0</far>
-            </clip>
-          </camera>
-          </sensor>
-      </link>
-      <static>true</static>
-    </model> -->
-
     <model name="ground_plane">
       <static>true</static>
       <link name="link">
@@ -307,20 +208,18 @@
       <static>true</static>
       <link name='body'>
         <collision name='body_collision_collision'>
-          <pose>0 0 0 0 0 0</pose>
           <geometry>
             <mesh>
               <scale>1 1 1</scale>
-              <uri>file:///home/tafarrel/gazebo_models/astrobee_handrail_8_5/meshes/handrail_8_5.dae</uri>
+              <uri>file:///astrobee_handrail_8_5/meshes/handrail_8_5.dae</uri>
             </mesh>
           </geometry>
         </collision>
         <visual name='visual'>
-          <pose>0 0 0 0 0 0</pose>
           <geometry>
             <mesh>
               <scale>1 1 1</scale>
-              <uri>file:///home/tafarrel/gazebo_models/astrobee_handrail_8_5/meshes/handrail_8_5.dae</uri>
+              <uri>file:///astrobee_handrail_8_5/meshes/handrail_8_5.dae</uri>
             </mesh>
           </geometry>
         </visual>
@@ -331,6 +230,39 @@
       <pose>0 1 1 0 0 0</pose>
       <self_collide>false</self_collide>
     </model>
+
+    <model name='points_plane'>
+      <static>true</static>
+      <link name='points_plane_link'>
+        <collision name='points_plane_collision'>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///points/meshes/points.dae</uri>
+            </mesh>
+          </geometry>
+        </collision>
+        <visual name='points_plane_visual'>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///points/meshes/points.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <static>true</static>
+      <pose>2 0 0 0 0 1.57</pose>
+      <self_collide>false</self_collide>
+    </model>
+    
+    <!-- <include>
+      <uri>file:///home/tafarrel/gazebo_models/points/meshes/points.dae</uri>
+      <pose>2 0 0 0 0 1.57</pose>
+    </include> -->
+
 
   </world>
 </sdf>

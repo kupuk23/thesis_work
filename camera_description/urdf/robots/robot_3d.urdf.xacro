@@ -13,19 +13,19 @@
   <xacro:include filename="$(find camera_description)/urdf/control/camera_control.gazebo"/>
 
   <!-- Define box dimensions as variables -->
-  <xacro:property name="box_length" value="0.15" />
-  <xacro:property name="box_width" value="0.1" />
+  <xacro:property name="box_length" value="0.1" />
+  <xacro:property name="box_width" value="0.15" />
   <xacro:property name="box_height" value="0.05" />
 
   <!-- Define camera placement properties -->
   <xacro:property name="camera_z_offset" value="0" />
-  <xacro:property name="camera_x_offset" value="0" />
-  <xacro:property name="camera_y_offset" value="${box_width/2+0.02}" />
+  <xacro:property name="camera_x_offset" value="${box_length/2+0.02}" />
+  <xacro:property name="camera_y_offset" value="0" />
   <!-- add 2cm offset form camera origin -->
   <xacro:property name="camera_rx_offset" value="0" />
   <xacro:property name="camera_ry_offset" value="0" />
-  <xacro:property name="camera_rz_offset" value="${3.14/2}" />
-
+  <xacro:property name="camera_rz_offset" value="${0}" />
+  
   <xacro:rgbd_camera prefix="$(arg prefix)" mass = "0.01" camera_name="camera" xyz_offset="${camera_x_offset} ${camera_y_offset} ${camera_z_offset}" rpy_offset="${camera_rx_offset} ${camera_ry_offset} ${camera_rz_offset}" material_color="0.5 0.2 0.2 1" />
 
 
