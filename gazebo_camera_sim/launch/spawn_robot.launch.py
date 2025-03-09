@@ -85,7 +85,7 @@ def generate_launch_description():
             "-y",
             "0.0",
             "-z",
-            "0.5",
+            "1.0",
             "-Y",
             "0.0",  # Initial spawn position
             "-P",

@@ -24,29 +24,36 @@ class IBVSController(Node):
         # Create publisher for velocity commands
         self.vel_publisher = self.create_publisher(
             Twist,
-            '/cmd_vel',
+            '/cmd_vell',
             10
         )
         
         # Initialize the OpenCV bridge
         self.bridge = CvBridge()
         
+        # Initialize SIFT detector
+        self.sift = cv2.SIFT_create()
+        
         # Parameters
         self.declare_parameter('visualize', True)  # Whether to show visualization
-        self.declare_parameter('lambda_gain', 0.2)  # Control gain
-        self.declare_parameter('target_distance', 1.0)  # Desired z distance to target
+        self.declare_parameter('lambda_gain', 0.5)  # Control gain
+        self.declare_parameter('target_distance', 0.5)  # Desired z distance to target
         self.declare_parameter('convergence_threshold', 5.0)  # Threshold for error convergence (pixels)
+        self.declare_parameter('min_circle_radius', 10)  # Minimum radius for circle detection
+        self.declare_parameter('max_circle_radius', 50)  # Maximum radius for circle detection
         
         # Get parameters
         self.visualize = self.get_parameter('visualize').value
         self.lambda_gain = self.get_parameter('lambda_gain').value
         self.target_distance = self.get_parameter('target_distance').value
         self.convergence_threshold = self.get_parameter('convergence_threshold').value
+        self.min_circle_radius = self.get_parameter('min_circle_radius').value
+        self.max_circle_radius = self.get_parameter('max_circle_radius').value
         
         # Camera intrinsic parameters (should be updated with your camera values)
         self.K = np.array([
-            [221.76500407999384, 0.0, 160.0],  # fx, 0, cx
-            [0.0, 221.76500407999382, 120.0],  # 0, fy, cy
+            [500.0, 0.0, 320.0],  # fx, 0, cx
+            [0.0, 500.0, 240.0],  # 0, fy, cy
             [0.0, 0.0, 1.0]       # 0, 0, 1
         ])
         
@@ -57,8 +64,8 @@ class IBVSController(Node):
         self.p_desired = np.array([
             [cx-size, cy-size],  # Top left
             [cx+size, cy-size],  # Top right
-            [cx+size, cy+size],  # Bottom right
-            [cx-size, cy+size]   # Bottom left
+            [cx-size, cy+size],  # Bottom left
+            [cx+size, cy+size]   # Bottom right
         ], dtype=np.float32)
         
         # Initialize current points
@@ -69,15 +76,16 @@ class IBVSController(Node):
             self.window_name = 'IBVS Controller'
             cv2.namedWindow(self.window_name)
         
-        self.get_logger().info('IBVS Controller initialized')
+        self.get_logger().info('IBVS Controller initialized with SIFT feature detection')
 
     def image_callback(self, msg):
         try:
             # Convert ROS Image message to OpenCV image
             cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+            cv2.imwrite('/home/tafarrel/image2.jpg', cv_image)
             
-            # Detect the 4 black points
-            points = self.detect_points(cv_image)
+            # Detect the 4 circle features using SIFT
+            points = self.detect_circle_features_sift(cv_image)
             
             # If we have detected the 4 points, update current points and perform IBVS
             if points is not None and len(points) == 4:
@@ -93,57 +101,121 @@ class IBVSController(Node):
                 # No points detected
                 self.stop_robot()
                 if self.visualize:
-                    cv2.putText(cv_image, "Points not detected", (20, 30), 
+                    cv2.putText(cv_image, "4 circles not detected", (20, 30), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
                     cv2.imshow(self.window_name, cv_image)
                     cv2.waitKey(1)
-                self.get_logger().warn('Could not detect 4 points')
+                self.get_logger().warn('Could not detect 4 circle features')
                 
         except Exception as e:
             self.get_logger().error(f'Error in image processing: {str(e)}')
             self.stop_robot()
 
-    def detect_points(self, img):
-        """Detect 4 black points in the image."""
+    def detect_circle_features_sift(self, img):
+        """
+        Detect 4 circle features using SIFT and return their centroids ordered from
+        top-left to bottom-right.
+        
+        Args:
+            img: Input image (BGR)
+            
+        Returns:
+            numpy.ndarray: Array of 4 points ordered [top-left, top-right, bottom-left, bottom-right]
+                           or None if 4 circles are not detected
+        """
         # Convert to grayscale
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         
-        # Threshold to isolate dark points
-        _, thresh = cv2.threshold(gray, 50, 255, cv2.THRESH_BINARY_INV)
+        # Apply Gaussian blur to reduce noise
+        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+        
+        # Use adaptive thresholding to handle varying lighting conditions
+        thresh = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                       cv2.THRESH_BINARY_INV, 11, 2)
         
         # Find contours
         contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
-        # Filter contours by area to find the points
-        min_area = 20  # Minimum area for a valid point
-        max_area = 500  # Maximum area for a valid point
+        # Filter contours to find circles
+        circle_centers = []
         
-        centers = []
         for contour in contours:
+            # Calculate contour area and perimeter
             area = cv2.contourArea(contour)
-            if min_area < area < max_area:
+            perimeter = cv2.arcLength(contour, True)
+            
+            # Skip very small contours
+            if area < np.pi * (self.min_circle_radius ** 2):
+                continue
+                
+            # Skip very large contours
+            if area > np.pi * (self.max_circle_radius ** 2):
+                continue
+            
+            # Calculate circularity (4π × area / perimeter²)
+            # A perfect circle has circularity = 1
+            if perimeter == 0:
+                continue
+            circularity = 4 * np.pi * area / (perimeter ** 2)
+            
+            # Filter for circular shapes
+            if circularity > 0.5:  # Threshold for "circle-like" shapes
+                # Calculate moments to find centroid
                 M = cv2.moments(contour)
                 if M["m00"] != 0:
                     cx = int(M["m10"] / M["m00"])
                     cy = int(M["m01"] / M["m00"])
-                    centers.append((cx, cy))
+                    
+                    # Apply SIFT to get more precise center if needed
+                    roi = gray[max(0, cy-20):min(gray.shape[0], cy+20), 
+                               max(0, cx-20):min(gray.shape[1], cx+20)]
+                    
+                    if roi.size > 0:  # Make sure ROI is not empty
+                        keypoints = self.sift.detect(roi, None)
+                        
+                        # If SIFT finds keypoints in the ROI, refine the center
+                        if keypoints:
+                            strongest_kp = max(keypoints, key=lambda kp: kp.response)
+                            refined_x = strongest_kp.pt[0] + max(0, cx-20)
+                            refined_y = strongest_kp.pt[1] + max(0, cy-20)
+                            circle_centers.append((refined_x, refined_y))
+                        else:
+                            # If SIFT fails, use the centroid from moments
+                            circle_centers.append((cx, cy))
+                    else:
+                        circle_centers.append((cx, cy))
         
-        # We need exactly 4 points
-        if len(centers) != 4:
+        # We need exactly 4 circles
+        if len(circle_centers) != 4:
+            self.get_logger().warn(f'Found {len(circle_centers)} circles instead of 4')
+            
+            # If visualization is enabled, draw the circles that were found
+            if self.visualize:
+                viz_img = img.copy()
+                for center in circle_centers:
+                    cv2.circle(viz_img, (int(center[0]), int(center[1])), 5, (0, 255, 0), -1)
+                cv2.putText(viz_img, f"Found {len(circle_centers)} circles", (20, 30), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                cv2.imshow("Circle Detection", viz_img)
+                cv2.waitKey(1)
+            
             return None
         
-        # Sort points to match the desired order (top-left, top-right, bottom-right, bottom-left)
-        # First sort by y-coordinate (top to bottom)
+        # Convert to numpy array
+        centers = np.array(circle_centers, dtype=np.float32)
+        
+        # Order the points: top-left, top-right, bottom-left, bottom-right
+        # First, sort by y-coordinate to separate top and bottom pairs
         centers = sorted(centers, key=lambda p: p[1])
         
-        # Get top two and bottom two points
-        top_points = sorted(centers[:2], key=lambda p: p[0])  # Left to right
-        bottom_points = sorted(centers[2:], key=lambda p: p[0])  # Left to right
+        # Get top and bottom pairs
+        top_pair = sorted(centers[:2], key=lambda p: p[0])      # Sort by x for top pair
+        bottom_pair = sorted(centers[2:], key=lambda p: p[0])   # Sort by x for bottom pair
         
-        # Combine them in the correct order
-        ordered_points = np.array(top_points + bottom_points, dtype=np.float32)
+        # Combine into the final order: [top-left, top-right, bottom-left, bottom-right]
+        ordered_centers = np.array([top_pair[0], top_pair[1], bottom_pair[0], bottom_pair[1]], dtype=np.float32)
         
-        return ordered_points
+        return ordered_centers
 
     def calculate_interaction_matrix(self, points, Z):
         """Calculate the interaction matrix (image Jacobian) for the points."""
@@ -216,10 +288,13 @@ class IBVSController(Node):
         max_lin_vel = 0.2  # m/s
         max_ang_vel = 0.3  # rad/s
         
-        # limit the velocities
-        for attr in ['x', 'y', 'z']:
-            setattr(twist.linear, attr, self.clamp(getattr(twist.linear, attr), -max_lin_vel, max_lin_vel))
-            setattr(twist.angular, attr, self.clamp(getattr(twist.angular, attr), -max_ang_vel, max_ang_vel))
+        # Limit each velocity component
+        twist.linear.x = self.clamp(twist.linear.x, -max_lin_vel, max_lin_vel)
+        twist.linear.y = self.clamp(twist.linear.y, -max_lin_vel, max_lin_vel)
+        twist.linear.z = self.clamp(twist.linear.z, -max_lin_vel, max_lin_vel)
+        twist.angular.x = self.clamp(twist.angular.x, -max_ang_vel, max_ang_vel)
+        twist.angular.y = self.clamp(twist.angular.y, -max_ang_vel, max_ang_vel)
+        twist.angular.z = self.clamp(twist.angular.z, -max_ang_vel, max_ang_vel)
         
         # Publish the velocity
         self.vel_publisher.publish(twist)
@@ -238,31 +313,34 @@ class IBVSController(Node):
 
     def display_visualization(self, image):
         """Display visualization of the IBVS controller."""
+        # Create a copy for visualization
+        viz_img = image.copy()
+        
         # Draw the current points
         for i, point in enumerate(self.p_current):
-            cv2.circle(image, (int(point[0]), int(point[1])), 5, (0, 255, 0), -1)
-            cv2.putText(image, f"{i+1}", (int(point[0])+10, int(point[1])+10), 
+            cv2.circle(viz_img, (int(point[0]), int(point[1])), 5, (0, 255, 0), -1)
+            cv2.putText(viz_img, f"{i+1}", (int(point[0])+10, int(point[1])+10), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
         
         # Draw the desired points
         for i, point in enumerate(self.p_desired):
-            cv2.circle(image, (int(point[0]), int(point[1])), 5, (0, 0, 255), -1)
-            cv2.putText(image, f"{i+1}'", (int(point[0])+10, int(point[1])+10), 
+            cv2.circle(viz_img, (int(point[0]), int(point[1])), 5, (0, 0, 255), -1)
+            cv2.putText(viz_img, f"{i+1}'", (int(point[0])+10, int(point[1])+10), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
         
         # Draw lines between current and desired points
         for i in range(4):
             p1 = (int(self.p_current[i][0]), int(self.p_current[i][1]))
             p2 = (int(self.p_desired[i][0]), int(self.p_desired[i][1]))
-            cv2.line(image, p1, p2, (255, 0, 0), 2)
+            cv2.line(viz_img, p1, p2, (255, 0, 0), 2)
         
         # Show error information
         error = np.linalg.norm(self.p_current.flatten() - self.p_desired.flatten())
-        cv2.putText(image, f"Error: {error:.2f} px", (20, 30), 
+        cv2.putText(viz_img, f"Error: {error:.2f} px", (20, 30), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2)
         
         # Display the image
-        cv2.imshow(self.window_name, image)
+        cv2.imshow(self.window_name, viz_img)
         cv2.waitKey(1)
 
     def destroy_node(self):
