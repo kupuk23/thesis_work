@@ -2,17 +2,16 @@
 
 <sdf version="1.6">
   <world name="empty">
-
+    <atmosphere type='adiabatic'/>
     <physics name="1ms" type="ignored">
       <max_step_size>0.001</max_step_size>
       <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>1000</real_time_update_rate>
 
     </physics>
     <plugin filename='gz-sim-user-commands-system' name='gz::sim::systems::UserCommands' />
     <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics">
       <gravity>0 0 0</gravity>
-    </plugin>
-    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands">
     </plugin>
     <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster">
     </plugin>
@@ -134,7 +133,7 @@
         <gz-gui>
           <property key="state" type="string">docked</property>
         </gz-gui>
-        <topic>hello</topic>
+        <topic>camera/image</topic>
       </plugin>
 
       <!-- Inspector -->
@@ -163,7 +162,7 @@
         <linear>0.01</linear>
         <quadratic>0.001</quadratic>
       </attenuation>
-      <direction>0.5 0.1 -0.9</direction>
+      <direction>-0.5 0.1 -0.9</direction>
     </light>
 
     <model name="ground_plane">
@@ -254,15 +253,89 @@
         <enable_wind>false</enable_wind>
       </link>
       <static>true</static>
-      <pose>2 0 0 0 0 1.57</pose>
+      <pose>0.5 0 0.5 0 0 1.57</pose>
       <self_collide>false</self_collide>
     </model>
-    
+
     <!-- <include>
       <uri>file:///home/tafarrel/gazebo_models/points/meshes/points.dae</uri>
       <pose>2 0 0 0 0 1.57</pose>
     </include> -->
 
+    <model name='iss'>
+      <static>true</static>
+      <pose>4 0 -2 0 0 0</pose>
+      <link name='body'>
+        <inertial>
+          <mass>0.10000000000000001</mass>
+          <inertia>
+            <ixx>1</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>1</iyy>
+            <iyz>0</iyz>
+            <izz>1</izz>
+          </inertia>
+          <pose>0 0 0 0 0 0</pose>
+        </inertial>
+        <collision name='ISS_Surface'>
+          <geometry>
+            <mesh>
+              <uri>https://fuel.gazebosim.org/1.0/openrobotics/models/international space station/3/files/meshes/US_Lab_ISS4.dae</uri>
+            </mesh>
+          </geometry>
+        </collision>
+        <visual name='ISS_Visual'>
+          <geometry>
+            <mesh>
+              <uri>https://fuel.gazebosim.org/1.0/openrobotics/models/international space station/3/files/meshes//US_Lab_ISS4.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <enable_wind>false</enable_wind>
+      </link>
+      <self_collide>false</self_collide>
+    </model>
+
+    <light name='pointlight' type='point'>
+      <pose>-1.5147299946996946 0.2190574017921989 2 0 0 0</pose>
+      <cast_shadows>false</cast_shadows>
+      <intensity>1</intensity>
+      <direction>0 0 -1</direction>
+      <diffuse>0.5 0.5 0.5 1</diffuse>
+      <specular>0.5 0.5 0.5 1</specular>
+      <attenuation>
+        <range>4</range>
+        <linear>0.5</linear>
+        <constant>0.20000000000000001</constant>
+        <quadratic>0.01</quadratic>
+      </attenuation>
+      <spot>
+        <inner_angle>0</inner_angle>
+        <outer_angle>0</outer_angle>
+        <falloff>0</falloff>
+      </spot>
+    </light>
+    <light name='pointlight_0' type='point'>
+      <pose>-4.403322429956825 0.27785183969640648 2 0 0 0</pose>
+      <cast_shadows>false</cast_shadows>
+      <intensity>1</intensity>
+      <direction>0 0 -1</direction>
+      <diffuse>0.5 0.5 0.5 1</diffuse>
+      <specular>0.5 0.5 0.5 1</specular>
+      <attenuation>
+        <range>4</range>
+        <linear>0.5</linear>
+        <constant>0.20000000000000001</constant>
+        <quadratic>0.01</quadratic>
+      </attenuation>
+      <spot>
+        <inner_angle>0</inner_angle>
+        <outer_angle>0</outer_angle>
+        <falloff>0</falloff>
+      </spot>
+    </light>
 
   </world>
 </sdf>

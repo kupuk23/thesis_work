@@ -81,11 +81,11 @@ def generate_launch_description():
             "-topic",
             "robot_description",
             "-x",
-            "0.0",
+            "-2.0",
             "-y",
             "0.0",
             "-z",
-            "1.0",
+            "1.3",
             "-Y",
             "0.0",  # Initial spawn position
             "-P",
@@ -122,7 +122,7 @@ def generate_launch_description():
             "/tf@tf2_msgs/msg/TFMessage@gz.msgs.Pose_V",
             "/camera/image@sensor_msgs/msg/Image[gz.msgs.Image",
             "/camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo",
-            "/camera/depth@sensor_msgs/msg/Image[gz.msgs.Image",
+            "/camera/depth_image@sensor_msgs/msg/Image[gz.msgs.Image",
             "/camera/points@sensor_msgs/msg/PointCloud2@gz.msgs.PointCloudPacked",
         ],
         output="screen",
@@ -158,6 +158,17 @@ def generate_launch_description():
             {"use_sim_time": LaunchConfiguration("use_sim_time")},
         ],
     )
+
+    # relay_camera_info_depth_node = Node(
+    #     package="topic_tools",
+    #     executable="relay",
+    #     name="relay_camera_info_depth",
+    #     output="screen",
+    #     arguments=["camera/camera_info", "camera/image/camera_info"], 
+    #     parameters=[
+    #         {"use_sim_time": LaunchConfiguration("use_sim_time")},
+    #     ],
+    # )
 
     relay_cmd_vel = Node(
         package="topic_tools",

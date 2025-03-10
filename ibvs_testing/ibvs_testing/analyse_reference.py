@@ -2,6 +2,124 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
+def detect_blobs(image_path):
+     # Read the image
+    image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+    
+
+    
+    # Set up the blob detector parameters
+    params = cv2.SimpleBlobDetector_Params()
+    
+    # Change thresholds
+    params.minThreshold = 0.01
+    params.maxThreshold = 200
+    
+    # Filter by Area
+    params.filterByArea = True
+    params.minArea = 1  # Adjust based on expected blob size
+    
+    # Filter by Circularity
+    params.filterByCircularity = True
+    params.minCircularity = 0.1  # Relaxed from perfect circle (1.0)
+    
+    # Filter by Convexity
+    params.filterByConvexity = True
+    params.minConvexity = 0.01
+    
+    # Filter by Inertia (measures how elongated a shape is)
+    params.filterByInertia = True
+    params.minInertiaRatio = 0.01  # Relaxed from perfect circle (1.0)
+    
+    # Create a detector with the parameters
+    detector = cv2.SimpleBlobDetector_create(params)
+    
+    # Detect blobs
+    keypoints = detector.detect(image)
+
+     # Get image dimensions
+    height, width = image.shape[:2]
+    image_center = (width // 2, height // 2)
+    print(f"Image dimensions: {width}x{height}")
+    print(f"Image center: {image_center}")
+
+    if keypoints:
+        print(f"Number of blobs detected: {len(keypoints)}")
+        
+        # Create a copy of the image to draw on
+        output = image.copy()
+        
+        # Alternative approach for challenging cases: use binary thresholding
+        # This section helps when SimpleBlobDetector struggles
+        _, binary = cv2.threshold(image, 127, 255, cv2.THRESH_BINARY_INV)
+        contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        blob_centers = []
+        
+        # Process detected contours
+        for i, contour in enumerate(contours):
+            # Calculate centroid using moments
+            M = cv2.moments(contour)
+            if M["m00"] != 0:
+                cX = int(M["m10"] / M["m00"])
+                cY = int(M["m01"] / M["m00"])
+                
+                # Calculate area and approximate radius
+                area = cv2.contourArea(contour)
+                radius = int(np.sqrt(area / np.pi))
+                
+                # Only process if the blob is of reasonable size
+                if area > 1000:  # Adjust threshold as needed
+                    blob_centers.append((cX, cY, radius))
+                    
+                    # Draw the contour and center
+                    cv2.drawContours(output, [contour], -1, (0, 255, 0), 2)
+                    cv2.circle(output, (cX, cY), 5, (0, 0, 255), -1)
+                    
+                    # Determine quadrant
+                    quadrant = ""
+                    if cX <= image_center[0] and cY <= image_center[1]:
+                        quadrant = "Top-Left"
+                    elif cX > image_center[0] and cY <= image_center[1]:
+                        quadrant = "Top-Right"
+                    elif cX <= image_center[0] and cY > image_center[1]:
+                        quadrant = "Bottom-Left"
+                    else:
+                        quadrant = "Bottom-Right"
+                    
+                    # Calculate distance from center
+                    dist_from_center = np.sqrt((cX - image_center[0])**2 + (cY - image_center[1])**2)
+                    
+                    # Print information about the blob
+                    print(f"Blob {i+1} ({quadrant}):")
+                    print(f"  Centroid: ({cX}, {cY})")
+                    print(f"  Approximate radius: {radius} pixels")
+                    print(f"  Area: {area} pixels²")
+                    print(f"  Distance from image center: {dist_from_center:.2f} pixels")
+                    print(f"  Relative position: {cX - image_center[0]}px horizontally, {cY - image_center[1]}px vertically")
+                    print()
+
+        output_with_keypoints = cv2.drawKeypoints(image, keypoints, np.array([]), 
+                                                 (0, 0, 255), 
+                                                 cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+        
+        # Display both outputs
+        plt.figure(figsize=(15, 8))
+        
+        plt.subplot(1, 2, 1)
+        plt.imshow(cv2.cvtColor(output, cv2.COLOR_BGR2RGB))
+        plt.title('Detected Blobs (Contour Method)')
+        plt.axis('off')
+        
+        plt.subplot(1, 2, 2)
+        plt.imshow(cv2.cvtColor(output_with_keypoints, cv2.COLOR_BGR2RGB))
+        plt.title('Detected Blobs (SimpleBlobDetector)')
+        plt.axis('off')
+        
+        plt.show()
+    else:
+        print("No blobs detected!")
+
 def detect_circles(image_path):
     # Read the image
     image = cv2.imread(image_path)
@@ -87,4 +205,5 @@ def detect_circles(image_path):
         print("No circles detected!")
 
 # Example usage (you would need to provide the correct path to your image)
-detect_circles('/home/tafarrel/ros2_ws/src/thesis_work/ibvs_testing/ibvs_testing/reference.jpg')
+# detect_circles('/home/tafarrel/ros2_ws/src/thesis_work/ibvs_testing/ibvs_testing/reference.jpg')
+detect_blobs('/home/tafarrel/ros2_ws/src/thesis_work/ibvs_testing/ibvs_testing/BlobTest.jpg')
