@@ -82,7 +82,7 @@ class IBVSController(Node):
         try:
             # Convert ROS Image message to OpenCV image
             cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
-            cv2.imwrite('/home/tafarrel/image2.jpg', cv_image)
+            # cv2.imwrite('/home/tafarrel/image2.jpg', cv_image)
             
             # Detect the 4 circle features using SIFT
             points = self.detect_circle_features_sift(cv_image)
@@ -130,12 +130,22 @@ class IBVSController(Node):
         blurred = cv2.GaussianBlur(gray, (5, 5), 0)
         
         # Use adaptive thresholding to handle varying lighting conditions
-        thresh = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                       cv2.THRESH_BINARY_INV, 11, 2)
+        thresh = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 101, 3)
+
+        # apply morphology open then close
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5,5))
+        blob = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9,9))
+        blob = cv2.morphologyEx(blob, cv2.MORPH_CLOSE, kernel)
         
+        # invert blob
+        blob = (255 - blob)
+
         # Find contours
-        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours, _ = cv2.findContours(blob, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
+        
+
         # Filter contours to find circles
         circle_centers = []
         
@@ -189,9 +199,12 @@ class IBVSController(Node):
         if len(circle_centers) != 4:
             self.get_logger().warn(f'Found {len(circle_centers)} circles instead of 4')
             
-            # If visualization is enabled, draw the circles that were found
+            # If visualization is enabled, draw the circles that were found in green
             if self.visualize:
                 viz_img = img.copy()
+
+                # visualize the blobbed image with circles instead of actual image
+                viz_img = cv2.cvtColor(blob, cv2.COLOR_GRAY2BGR)
                 for center in circle_centers:
                     cv2.circle(viz_img, (int(center[0]), int(center[1])), 5, (0, 255, 0), -1)
                 cv2.putText(viz_img, f"Found {len(circle_centers)} circles", (20, 30), 
@@ -299,8 +312,8 @@ class IBVSController(Node):
         # Publish the velocity
         self.vel_publisher.publish(twist)
         
-        self.get_logger().info(f'Published velocity: lin=[{twist.linear.x:.2f}, {twist.linear.y:.2f}, {twist.linear.z:.2f}], ' +
-                              f'ang=[{twist.angular.x:.2f}, {twist.angular.y:.2f}, {twist.angular.z:.2f}], error={error_norm:.2f}')
+        # self.get_logger().info(f'Published velocity: lin=[{twist.linear.x:.2f}, {twist.linear.y:.2f}, {twist.linear.z:.2f}], ' +
+        #                       f'ang=[{twist.angular.x:.2f}, {twist.angular.y:.2f}, {twist.angular.z:.2f}], error={error_norm:.2f}')
 
     def stop_robot(self):
         """Stop the robot by publishing zero velocity."""
@@ -323,16 +336,16 @@ class IBVSController(Node):
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
         
         # Draw the desired points
-        for i, point in enumerate(self.p_desired):
-            cv2.circle(viz_img, (int(point[0]), int(point[1])), 5, (0, 0, 255), -1)
-            cv2.putText(viz_img, f"{i+1}'", (int(point[0])+10, int(point[1])+10), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+        # for i, point in enumerate(self.p_desired):
+        #     cv2.circle(viz_img, (int(point[0]), int(point[1])), 5, (0, 0, 255), -1)
+        #     cv2.putText(viz_img, f"{i+1}'", (int(point[0])+10, int(point[1])+10), 
+        #                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
         
         # Draw lines between current and desired points
-        for i in range(4):
-            p1 = (int(self.p_current[i][0]), int(self.p_current[i][1]))
-            p2 = (int(self.p_desired[i][0]), int(self.p_desired[i][1]))
-            cv2.line(viz_img, p1, p2, (255, 0, 0), 2)
+        # for i in range(4):
+        #     p1 = (int(self.p_current[i][0]), int(self.p_current[i][1]))
+        #     p2 = (int(self.p_desired[i][0]), int(self.p_desired[i][1]))
+        #     cv2.line(viz_img, p1, p2, (255, 0, 0), 2)
         
         # Show error information
         error = np.linalg.norm(self.p_current.flatten() - self.p_desired.flatten())
