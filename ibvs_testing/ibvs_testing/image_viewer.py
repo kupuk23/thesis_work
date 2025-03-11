@@ -111,6 +111,7 @@ class IBVSController(Node):
             self.get_logger().error(f'Error in image processing: {str(e)}')
             self.stop_robot()
 
+    # TODO: Make this into a seperate function for debugging with static image
     def detect_circle_features_sift(self, img):
         """
         Detect 4 circle features using SIFT and return their centroids ordered from
