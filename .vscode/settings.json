@@ -1,3 +1,19 @@
 {
-    "cmake.ignoreCMakeListsMissing": true
+    "cmake.ignoreCMakeListsMissing": true,
+    "python.autoComplete.extraPaths": [
+        "/home/tafarrel/discower_ws/install/px4_msgs/lib/python3.12/site-packages",
+        "/home/tafarrel/ros2_ws/build/velocity_command",
+        "/home/tafarrel/ros2_ws/install/velocity_command/lib/python3.12/site-packages",
+        "/home/tafarrel/ros2_ws/build/ibvs_testing",
+        "/home/tafarrel/ros2_ws/install/ibvs_testing/lib/python3.12/site-packages",
+        "/opt/ros/jazzy/lib/python3.12/site-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/tafarrel/discower_ws/install/px4_msgs/lib/python3.12/site-packages",
+        "/home/tafarrel/ros2_ws/build/velocity_command",
+        "/home/tafarrel/ros2_ws/install/velocity_command/lib/python3.12/site-packages",
+        "/home/tafarrel/ros2_ws/build/ibvs_testing",
+        "/home/tafarrel/ros2_ws/install/ibvs_testing/lib/python3.12/site-packages",
+        "/opt/ros/jazzy/lib/python3.12/site-packages"
+    ]
 }

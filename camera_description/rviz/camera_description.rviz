@@ -3,7 +3,8 @@ Panels:
     Help Height: 70
     Name: Displays
     Property Tree Widget:
-      Expanded: ~
+      Expanded:
+        - /Global Options1
       Splitter Ratio: 0.5
     Tree Height: 289
   - Class: rviz_common/Views
@@ -55,39 +56,44 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
-        cam_1_color_frame:
+        camera_color_frame:
           Alpha: 1
           Show Axes: false
           Show Trail: false
-        cam_1_color_optical_frame:
+        camera_color_optical_frame:
           Alpha: 1
           Show Axes: false
           Show Trail: false
-        cam_1_depth_frame:
+        camera_depth_frame:
           Alpha: 1
           Show Axes: false
           Show Trail: false
-        cam_1_depth_optical_frame:
+        camera_depth_optical_frame:
           Alpha: 1
           Show Axes: false
           Show Trail: false
-        cam_1_infra1_frame:
+        camera_infra1_frame:
           Alpha: 1
           Show Axes: false
           Show Trail: false
-        cam_1_infra1_optical_frame:
+        camera_infra1_optical_frame:
           Alpha: 1
           Show Axes: false
           Show Trail: false
-        cam_1_infra2_frame:
+        camera_infra2_frame:
           Alpha: 1
           Show Axes: false
           Show Trail: false
-        cam_1_infra2_optical_frame:
+        camera_infra2_optical_frame:
           Alpha: 1
           Show Axes: false
           Show Trail: false
-        cam_1_link:
+        camera_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        dummy_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
@@ -119,7 +125,7 @@ Visualization Manager:
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
-    Fixed Frame: base_link
+    Fixed Frame: odom
     Frame Rate: 30
   Name: root
   Tools:
@@ -161,5 +167,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 1200
-  X: 2036
-  Y: 82
+  X: 293
+  Y: 120

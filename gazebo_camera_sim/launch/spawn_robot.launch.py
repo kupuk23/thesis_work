@@ -89,7 +89,7 @@ def generate_launch_description():
             "-Y",
             "0.0",  # Initial spawn position
             "-P",
-            "0"
+            "0",
         ],
         output="screen",
         parameters=[
@@ -120,9 +120,9 @@ def generate_launch_description():
             "/cmd_vel@geometry_msgs/msg/Twist@gz.msgs.Twist",  # @ means the message type is bi directional
             "/odom@nav_msgs/msg/Odometry@gz.msgs.Odometry",
             "/tf@tf2_msgs/msg/TFMessage@gz.msgs.Pose_V",
-            "/camera/image@sensor_msgs/msg/Image[gz.msgs.Image",
-            "/camera/camera_info@sensor_msgs/msg/CameraInfo[gz.msgs.CameraInfo",
-            "/camera/depth_image@sensor_msgs/msg/Image[gz.msgs.Image",
+            # "/camera/image@sensor_msgs/msg/Image@gz.msgs.Image",
+            "/camera/camera_info@sensor_msgs/msg/CameraInfo@gz.msgs.CameraInfo",
+            "/camera/depth_image@sensor_msgs/msg/Image@gz.msgs.Image",
             "/camera/points@sensor_msgs/msg/PointCloud2@gz.msgs.PointCloudPacked",
         ],
         output="screen",
@@ -153,21 +153,28 @@ def generate_launch_description():
         executable="relay",
         name="relay_camera_info",
         output="screen",
-        arguments=["camera/camera_info", "camera/image/camera_info"], 
+        arguments=["camera/camera_info", "camera/image/camera_info"],
         parameters=[
             {"use_sim_time": LaunchConfiguration("use_sim_time")},
         ],
     )
 
-    # relay_camera_info_depth_node = Node(
-    #     package="topic_tools",
-    #     executable="relay",
-    #     name="relay_camera_info_depth",
-    #     output="screen",
-    #     arguments=["camera/camera_info", "camera/image/camera_info"], 
-    #     parameters=[
-    #         {"use_sim_time": LaunchConfiguration("use_sim_time")},
+    # depth_image_proc_node = Node(
+    #     package="depth_image_proc",
+    #     executable="point_cloud_xyz_node",
+    #     name="depth_to_pointcloud",
+    #     remappings=[
+    #         # Input topics - adjust based on your camera's topic names
+    #         ("/image_rect", "/camera/depth_image"),
+    #         ("/camera_info", "/camera/camera_info"),
+    #         # Output topic
+    #         ("/points", "/camera/depth_points"),
     #     ],
+    #     # parameters=[
+    #     #     {
+    #     #         "use_exact_sync": True,
+    #     #     }
+    #     # ],
     # )
 
     relay_cmd_vel = Node(
@@ -175,7 +182,7 @@ def generate_launch_description():
         executable="relay",
         name="relay_cmd_vel",
         output="screen",
-        arguments=["/cmd_vel", "model/my_robot/cmd_vel"], 
+        arguments=["/cmd_vel", "model/my_robot/cmd_vel"],
         parameters=[
             {"use_sim_time": LaunchConfiguration("use_sim_time")},
         ],
@@ -193,7 +200,8 @@ def generate_launch_description():
     launchDescriptionObject.add_action(robot_state_publisher_node)
     launchDescriptionObject.add_action(gz_bridge_node)
     launchDescriptionObject.add_action(gz_image_bridge_node)
-    launchDescriptionObject.add_action(relay_camera_info_node)
+    # launchDescriptionObject.add_action(relay_camera_info_node)
+    # launchDescriptionObject.add_action(depth_image_proc_node)
     # launchDescriptionObject.add_action(relay_cmd_vel)
 
     return launchDescriptionObject
