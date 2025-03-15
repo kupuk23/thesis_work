@@ -2,6 +2,7 @@
 
 import rclpy
 from rclpy.node import Node
+from std_srvs.srv import SetBool
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import Twist
 from cv_bridge import CvBridge
@@ -9,6 +10,8 @@ import cv2
 import numpy as np
 from scipy.linalg import pinv
 from ibvs_testing.detect_points import detect_circle_features
+from rclpy.executors import MultiThreadedExecutor
+from rclpy.callback_groups import ReentrantCallbackGroup
 
 
 class IBVSController(Node):
@@ -28,29 +31,38 @@ class IBVSController(Node):
         self.depth_image = None
 
         # Create publisher for velocity commands
-        self.vel_publisher = self.create_publisher(Twist, "/cmd_vell", 10)
+        self.vel_publisher = self.create_publisher(Twist, "/cmd_vel", 10)
 
         # Initialize the OpenCV bridge
         self.bridge = CvBridge()
 
+        # Create a callback group for the service client
+        self.callback_group = ReentrantCallbackGroup()
+
+        # Create service server - this is what you'll call from terminal or other nodes
+        self.srv = self.create_service(
+            SetBool, "enable_ibvs", self.enable_ibvs_callback
+        )
+
         # Parameters
         self.declare_parameter("visualize", True)  # Whether to show visualization
-        self.declare_parameter("lambda_gain", 0.5)  # Control gain
-        self.declare_parameter("target_distance", 0.5)  # Desired z distance to target
+        self.declare_parameter("lambda_gain", 0.005)  # Control gain
         self.declare_parameter(
-            "convergence_threshold", 5.0
+            "convergence_threshold", 10.0
         )  # Threshold for error convergence (pixels)
         self.declare_parameter(
-            "min_circle_radius", 10
+            "min_circle_radius", 5
         )  # Minimum radius for circle detection
         self.declare_parameter(
             "max_circle_radius", 50
         )  # Maximum radius for circle detection
 
+        # IBVS control enabled by default
+        self.ibvs_enabled = True
+
         # Get parameters
         self.visualize = self.get_parameter("visualize").value
         self.lambda_gain = self.get_parameter("lambda_gain").value
-        self.target_distance = self.get_parameter("target_distance").value
         self.convergence_threshold = self.get_parameter("convergence_threshold").value
         self.min_circle_radius = self.get_parameter("min_circle_radius").value
         self.max_circle_radius = self.get_parameter("max_circle_radius").value
@@ -65,15 +77,18 @@ class IBVSController(Node):
         )
 
         # Desired image points (target positions in the image)
-        # TODO: Update these points based on your desired target positions
-        size = 100
-        cx, cy = 320, 240  # Image center
+
+        # Point 1: [184.00, 52.00] Depth: 1.17
+        # Point 2: [405.00, 55.00] Depth: 1.19
+        # Point 3: [184.00, 274.00] Depth: 1.17
+        # Point 4: [405.00, 274.00] Depth: 1.19
+        self.target_distance = np.array([1.28, 1.28, 1.28, 1.28])
         self.p_desired = np.array(
             [
-                [cx - size, cy - size],  # Top left
-                [cx + size, cy - size],  # Top right
-                [cx - size, cy + size],  # Bottom left
-                [cx + size, cy + size],  # Bottom right
+                [218, 69],  # Top left
+                [420, 69],  # Top right
+                [218, 271],  # Bottom left
+                [420, 271],  # Bottom right
             ],
             dtype=np.float32,
         )
@@ -87,6 +102,22 @@ class IBVSController(Node):
             cv2.namedWindow(self.window_name)
 
         self.get_logger().info("IBVS Controller initialized")
+
+    def enable_ibvs_callback(self, request, response):
+        """Service callback to enable/disable IBVS control"""
+        self.ibvs_enabled = request.data
+
+        if self.ibvs_enabled:
+            self.get_logger().info("IBVS control enabled")
+            response.message = "IBVS control enabled"
+        else:
+            self.get_logger().info("IBVS control disabled")
+            # Send zero velocity to stop the robot
+            self.stop_robot()
+            response.message = "IBVS control disabled"
+
+        response.success = True
+        return response
 
     def depth_callback(self, msg=Image):
         """Callback for the depth image."""
@@ -105,13 +136,14 @@ class IBVSController(Node):
             # Detect the 4 circle features using SIFT
             points = detect_circle_features(
                 cv_image,
+                self.p_desired,
                 self.min_circle_radius,
                 self.max_circle_radius,
-                visualize=self.visualize,
+                visualize=True,
             )
 
             # If we have detected the 4 points, update current points and perform IBVS
-            if points is not None and len(points) == 4:
+            if points is not None and len(points) == 4 and self.ibvs_enabled:
                 self.p_current = points
 
                 # Calculate and publish velocity commands
@@ -119,6 +151,19 @@ class IBVSController(Node):
 
                 # Visualize
                 if self.visualize:
+                    Z = np.array(
+                        [
+                            self.depth_image[int(point[1]), int(point[0])]
+                            for point in self.p_current
+                        ]
+                    )
+
+                    # print each point coordinates with the depth with ros log
+                    # for i, point in enumerate(self.p_current):
+                    #     self.get_logger().info(
+                    #         f"Point {i+1}: [{point[0]:.2f}, {point[1]:.2f}] Depth: {Z[i]:.2f}"
+                    #     )
+
                     self.display_visualization(cv_image)
             else:
                 # No points detected
@@ -155,17 +200,17 @@ class IBVSController(Node):
             # Fill the interaction matrix for this point
             row = 2 * i
             # For vx
-            L[row, 0] = -1.0 / Z
+            L[row, 0] = -1.0 / Z[i]
             L[row, 1] = 0.0
-            L[row, 2] = x_n / Z
+            L[row, 2] = x_n / Z[i]
             L[row, 3] = x_n * y_n
             L[row, 4] = -(1.0 + x_n * x_n)
             L[row, 5] = y_n
 
             # For vy
             L[row + 1, 0] = 0.0
-            L[row + 1, 1] = -1.0 / Z
-            L[row + 1, 2] = y_n / Z
+            L[row + 1, 1] = -1.0 / Z[i]
+            L[row + 1, 2] = y_n / Z[i]
             L[row + 1, 3] = 1.0 + y_n * y_n
             L[row + 1, 4] = -x_n * y_n
             L[row + 1, 5] = -x_n
@@ -199,10 +244,13 @@ class IBVSController(Node):
         L = self.calculate_interaction_matrix(self.p_current, Z)
 
         # Compute pseudo-inverse of interaction matrix
-        L_pinv = pinv(L)
+        L_pinv, return_rank = pinv(L, return_rank=True)
 
         # Compute velocity command
         v = -self.lambda_gain * np.dot(L_pinv, error)
+
+        # convert the image velocity axis to robot velocity axis, x -> z, y -> x,  z -> x
+        v = np.array([v[2], -v[0], -v[1], v[5], -v[3], -v[4]])
 
         # Create and publish twist message
         twist = Twist()
@@ -217,7 +265,7 @@ class IBVSController(Node):
 
         # Limit velocities for safety
         max_lin_vel = 0.2  # m/s
-        max_ang_vel = 0.3  # rad/s
+        max_ang_vel = 0.1  # rad/s
 
         # Limit each velocity component
         twist.linear.x = self.clamp(twist.linear.x, -max_lin_vel, max_lin_vel)
@@ -226,6 +274,10 @@ class IBVSController(Node):
         twist.angular.x = self.clamp(twist.angular.x, -max_ang_vel, max_ang_vel)
         twist.angular.y = self.clamp(twist.angular.y, -max_ang_vel, max_ang_vel)
         twist.angular.z = self.clamp(twist.angular.z, -max_ang_vel, max_ang_vel)
+
+        self.get_logger().info(
+            f"Velocity x: {twist.linear.x}, y: {twist.linear.y}, rank : {return_rank}"
+        )
 
         # Publish the velocity
         self.vel_publisher.publish(twist)
@@ -305,6 +357,8 @@ def main(args=None):
     rclpy.init(args=args)
 
     ibvs_controller = IBVSController()
+    executor = MultiThreadedExecutor()
+    executor.add_node(ibvs_controller)
 
     try:
         rclpy.spin(ibvs_controller)
@@ -312,6 +366,7 @@ def main(args=None):
         pass
     finally:
         # Destroy the node explicitly
+        executor.shutdown()
         ibvs_controller.destroy_node()
         rclpy.shutdown()
 

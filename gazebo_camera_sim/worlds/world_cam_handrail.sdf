@@ -257,11 +257,7 @@
       <self_collide>false</self_collide>
     </model>
 
-    <!-- <include>
-      <uri>file:///home/tafarrel/gazebo_models/points/meshes/points.dae</uri>
-      <pose>2 0 0 0 0 1.57</pose>
-    </include> -->
-<!-- 
+ 
     <model name='iss'>
       <static>true</static>
       <pose>4 0 -2 0 0 0</pose>
@@ -335,7 +331,7 @@
         <outer_angle>0</outer_angle>
         <falloff>0</falloff>
       </spot>
-    </light> -->
+    </light> 
 
   </world>
 </sdf>

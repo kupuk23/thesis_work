@@ -1,10 +1,12 @@
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+from itertools import combinations, permutations
+
 
 
 def detect_circle_features(
-    img, min_circle_radius=10, max_circle_radius=50, visualize=False, debug=False
+    img, target_points, min_circle_radius=10, max_circle_radius=50, visualize=False, debug=False
 ):
     """
     Detect 4 circle features using SIFT and return their centroids ordered from
@@ -14,7 +16,7 @@ def detect_circle_features(
         img: Input image (BGR)
         min_circle_radius: Minimum radius of circle to detect
         max_circle_radius: Maximum radius of circle to detect
-        debug: Whether to display visualization of the detected circles
+        visualize: Whether to display visualization of the detected circles
 
     Returns:
 
@@ -76,32 +78,28 @@ def detect_circle_features(
 
                 circle_centers.append((cx, cy))
 
+    # If visualization is enabled, draw the circles that were found in green
+    if visualize:
+        viz_img = img.copy()
+
+        # visualize the blobbed image with circles instead of actual image
+        viz_img = cv2.cvtColor(blob, cv2.COLOR_GRAY2BGR)
+        for center in circle_centers:
+            cv2.circle(viz_img, (int(center[0]), int(center[1])), 5, (0, 255, 0), -1)
+        cv2.putText(
+            viz_img,
+            f"Found {len(circle_centers)} circles",
+            (20, 30),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            (0, 255, 255),
+            2,
+        )
+        
+
     # We need exactly 4 circles
-    if len(circle_centers) != 4 or debug:
-
-        # If visualization is enabled, draw the circles that were found in green
-        if visualize:
-            viz_img = img.copy()
-
-            # visualize the blobbed image with circles instead of actual image
-            viz_img = cv2.cvtColor(blob, cv2.COLOR_GRAY2BGR)
-            for center in circle_centers:
-                cv2.circle(
-                    viz_img, (int(center[0]), int(center[1])), 5, (0, 255, 0), -1
-                )
-            cv2.putText(
-                viz_img,
-                f"Found {len(circle_centers)} circles",
-                (20, 30),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.7,
-                (0, 0, 255),
-                2,
-            )
-            cv2.imshow("Circle Detection", viz_img)
-            cv2.waitKey(1)
-
-        return None
+    if len(circle_centers) != 4:
+        circle_centers = match_circles_opencv(circle_centers, target_points)
 
     # Convert to numpy array
     centers = np.array(circle_centers, dtype=np.float32)
@@ -119,25 +117,64 @@ def detect_circle_features(
         [top_pair[0], top_pair[1], bottom_pair[0], bottom_pair[1]], dtype=np.float32
     )
 
+    for center in circle_centers:
+        cv2.circle(viz_img, (int(center[0]), int(center[1])), 5, (0, 255, 255), -1)
+    cv2.imshow("Circle Detection", viz_img)
+    cv2.waitKey(1)
+    
     return ordered_centers
 
-    # # Apply SIFT to get more precise center if needed
-    # roi = gray[
-    #     max(0, cy - 20) : min(gray.shape[0], cy + 20),
-    #     max(0, cx - 20) : min(gray.shape[1], cx + 20),
-    # ]
 
-    # if roi.size > 0:  # Make sure ROI is not empty
-    #     keypoints = self.sift.detect(roi, None)
-
-    #     # If SIFT finds keypoints in the ROI, refine the center
-    #     if keypoints:
-    #         strongest_kp = max(keypoints, key=lambda kp: kp.response)
-    #         refined_x = strongest_kp.pt[0] + max(0, cx - 20)
-    #         refined_y = strongest_kp.pt[1] + max(0, cy - 20)
-    #         circle_centers.append((refined_x, refined_y))
-    #     else:
-    #         # If SIFT fails, use the centroid from moments
-    #         circle_centers.append((cx, cy))
-    # else:
-    #     circle_centers.append((cx, cy))
+def match_circles_opencv(detected_points, target_points, threshold=10.0):
+    """
+    Match detected circle centers to target pattern using OpenCV
+    
+    Parameters:
+    detected_points: array of points detected in the current frame
+    target_points: array of the 4 points in desired configuration
+    
+    Returns:
+    matched_points: best 4 points matching the target pattern
+    """
+    if len(detected_points) < 4:
+        return None
+    
+    # Convert to numpy arrays
+    detected_points = np.array(detected_points, dtype=np.float32)
+    target_points = np.array(target_points, dtype=np.float32)
+    
+    # Try all combinations of 4 detected points
+    best_error = float('inf')
+    best_points = None
+    
+    for indices in combinations(range(len(detected_points)), 4):
+        src_points = detected_points[list(indices)]
+        
+        # Try all permutations of these 4 points
+        for perm in permutations(range(4)):
+            ordered_src = src_points[list(perm)]
+            
+            # Find homography
+            try:
+                H, _ = cv2.findHomography(ordered_src, target_points, 0)
+                
+                if H is None:
+                    continue
+                
+                # Transform points
+                transformed = cv2.perspectiveTransform(ordered_src.reshape(-1, 1, 2), H).reshape(-1, 2)
+                
+                # Calculate error
+                error = np.mean(np.linalg.norm(transformed - target_points, axis=1))
+                
+                if error < best_error:
+                    best_error = error
+                    best_points = ordered_src
+            except:
+                continue
+    
+    # Only return if error is below threshold
+    if best_error > threshold:
+        return None
+        
+    return best_points

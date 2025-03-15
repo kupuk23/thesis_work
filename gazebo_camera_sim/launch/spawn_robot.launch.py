@@ -71,31 +71,32 @@ def generate_launch_description():
         ],
     )
 
+    def create_robot_spawner(name, x, y, z, R, P, Y, namespace=None):
+        """Create a node for spawning a robot"""
+        args = [
+            "-name", name,
+            "-topic", "robot_description",
+            "-x", str(x),
+            "-y", str(y),
+            "-z", str(z),
+            "-R", str(R),
+            "-P", str(P),
+            "-Y", str(Y),
+        ]
+        
+        if namespace:
+            args.extend(["-namespace", namespace])
+        
+        return Node(
+            package="ros_gz_sim",
+            executable="create",
+            arguments=args,
+            output="screen",
+            parameters=[{"use_sim_time": True}],
+        )
+
     # Spawn the URDF model using the `/world/<world_name>/create` service
-    spawn_urdf_node = Node(
-        package="ros_gz_sim",
-        executable="create",
-        arguments=[
-            "-name",
-            "my_robot",
-            "-topic",
-            "robot_description",
-            "-x",
-            "-2.0",
-            "-y",
-            "0.0",
-            "-z",
-            "1.3",
-            "-Y",
-            "0.0",  # Initial spawn position
-            "-P",
-            "0",
-        ],
-        output="screen",
-        parameters=[
-            {"use_sim_time": True},
-        ],
-    )
+    
 
     robot_state_publisher_node = Node(
         package="robot_state_publisher",
@@ -146,6 +147,12 @@ def generate_launch_description():
             },
         ],
     )
+    ibvs_node = Node(
+        package="ibvs_testing",
+        executable="ibvs_node",
+        name="ibvs_node",
+        output="screen",
+    )
 
     # Relay node to republish /camera/camera_info to /camera/image/camera_info
     relay_camera_info_node = Node(
@@ -190,17 +197,18 @@ def generate_launch_description():
 
     launchDescriptionObject = LaunchDescription()
 
-    launchDescriptionObject.add_action(rviz_launch_arg)
+    # launchDescriptionObject.add_action(rviz_launch_arg)
     launchDescriptionObject.add_action(use_sim_time_arg)
     launchDescriptionObject.add_action(world_arg)
     launchDescriptionObject.add_action(model_arg)
     launchDescriptionObject.add_action(world_launch)
-    launchDescriptionObject.add_action(rviz_node)
-    launchDescriptionObject.add_action(spawn_urdf_node)
+    # launchDescriptionObject.add_action(rviz_node)
+    launchDescriptionObject.add_action(create_robot_spawner("my_robot", -2, 0.2, 1.5, 0.5, 0.2, 0))
     launchDescriptionObject.add_action(robot_state_publisher_node)
     launchDescriptionObject.add_action(gz_bridge_node)
     launchDescriptionObject.add_action(gz_image_bridge_node)
-    # launchDescriptionObject.add_action(relay_camera_info_node)
+    launchDescriptionObject.add_action(relay_camera_info_node)
+    # launchDescriptionObject.add_action(ibvs_node)
     # launchDescriptionObject.add_action(depth_image_proc_node)
     # launchDescriptionObject.add_action(relay_cmd_vel)
 
