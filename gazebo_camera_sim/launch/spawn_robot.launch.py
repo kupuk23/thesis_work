@@ -125,6 +125,7 @@ def generate_launch_description():
             "/camera/camera_info@sensor_msgs/msg/CameraInfo@gz.msgs.CameraInfo",
             "/camera/depth_image@sensor_msgs/msg/Image@gz.msgs.Image",
             "/camera/points@sensor_msgs/msg/PointCloud2@gz.msgs.PointCloudPacked",
+            "/world/iss_world/control@ros_gz_interfaces/srv/ControlWorld"
         ],
         output="screen",
         parameters=[
@@ -203,7 +204,7 @@ def generate_launch_description():
     launchDescriptionObject.add_action(model_arg)
     launchDescriptionObject.add_action(world_launch)
     # launchDescriptionObject.add_action(rviz_node)
-    launchDescriptionObject.add_action(create_robot_spawner("my_robot", -2, 0.2, 1.5, 0.5, 0.2, 0))
+    launchDescriptionObject.add_action(create_robot_spawner("my_robot", -2, 0.8, 1.4, 0.6, -0.3, -0.4))
     launchDescriptionObject.add_action(robot_state_publisher_node)
     launchDescriptionObject.add_action(gz_bridge_node)
     launchDescriptionObject.add_action(gz_image_bridge_node)

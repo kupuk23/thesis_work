@@ -4,9 +4,13 @@ import matplotlib.pyplot as plt
 from itertools import combinations, permutations
 
 
-
 def detect_circle_features(
-    img, target_points, min_circle_radius=10, max_circle_radius=50, visualize=False, debug=False
+    img,
+    target_points,
+    min_circle_radius=10,
+    max_circle_radius=50,
+    visualize=False,
+    debug=False,
 ):
     """
     Detect 4 circle features using SIFT and return their centroids ordered from
@@ -95,7 +99,6 @@ def detect_circle_features(
             (0, 255, 255),
             2,
         )
-        
 
     # We need exactly 4 circles
     if len(circle_centers) != 4:
@@ -118,63 +121,65 @@ def detect_circle_features(
     )
 
     for center in circle_centers:
-        cv2.circle(viz_img, (int(center[0]), int(center[1])), 5, (0, 255, 255), -1)
+        cv2.circle(viz_img, (int(center[0]), int(center[1])), 10, (0, 0, 255), -1)
     cv2.imshow("Circle Detection", viz_img)
     cv2.waitKey(1)
-    
+
     return ordered_centers
 
 
 def match_circles_opencv(detected_points, target_points, threshold=10.0):
     """
     Match detected circle centers to target pattern using OpenCV
-    
+
     Parameters:
     detected_points: array of points detected in the current frame
     target_points: array of the 4 points in desired configuration
-    
+
     Returns:
     matched_points: best 4 points matching the target pattern
     """
     if len(detected_points) < 4:
         return None
-    
+
     # Convert to numpy arrays
     detected_points = np.array(detected_points, dtype=np.float32)
     target_points = np.array(target_points, dtype=np.float32)
-    
+
     # Try all combinations of 4 detected points
-    best_error = float('inf')
+    best_error = float("inf")
     best_points = None
-    
+
     for indices in combinations(range(len(detected_points)), 4):
         src_points = detected_points[list(indices)]
-        
+
         # Try all permutations of these 4 points
         for perm in permutations(range(4)):
             ordered_src = src_points[list(perm)]
-            
+
             # Find homography
             try:
-                H, _ = cv2.findHomography(ordered_src, target_points, 0)
-                
+                H, _ = cv2.findHomography(ordered_src, target_points, cv2.RANSAC)
+
                 if H is None:
                     continue
-                
+
                 # Transform points
-                transformed = cv2.perspectiveTransform(ordered_src.reshape(-1, 1, 2), H).reshape(-1, 2)
-                
+                transformed = cv2.perspectiveTransform(
+                    ordered_src.reshape(-1, 1, 2), H
+                ).reshape(-1, 2)
+
                 # Calculate error
                 error = np.mean(np.linalg.norm(transformed - target_points, axis=1))
-                
+
                 if error < best_error:
                     best_error = error
                     best_points = ordered_src
             except:
                 continue
-    
+
     # Only return if error is below threshold
     if best_error > threshold:
         return None
-        
+
     return best_points

@@ -13,7 +13,6 @@ from ibvs_testing.detect_points import detect_circle_features
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.callback_groups import ReentrantCallbackGroup
 
-
 class IBVSController(Node):
     def __init__(self):
         super().__init__("ibvs_controller")
@@ -37,7 +36,7 @@ class IBVSController(Node):
         self.bridge = CvBridge()
 
         # Create a callback group for the service client
-        self.callback_group = ReentrantCallbackGroup()
+        # self.callback_group = ReentrantCallbackGroup()
 
         # Create service server - this is what you'll call from terminal or other nodes
         self.srv = self.create_service(
@@ -51,14 +50,14 @@ class IBVSController(Node):
             "convergence_threshold", 10.0
         )  # Threshold for error convergence (pixels)
         self.declare_parameter(
-            "min_circle_radius", 5
+            "min_circle_radius", 10
         )  # Minimum radius for circle detection
         self.declare_parameter(
             "max_circle_radius", 50
         )  # Maximum radius for circle detection
 
         # IBVS control enabled by default
-        self.ibvs_enabled = True
+        self.ibvs_enabled = False
 
         # Get parameters
         self.visualize = self.get_parameter("visualize").value
@@ -355,18 +354,20 @@ class IBVSController(Node):
 
 def main(args=None):
     rclpy.init(args=args)
+    # run a node to spawn the robot
 
     ibvs_controller = IBVSController()
-    executor = MultiThreadedExecutor()
-    executor.add_node(ibvs_controller)
+    # executor = MultiThreadedExecutor()
+    # executor.add_node(ibvs_controller)
 
     try:
         rclpy.spin(ibvs_controller)
+        # spawn_robot_node.destroy_node()
     except KeyboardInterrupt:
         pass
     finally:
         # Destroy the node explicitly
-        executor.shutdown()
+        # executor.shutdown()
         ibvs_controller.destroy_node()
         rclpy.shutdown()
 
