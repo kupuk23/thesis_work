@@ -130,7 +130,7 @@ class IBVSController(Node):
         try:
             # Convert ROS Image message to OpenCV image
             cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
-            # cv2.imwrite('/home/tafarrel/image2.jpg', cv_image)
+            cv2.imwrite('/home/tafarrel/test3.jpg', cv_image)
 
             # Detect the 4 circle features using SIFT
             points = detect_circle_features(

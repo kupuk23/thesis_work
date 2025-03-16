@@ -253,7 +253,7 @@
         <enable_wind>false</enable_wind>
       </link>
       <static>true</static>
-      <pose>0.5 0 0.5 0 0 1.57</pose>
+      <pose>0.5 0 1.0 0 0 1.57</pose>
       <self_collide>false</self_collide>
     </model>
 

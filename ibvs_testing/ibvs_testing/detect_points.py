@@ -13,7 +13,7 @@ def detect_circle_features(
     debug=False,
 ):
     """
-    Detect 4 circle features using SIFT and return their centroids ordered from
+    Detect 4 circle features  and return their centroids ordered from
     top-left to bottom-right.
 
     Args:
