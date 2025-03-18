@@ -192,6 +192,7 @@ def detect_lines(image, lsd_parameters=None):
     Detect lines in the input image using OpenCV's LineSegmentDetector
     """
 
+    #TODO: use Depth image to filter the frames so it only detects the handrail, then perform line detection
     viz_img = image.copy()
     color = (0, 255, 0)
     thickness = 2
