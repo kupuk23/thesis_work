@@ -1,6 +1,6 @@
 import os
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Command
@@ -36,6 +36,12 @@ def generate_launch_description():
         "model",
         default_value="robot_3d.urdf.xacro",
         description="Name of the URDF description to load",
+    )
+
+    spawn_robot_arg = DeclareLaunchArgument(
+        "spawn_robot",
+        default_value="default",
+        description="Spawn the robot in the Gazebo world",
     )
 
     # Define the path to your URDF or Xacro file
@@ -74,19 +80,27 @@ def generate_launch_description():
     def create_robot_spawner(name, x, y, z, R, P, Y, namespace=None):
         """Create a node for spawning a robot"""
         args = [
-            "-name", name,
-            "-topic", "robot_description",
-            "-x", str(x),
-            "-y", str(y),
-            "-z", str(z),
-            "-R", str(R),
-            "-P", str(P),
-            "-Y", str(Y),
+            "-name",
+            name,
+            "-topic",
+            "robot_description",
+            "-x",
+            str(x),
+            "-y",
+            str(y),
+            "-z",
+            str(z),
+            "-R",
+            str(R),
+            "-P",
+            str(P),
+            "-Y",
+            str(Y),
         ]
-        
+
         if namespace:
             args.extend(["-namespace", namespace])
-        
+
         return Node(
             package="ros_gz_sim",
             executable="create",
@@ -95,8 +109,18 @@ def generate_launch_description():
             parameters=[{"use_sim_time": True}],
         )
 
+    # def spawn_robot_pose(scenario : LaunchConfiguration):
+    #     if scenario == "default":
+    #         return create_robot_spawner("my_robot", -2, 0, 1.25, 0.0, 0, 0)
+    #     elif scenario == "ibvs_sample":
+    #         return create_robot_spawner("my_robot", -2, 0.8, 1.4, 0.6, -0.3, -0.4)
+    #     elif scenario == "handrail":
+    #         return create_robot_spawner("my_robot", -2, 0, 1.25, 0.0, 0, 0)
+    #     else:
+    #         print(f"Unknown scenario: {scenario}")
+    #         return create_robot_spawner("my_robot", 0, 0, 1.25, 0.0, 0, 0)
+
     # Spawn the URDF model using the `/world/<world_name>/create` service
-    
 
     robot_state_publisher_node = Node(
         package="robot_state_publisher",
@@ -125,7 +149,7 @@ def generate_launch_description():
             "/camera/camera_info@sensor_msgs/msg/CameraInfo@gz.msgs.CameraInfo",
             "/camera/depth_image@sensor_msgs/msg/Image@gz.msgs.Image",
             "/camera/points@sensor_msgs/msg/PointCloud2@gz.msgs.PointCloudPacked",
-            "/world/iss_world/control@ros_gz_interfaces/srv/ControlWorld"
+            "/world/iss_world/control@ros_gz_interfaces/srv/ControlWorld",
         ],
         output="screen",
         parameters=[
@@ -167,24 +191,6 @@ def generate_launch_description():
         ],
     )
 
-    # depth_image_proc_node = Node(
-    #     package="depth_image_proc",
-    #     executable="point_cloud_xyz_node",
-    #     name="depth_to_pointcloud",
-    #     remappings=[
-    #         # Input topics - adjust based on your camera's topic names
-    #         ("/image_rect", "/camera/depth_image"),
-    #         ("/camera_info", "/camera/camera_info"),
-    #         # Output topic
-    #         ("/points", "/camera/depth_points"),
-    #     ],
-    #     # parameters=[
-    #     #     {
-    #     #         "use_exact_sync": True,
-    #     #     }
-    #     # ],
-    # )
-
     relay_cmd_vel = Node(
         package="topic_tools",
         executable="relay",
@@ -198,14 +204,16 @@ def generate_launch_description():
 
     launchDescriptionObject = LaunchDescription()
 
-    # launchDescriptionObject.add_action(rviz_launch_arg)
+    launchDescriptionObject.add_action(rviz_launch_arg)
     launchDescriptionObject.add_action(use_sim_time_arg)
     launchDescriptionObject.add_action(world_arg)
     launchDescriptionObject.add_action(model_arg)
+    launchDescriptionObject.add_action(spawn_robot_arg)
     launchDescriptionObject.add_action(world_launch)
-    # launchDescriptionObject.add_action(rviz_node)
-    # launchDescriptionObject.add_action(create_robot_spawner("my_robot", -2, 0.8, 1.4, 0.6, -0.3, -0.4))
-    launchDescriptionObject.add_action(create_robot_spawner("my_robot", -2, 0, 1.25, 0.0, 0, 0)) # default position
+    launchDescriptionObject.add_action(rviz_node)
+    # launchDescriptionObject.add_action(create_robot_spawner("my_robot", -2, 0, 1.25, 0.0, 0, 0)) # default case
+    # launchDescriptionObject.add_action(create_robot_spawner("my_robot", -2, 0.8, 1.4, 0.6, -0.3, -0.4)) # ibvs_sample case
+    launchDescriptionObject.add_action(create_robot_spawner("my_robot", -2, 3, 1, 0.0, 0, 0)) # handrail case
     launchDescriptionObject.add_action(robot_state_publisher_node)
     launchDescriptionObject.add_action(gz_bridge_node)
     launchDescriptionObject.add_action(gz_image_bridge_node)

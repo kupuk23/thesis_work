@@ -3,15 +3,16 @@
 import rclpy
 from rclpy.node import Node
 from std_srvs.srv import SetBool
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, CompressedImage
 from geometry_msgs.msg import Twist
 from cv_bridge import CvBridge
 import cv2
 import numpy as np
 from scipy.linalg import pinv
-from ibvs_testing.detect_points import detect_circle_features
+from ibvs_testing.detect_features import detect_circle_features, detect_lines
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.callback_groups import ReentrantCallbackGroup
+
 
 class IBVSController(Node):
     def __init__(self):
@@ -19,7 +20,7 @@ class IBVSController(Node):
 
         # Create subscriber to the image topic
         self.subscription = self.create_subscription(
-            Image, "camera/image", self.image_callback, 10
+            CompressedImage, "/camera/image/compressed", self.image_callback, 10
         )
 
         self.depth_sub = self.create_subscription(
@@ -126,11 +127,17 @@ class IBVSController(Node):
             msg, desired_encoding="32FC1"
         )  # Float format -> in meters
 
-    def image_callback(self, msg=Image):
+    def image_callback(self, msg=CompressedImage):
         try:
             # Convert ROS Image message to OpenCV image
-            cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
-            cv2.imwrite('/home/tafarrel/test3.jpg', cv_image)
+            np_arr = np.frombuffer(msg.data, np.uint8)
+            cv_image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+            # cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
+            # cv2.imwrite("/home/tafarrel/test3.jpg", cv_image)
+
+
+            # detect lines using LSD
+            lines = detect_lines(cv_image)
 
             # Detect the 4 circle features using SIFT
             points = detect_circle_features(
@@ -141,12 +148,15 @@ class IBVSController(Node):
                 visualize=True,
             )
 
+            
             # If we have detected the 4 points, update current points and perform IBVS
             if points is not None and len(points) == 4 and self.ibvs_enabled:
                 self.p_current = points
 
+                
                 # Calculate and publish velocity commands
-                self.calculate_velocity()
+                # self.calculate_velocity()
+
 
                 # Visualize
                 if self.visualize:
@@ -179,7 +189,10 @@ class IBVSController(Node):
                     )
                     cv2.imshow(self.window_name, cv_image)
                     cv2.waitKey(1)
-                self.get_logger().warn("Could not detect 4 circle features")
+                if not self.ibvs_enabled:
+                    self.get_logger().warn("IBVS control is disabled")
+                else:
+                    self.get_logger().warn("Could not detect 4 circle features")
 
         except Exception as e:
             self.get_logger().error(f"Error in image processing: {str(e)}")

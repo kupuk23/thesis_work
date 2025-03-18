@@ -84,8 +84,6 @@ def detect_circle_features(
 
     # If visualization is enabled, draw the circles that were found in green
     if visualize:
-        viz_img = img.copy()
-
         # visualize the blobbed image with circles instead of actual image
         viz_img = cv2.cvtColor(blob, cv2.COLOR_GRAY2BGR)
         for center in circle_centers:
@@ -99,11 +97,15 @@ def detect_circle_features(
             (0, 255, 255),
             2,
         )
+        cv2.imshow("Circle Detection", viz_img)
+        cv2.waitKey(1)
 
     # We need exactly 4 circles
-    if len(circle_centers) != 4:
+    if len(circle_centers) > 4:
         circle_centers = match_circles_opencv(circle_centers, target_points)
-
+    elif len(circle_centers) < 4:
+        return None
+    
     # Convert to numpy array
     centers = np.array(circle_centers, dtype=np.float32)
 
@@ -125,7 +127,8 @@ def detect_circle_features(
     cv2.imshow("Circle Detection", viz_img)
     cv2.waitKey(1)
 
-    return ordered_centers
+    return ordered_centers  
+   
 
 
 def match_circles_opencv(detected_points, target_points, threshold=10.0):
@@ -183,3 +186,46 @@ def match_circles_opencv(detected_points, target_points, threshold=10.0):
         return None
 
     return best_points
+
+def detect_lines(image, lsd_parameters=None):
+    """ 
+    Detect lines in the input image using OpenCV's LineSegmentDetector
+    """
+
+    viz_img = image.copy()
+    color = (0, 255, 0)
+    thickness = 2
+
+    # Convert to grayscale if the image is in color
+    if len(image.shape) == 3:
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    else:
+        gray = image
+        
+    # Create LSD detector with custom parameters if provided
+    if lsd_parameters is None:
+        lsd = cv2.createLineSegmentDetector(cv2.LSD_REFINE_STD)
+    else:
+        lsd = cv2.createLineSegmentDetector(**lsd_parameters)
+    
+    # Detect lines
+    lines, width, prec, nfa = lsd.detect(gray)
+    
+    # Filter lines if needed (e.g., by length, orientation, etc.)
+    filtered_lines = []
+    if lines is not None:
+        for line in lines:
+            x1, y1, x2, y2 = line[0]
+            length = np.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+            
+            # Filter short lines and horizontal lines
+            if length > 10 and abs(x2 - x1) < abs(y2 - y1):  # Minimum length threshold abs(x2 - x1) < abs(y2 - y1)
+                filtered_lines.append(line)
+                
+                cv2.line(viz_img, (int(x1), int(y1)), (int(x2), int(y2)), color, thickness)
+                
+    cv2.imshow("Line Detection", viz_img)
+    cv2.waitKey(1)
+    
+
+    return np.array(filtered_lines) if filtered_lines else None
