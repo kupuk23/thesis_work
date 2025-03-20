@@ -132,8 +132,8 @@ class IBVSController(Node):
             # Convert ROS Image message to OpenCV image
             np_arr = np.frombuffer(msg.data, np.uint8)
             cv_image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-            # cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
-            # cv2.imwrite("/home/tafarrel/test3.jpg", cv_image)
+            cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
+            # cv2.imwrite("/home/tafarrel/handrail.jpg", cv_image)
 
 
             # detect lines using LSD

@@ -19,7 +19,7 @@ setup(
     license='TODO: License declaration',
     tests_require=['pytest'],
     entry_points={
-        'console_scripts': ["pose_estimation_node = pose_estimation.convert_model:main"
+        'console_scripts': ["pose_estimation_node = pose_estimation.pose_estimation_node:main"
         ],
     },
 )
