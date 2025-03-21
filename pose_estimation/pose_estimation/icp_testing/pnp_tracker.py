@@ -4,7 +4,7 @@ import cv2
 
 
 class PnPTracker:
-    def __init__(self, cam_intrinsic_param=None, cam_distortion_param=None):
+    def __init__(self, cam_intrinsic_param=None, cam_distortion_param=None, corner_pts=None):
         """Initialize the PnP Tracker with camera parameters."""
         # Initialize state variables
         self.input_mode = False
@@ -44,15 +44,15 @@ class PnPTracker:
         self.lower_bound = None
         self.upper_bound = None
 
-    def mouse_callback(self, event, x, y, flags, param):
-        """Callback function for mouse events to select object points."""
-        if self.input_mode and event == cv2.EVENT_LBUTTONDOWN and len(self.box_pts) < 4:
-            self.box_pts.append([x, y])
-            self.current_frame = cv2.circle(
-                self.current_frame, (x, y), 4, (0, 255, 0), 2
-            )
-            return True
-        return False
+    # def mouse_callback(self, event, x, y, flags, param):
+    #     """Callback function for mouse events to select object points."""
+    #     if self.input_mode and event == cv2.EVENT_LBUTTONDOWN and len(self.box_pts) < 4:
+    #         self.box_pts.append([x, y])
+    #         self.current_frame = cv2.circle(
+    #             self.current_frame, (x, y), 4, (0, 255, 0), 2
+    #         )
+    #         return True
+    #     return False
 
     def start_object_selection(self, frame):
         """Start the object selection process."""
@@ -171,7 +171,7 @@ class PnPTracker:
 
             # Draw box around object
             result_frame = self._draw_box_around_object(
-                corner_camera_coord, result_frame
+                corner_camera_coord, result_frame, center_camera_coord
             )
 
             # Show object position and orientation value to frame
@@ -236,16 +236,20 @@ class PnPTracker:
     def _iterative_solve_pnp(self, object_points, image_points):
         """Solve PnP using iterative LMA algorithm."""
         image_points = image_points.reshape(-1, 2)
-        retval, rotation, translation = cv2.solvePnP(
+        retval, rotation, translation, _ = cv2.solvePnPRansac(
             object_points,
             image_points,
             self.cam_intrinsic_param,
             self.cam_distortion_param,
+            confidence=0.99,
         )
         return rotation, translation
 
-    def _draw_box_around_object(self, dst, frame):
+    def _draw_box_around_object(self, dst, frame, center_camera_coord):
         """Draw box around the detected object."""
+        center_camera_coord = center_camera_coord.astype(int)
+        frame = cv2.circle(frame, (center_camera_coord[0][0][0], center_camera_coord[0][0][1]), 4, (0, 255, 0), 2)
+
         return cv2.polylines(frame, [np.int32(dst)], True, 255, 3)
 
     def _put_position_orientation_value_to_frame(self, translation, rotation, frame):

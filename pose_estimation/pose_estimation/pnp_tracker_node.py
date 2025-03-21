@@ -27,6 +27,16 @@ class PnPTrackerNode(Node):
                 [0.0, 0.0, 1.0],  # 0, 0, 1
             ]
         )
+        
+
+        # reference corner points for PnP
+        self.corners = np.array([
+            [0.0, 0.0],
+            [335.0, 0.0],
+            [0.0, 339.0],
+            [335.0, 339.0],
+        ])
+
         self.tracker = PnPTracker(self.K)
         self.ui_handler = PnPTrackerUI(self.tracker)
         self.ui_handler.start()  # Start the UI thread
@@ -83,6 +93,10 @@ class PnPTrackerNode(Node):
             # Process the frame for tracking
             if self.tracker.track_mode:
                 result_frame, translation, rotation = self.tracker.process_frame(self.cv_image)
+
+                # display result frame
+                # cv2.imshow('Result Frame', result_frame)
+                # cv2.waitKey(1)
                 
                 # Publish tracking visualization
                 viz_msg = self.bridge.cv2_to_imgmsg(result_frame, encoding='bgr8')

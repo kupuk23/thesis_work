@@ -105,7 +105,8 @@ class PoseEstimationNode(Node):
         self.latest_pointcloud = msg
 
         # Process the pointcloud directly
-        # scene_pcd = self.preprocess_pointcloud(msg, voxel_size=self.voxel_size)
+        scene_pcd = self.preprocess_pointcloud(msg, voxel_size=self.voxel_size)
+        self.visualize_point_clouds(source=self.model_pcd, target=scene_pcd)
         # result = align_pc(self.model_pcd, scene_pcd)
 
         # T_camera_object = np.linalg.inv(result.T_target_source)
@@ -220,7 +221,7 @@ class PoseEstimationNode(Node):
             np_arr = np.frombuffer(msg.data, np.uint8)
             self.cv_image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
             # self.cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
-            tracker.run_program(self.cv_image)
+            # tracker.run_program(self.cv_image)
             # cv2.imwrite("/home/tafarrel/handrail.jpg", cv_image)
         except:
             self.get_logger().info("Error converting image")
@@ -255,7 +256,7 @@ class PoseEstimationNode(Node):
 
         # Save to file for later visualization (non-blocking)
         o3d.io.write_point_cloud("/home/tafarrel/o3d_logs/source.pcd", source_temp)
-        o3d.io.write_point_cloud("/home/tafarrel/o3d_logs/target.pcd", target_temp)
+        o3d.io.write_point_cloud("/home/tafarrel/o3d_logs/target_test.pcd", target_temp)
         self.get_logger().info(
             "Point clouds saved to /home/tafarrel/o3d_logs/ directory for visualization"
         )
