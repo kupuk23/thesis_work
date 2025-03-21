@@ -145,6 +145,7 @@ if __name__ == "__main__":
     T_matrix = align_pc(pcd_source, pcd_target)
     translation = T_matrix.T_target_source[:3, 3]
     rotation = T_matrix.T_target_source[:3, :3]
+    # TODO: check ICP result with different images and PC
     img_target = cv2.imread("/home/tafarrel/handrail_test.jpg")
     K = np.array(
             [
