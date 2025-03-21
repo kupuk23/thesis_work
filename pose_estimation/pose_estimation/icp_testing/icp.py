@@ -12,7 +12,9 @@ def view_pc(pcd_source, pcd_target):
     # view 2 point clouds together with different color
     pcd_source.paint_uniform_color([1, 0, 0])
     pcd_target.paint_uniform_color([0, 0, 1])
-    coordinate_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.05, origin=[0, 0, 0])
+    coordinate_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(
+        size=0.05, origin=[0, 0, 0]
+    )
     o3d.visualization.draw_geometries([pcd_source, coordinate_frame])
 
 
@@ -20,14 +22,14 @@ def align_pc(pcd_source, pcd_target):
     source = np.asarray(pcd_source.points)  # Mx3 numpy array
     target = np.asarray(pcd_target.points)  # Nx3 numpy array
 
-    # rotate target PC 
+    # rotate target PC
     target = np.dot(target, np.array([[-1, 0, 0], [0, 0, 1], [0, -1, 0]]))
 
     target = np.dot(target, np.array([[0, 0, 1], [0, 1, 0], [1, 0, 0]]))
     pcd_target.points = o3d.utility.Vector3dVector(target)
 
     # visualize source pointcloud
-    o3d.visualization.draw_geometries([pcd_source, pcd_target])
+    # o3d.visualization.draw_geometries([pcd_source, pcd_target])
 
     result = small_gicp.align(target, source, downsampling_resolution=0.25)
     if result.converged:
@@ -41,7 +43,6 @@ def align_pc(pcd_source, pcd_target):
     else:
         print("Small GICP did not converge.")
         return None
-    
 
 
 def visualize_registration(target_points, source_points, transformation_matrix):
@@ -97,5 +98,7 @@ def visualize_registration(target_points, source_points, transformation_matrix):
 # source_raw_numpy: source point cloud
 # result.T_target_source: transformation matrix from small_gicp
 # visualize_registration(target, source, result.T_target_source)
-# view_pc(pcd_source, pcd_target)
-align_pc(pcd_source, pcd_target)
+
+if __name__ == "__main__":
+    view_pc(pcd_source, pcd_target)
+    align_pc(pcd_source, pcd_target)

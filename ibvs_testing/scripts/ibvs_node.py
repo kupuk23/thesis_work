@@ -58,7 +58,7 @@ class IBVSController(Node):
         )  # Maximum radius for circle detection
 
         # IBVS control enabled by default
-        self.ibvs_enabled = False
+        self.ibvs_enabled = True
 
         # Get parameters
         self.visualize = self.get_parameter("visualize").value
@@ -132,12 +132,11 @@ class IBVSController(Node):
             # Convert ROS Image message to OpenCV image
             np_arr = np.frombuffer(msg.data, np.uint8)
             cv_image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-            cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
             # cv2.imwrite("/home/tafarrel/handrail.jpg", cv_image)
 
 
             # detect lines using LSD
-            lines = detect_lines(cv_image)
+            # lines = detect_lines(cv_image)
 
             # Detect the 4 circle features using SIFT
             points = detect_circle_features(
@@ -155,7 +154,7 @@ class IBVSController(Node):
 
                 
                 # Calculate and publish velocity commands
-                # self.calculate_velocity()
+                self.calculate_velocity()
 
 
                 # Visualize

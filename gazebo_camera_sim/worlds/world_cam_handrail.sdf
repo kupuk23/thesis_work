@@ -222,13 +222,20 @@
             </mesh>
           </geometry>
         </visual>
-        
+
         <enable_wind>false</enable_wind>
       </link>
       <static>true</static>
       <pose>-1 3 1 0 0 3.14</pose>
       <self_collide>false</self_collide>
     </model>
+
+    <include>
+      <uri>
+https://fuel.gazebosim.org/1.0/OpenRobotics/models/NIST maze wall 120
+      </uri>
+      <pose>0 3 -0.2 0 0 1.57</pose>
+    </include>
 
     <model name='points_plane'>
       <static>true</static>
@@ -237,14 +244,14 @@
           <geometry>
             <mesh>
               <scale>1 1 1</scale>
-               <uri>file:///points/meshes/points_small.dae</uri>  <!-- points.dae is a plane with points, points_small.dae is the small points -->
+              <uri>file:///points/meshes/points_small.dae</uri>              <!-- points.dae is a plane with points, points_small.dae is the small points -->
             </mesh>
           </geometry>
         </collision>
         <visual name='points_plane_visual'>
           <geometry>
             <mesh>
-              <scale>1 1 1</scale>
+              <scale>2.5 2.5 2.5</scale>             <!-- scale is 1 1 1 -->
               <uri>file:///points/meshes/points_small.dae</uri>
             </mesh>
           </geometry>
@@ -257,8 +264,8 @@
       <self_collide>false</self_collide>
     </model>
 
- 
-   <!-- <model name='iss'>
+
+    <model name='iss'>
       <static>true</static>
       <pose>4 0 -2 0 0 0</pose>
       <link name='body'>
@@ -331,7 +338,7 @@
         <outer_angle>0</outer_angle>
         <falloff>0</falloff>
       </spot>
-    </light> -->
+    </light>
 
   </world>
 </sdf>

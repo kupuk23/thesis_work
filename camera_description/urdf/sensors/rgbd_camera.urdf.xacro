@@ -42,6 +42,7 @@
       <parent link="${prefix}${camera_name}_link"/>
       <child link="${prefix}${camera_name}_depth_frame" />
     </joint>
+    
     <link name="${prefix}${camera_name}_depth_frame"/>
 
     <joint name="${prefix}${camera_name}_depth_optical_joint" type="fixed">

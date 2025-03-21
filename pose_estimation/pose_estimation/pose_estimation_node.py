@@ -6,17 +6,12 @@ import copy
 import cv2
 from cv_bridge import CvBridge
 import struct
-from pose_estimation.pose_estimation_tools import (
-    extract_features,
-    initial_alignment,
-    fine_registration,
-    calculate_pose_from_transformation,
-)
 import matplotlib.pyplot as plt
 
-from sensor_msgs.msg import PointCloud2, Image
+from sensor_msgs.msg import PointCloud2, Image, CompressedImage
 import sensor_msgs_py.point_cloud2 as pc2
-from icp_testing.icp import align_pc
+# from icp_testing.icp import align_pc
+from icp_testing.pnp_tracker import PnPTracker
 
 
 class PoseEstimationNode(Node):
@@ -28,11 +23,22 @@ class PoseEstimationNode(Node):
 
         self.voxel_size = 0.01
 
-        # Load the model (this only needs to be done once)
-        self.model_pcd = self.preprocess_model(
-            "/home/tafarrel/blender_files/handrail/handrail.obj",
-            voxel_size=self.voxel_size,
+        # Load the model (only needs to be done once)
+        # self.model_pcd = self.preprocess_model(
+        #     "/home/tafarrel/blender_files/handrail/handrail.obj",
+        #     voxel_size=self.voxel_size,
+        # )
+
+        self.model_pcd = o3d.io.read_point_cloud("/home/tafarrel/o3d_logs/handrail_pcd_down.pcd")
+        self.K = np.array(
+            [
+                [500.0, 0.0, 320.0],  # fx, 0, cx
+                [0.0, 500.0, 240.0],  # 0, fy, cy
+                [0.0, 0.0, 1.0],  # 0, 0, 1
+            ]
         )
+
+        self.tracker = PnPTracker(self.K)
 
         # Create subscribers
         self.pointcloud_sub = self.create_subscription(
@@ -43,8 +49,8 @@ class PoseEstimationNode(Node):
             Image, "/camera/depth_image", self.depth_callback, 10
         )
 
-        self.rgb_sub = self.create_subscription(
-            Image, "/camera/image", self.rgb_callback, 10
+        self.subscription = self.create_subscription(
+            CompressedImage, "/camera/image/compressed", self.rgb_callback, 10
         )
 
         # Store the latest messages
@@ -86,6 +92,9 @@ class PoseEstimationNode(Node):
             )
         )
 
+        # save the preprocessed model
+        o3d.io.write_point_cloud("/home/tafarrel/o3d_logs/handrail_pcd_down.pcd", model_pcd_down)
+
         self.get_logger().info(
             f"Model preprocessed: {len(model_pcd_down.points)} points"
         )
@@ -96,16 +105,16 @@ class PoseEstimationNode(Node):
         self.latest_pointcloud = msg
 
         # Process the pointcloud directly
-        scene_pcd = self.preprocess_pointcloud(msg, voxel_size=self.voxel_size)
-        result = align_pc(self.model_pcd, scene_pcd)
+        # scene_pcd = self.preprocess_pointcloud(msg, voxel_size=self.voxel_size)
+        # result = align_pc(self.model_pcd, scene_pcd)
 
-        T_camera_object = np.linalg.inv(result.T_target_source)
+        # T_camera_object = np.linalg.inv(result.T_target_source)
 
-        # This is the object's pose in camera coordinates
-        position = T_camera_object[:3, 3]  # Translation vector
-        rotation = T_camera_object[:3, :3]  # Rotation matrix
+        # # This is the object's pose in camera coordinates
+        # position = T_camera_object[:3, 3]  # Translation vector
+        # rotation = T_camera_object[:3, :3]  # Rotation matrix
 
-        print(f"Object position in camera frame: {position} and rotation: {rotation}")
+        # print(f"Object position in camera frame: {position} and rotation: {rotation}")
 
         # Now you can use this for pose estimation
         # if scene_pcd is not None:
@@ -175,89 +184,18 @@ class PoseEstimationNode(Node):
             f"Pointcloud processed: {len(scene_pcd_down.points)} points"
         )
         # self.visualize_point_cloud_matplotlib(scene_pcd_down)
-        self.visualize_point_clouds(source=self.model_pcd, target=scene_pcd_down)
+        # Add debugging - check the bounds and orientation
+        points_array = np.array(scene_pcd_down.points)
+        min_bounds = np.min(points_array, axis=0)
+        max_bounds = np.max(points_array, axis=0)
+        center = np.mean(points_array, axis=0)
+        
+        self.get_logger().info(f"Point cloud bounds: min={min_bounds}, max={max_bounds}")
+        self.get_logger().info(f"Point cloud center: {center}")
+
+
+        # self.visualize_point_clouds(source=self.model_pcd, target=scene_pcd_down)
         return scene_pcd_down
-
-    def visualize_point_cloud_matplotlib(self, pcd, title="Point Cloud Visualization"):
-        """
-        Visualize point cloud using matplotlib
-
-        Args:
-            pcd: Open3D point cloud
-            title: Plot title
-        """
-        # Convert Open3D point cloud to numpy arrays
-        points = np.asarray(pcd.points)
-        colors = np.asarray(pcd.colors) if pcd.has_colors() else None
-
-        # Create figure
-        fig = plt.figure(figsize=(10, 8))
-        ax = fig.add_subplot(111, projection="3d")
-
-        # Plot the points
-        if colors is not None:
-            # Use point colors if available
-            ax.scatter(
-                points[:, 0],
-                points[:, 1],
-                points[:, 2],
-                c=colors,
-                s=1,  # Point size
-                alpha=0.8,  # Transparency
-            )
-        else:
-            # Use a default color scheme based on depth
-            ax.scatter(
-                points[:, 0],
-                points[:, 1],
-                points[:, 2],
-                c=points[:, 2],  # Color by z-axis value
-                cmap="viridis",
-                s=1,  # Point size
-                alpha=0.8,  # Transparency
-            )
-
-        # Set labels and title
-        ax.set_xlabel("X")
-        ax.set_ylabel("Y")
-        ax.set_zlabel("Z")
-        ax.set_title(title)
-
-        # Set equal axis scaling
-        max_range = np.max(
-            [
-                np.max(points[:, 0]) - np.min(points[:, 0]),
-                np.max(points[:, 1]) - np.min(points[:, 1]),
-                np.max(points[:, 2]) - np.min(points[:, 2]),
-            ]
-        )
-        mid_x = (np.max(points[:, 0]) + np.min(points[:, 0])) * 0.5
-        mid_y = (np.max(points[:, 1]) + np.min(points[:, 1])) * 0.5
-        mid_z = (np.max(points[:, 2]) + np.min(points[:, 2])) * 0.5
-        ax.set_xlim(mid_x - max_range * 0.5, mid_x + max_range * 0.5)
-        ax.set_ylim(mid_y - max_range * 0.5, mid_y + max_range * 0.5)
-        ax.set_zlim(mid_z - max_range * 0.5, mid_z + max_range * 0.5)
-
-        # Display plot
-        plt.tight_layout()
-
-        # # For ROS integration, you could save to buffer and publish
-        # buffer = io.BytesIO()
-        # plt.savefig(buffer, format='png')
-        # buffer.seek(0)
-
-        # # Convert to OpenCV image if needed for publishing
-        # img = cv2.imdecode(
-        #     np.frombuffer(buffer.getvalue(), np.uint8),
-        #     cv2.IMREAD_COLOR
-        # )
-
-        # You could publish this image to ROS topic
-        # self.vis_pub.publish(self.bridge.cv2_to_imgmsg(img, "bgr8"))
-
-        # Show the plot (if not running headless)
-        plt.show()
-        plt.close()
 
     def depth_callback(self, msg):
         """Process incoming depth image"""
@@ -277,91 +215,16 @@ class PoseEstimationNode(Node):
 
     def rgb_callback(self, msg):
         """Process incoming RGB image"""
-        self.latest_rgb_image = msg
+        try:
+            # Convert ROS Image message to OpenCV image
+            np_arr = np.frombuffer(msg.data, np.uint8)
+            self.cv_image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+            # self.cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
+            tracker.run_program(self.cv_image)
+            # cv2.imwrite("/home/tafarrel/handrail.jpg", cv_image)
+        except:
+            self.get_logger().info("Error converting image")
         # Could be used for visualization or feature extraction from RGB
-
-    def process_for_pose_estimation(self, scene_pcd):
-        """
-        Perform pose estimation with preprocessed pointclouds
-
-        Args:
-            scene_pcd: Preprocessed scene point cloud
-        """
-
-        # extract features
-        self.get_logger().info("Extracting features...")
-        model_keypoints, model_features = extract_features(
-            self.model_pcd, voxel_size=self.voxel_size
-        )
-        self.get_logger().info(
-            f"Extracted {model_features.data.shape[1]} feature points with {model_features.data.shape[0]} dimensions"
-        )
-        scene_keypoints, scene_features = extract_features(
-            scene_pcd, voxel_size=self.voxel_size
-        )
-        self.get_logger().info(
-            f"Extracted {scene_features.data.shape[1]} feature points with {scene_features.data.shape[0]} dimensions"
-        )
-
-        # Perform initial alignment
-        self.get_logger().info("Performing initial alignment...")
-        init_alignment_res = initial_alignment(
-            model_keypoints,
-            scene_keypoints,
-            model_features,
-            scene_features,
-            voxel_size=self.voxel_size,
-        )
-        self.get_logger().info(
-            f"Initial alignment finished with fitness={init_alignment_res.fitness}, inlier_rmse={init_alignment_res.inlier_rmse}"
-        )
-
-        initial_transform = init_alignment_res.transformation
-
-        # Apply the initial transformation to the model
-        model_aligned = copy.deepcopy(self.model_pcd)
-        model_aligned.transform(initial_transform)
-
-        # Perform fine registration with ICP
-        self.get_logger().info("Performing fine registration...")
-        final_alignment_res = fine_registration(
-            model_aligned,
-            scene_pcd,
-            np.identity(4),  # Identity because we already applied initial_transform
-            self.voxel_size,
-        )
-
-        self.get_logger().info(
-            f"ICP finished with fitness={final_alignment_res.fitness}, inlier_rmse={final_alignment_res.inlier_rmse}"
-        )
-
-        final_transform = final_alignment_res.transformation
-
-        # Calculate the complete transformation
-        complete_transform = np.matmul(final_transform, initial_transform)
-
-        # Extract pose from transformation
-        position, quaternion = calculate_pose_from_transformation(complete_transform)
-
-        # Log the pose information
-        self.get_logger().info(f"Estimated pose - Position: {position}")
-        self.get_logger().info(
-            f"Estimated pose - Orientation (quaternion): {quaternion}"
-        )
-
-        # Apply the complete transformation to the model for visualization
-        model_registered = copy.deepcopy(self.model_pcd)
-        model_registered.transform(complete_transform)
-
-        # Visualize the results (original model, scene, and registered model)
-        self.visualize_point_clouds(self.model_pcd, scene_pcd, model_registered)
-
-        # Save the aligned model separately for easier inspection
-        o3d.io.write_point_cloud(
-            "/home/tafarrel/o3d_logs/model_registered.pcd", model_registered
-        )
-
-        # return position, quaternion, complete_transform
 
     def visualize_point_clouds(self, source, target, transformed_source=None):
         """
