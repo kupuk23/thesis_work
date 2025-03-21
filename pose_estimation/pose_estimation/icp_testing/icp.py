@@ -143,8 +143,8 @@ def visualize_registration(target_points, source_points, transformation_matrix):
 # visualize_registration(target, source, result.T_target_source)
 
 if __name__ == "__main__":
-    view_pc(pcd_source, pcd_target_offset_left)
-    T_matrix = align_pc(pcd_source, pcd_target_offset_left)
+    # view_pc(pcd_source, pcd_target_offset_left)
+    T_matrix = align_pc(pcd_source, pcd_target_offset_right)
     translation = T_matrix.T_target_source[:3, 3]
     rotation = T_matrix.T_target_source[:3, :3]
     
@@ -158,6 +158,6 @@ if __name__ == "__main__":
                 [0.0, 0.0, 1.0],  # 0, 0, 1
             ]
         )
-    # image = draw_pose_axes(img_target_left, rotation, translation, K, axis_length=0.1)
-    # cv2.imshow("image", image)
-    # cv2.waitKey(0)
+    image = draw_pose_axes(img_target_right, rotation, translation, K, axis_length=0.1)
+    cv2.imshow("image", image)
+    cv2.waitKey(0)

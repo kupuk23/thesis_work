@@ -122,6 +122,8 @@ class PoseEstimationNode(Node):
         # if scene_pcd is not None:
         #     self.process_for_pose_estimation(scene_pcd)
 
+    # TODO: make the processing more efficient computationally
+    # TODO: display the estimated pose in the image
     def preprocess_pointcloud(self, pointcloud_msg, voxel_size=0.01):
         """
         Preprocess the pointcloud from ROS topic
@@ -135,27 +137,32 @@ class PoseEstimationNode(Node):
         """
 
         # Convert ROS -> NumPy
-        points_list = []
-        colors_list = []
-        for point in pc2.read_points(
-            pointcloud_msg, field_names=("x", "y", "z", "rgb"), skip_nans=True
-        ):
+        pc_array = pc2.read_points(
+        pointcloud_msg, 
+        field_names=("x", "y", "z", "rgb"),
+        skip_nans=True,
+        reshape_organized_cloud=False
+    )
+        
+         # Convert to numpy arrays more efficiently
+        points = np.array([(x, y, z) for x, y, z, _ in pc_array], dtype=np.float32)
+        
+        # Extract RGB using vectorized operations
+        rgb_packed = np.array([rgb for _, _, _, rgb in pc_array], dtype=np.float32)
+        rgb_bytes = rgb_packed.view(np.uint32)
 
-            points_list.append([point[0], point[1], point[2]])
-            packed_rgb = struct.unpack("I", struct.pack("f", point[3]))[0]
-
-            # Extract individual color components
-            r = np.bitwise_and(np.right_shift(packed_rgb, 16), 255).astype(np.uint8)
-            g = np.bitwise_and(np.right_shift(packed_rgb, 8), 255).astype(np.uint8)
-            b = np.bitwise_and(packed_rgb, 255).astype(np.uint8)
-
-            colors_list.append([r / 255.0, g / 255.0, b / 255.0])
+        # Extract color channels using bitwise operations on the entire array at once
+        r = np.bitwise_and(np.right_shift(rgb_bytes, 16), 255).astype(np.uint8)
+        g = np.bitwise_and(np.right_shift(rgb_bytes, 8), 255).astype(np.uint8)
+        b = np.bitwise_and(rgb_bytes, 255).astype(np.uint8)
+        
+        # Normalize to [0, 1] range and combine
+        colors = np.column_stack([r, g, b]).astype(np.float32) / 255.0
 
         # Create Open3D point cloud
         scene_pcd = o3d.geometry.PointCloud()
-        scene_pcd.points = o3d.utility.Vector3dVector(points_list)
-        # Add the color information to the point cloud
-        scene_pcd.colors = o3d.utility.Vector3dVector(colors_list)
+        scene_pcd.points = o3d.utility.Vector3dVector(points)
+        scene_pcd.colors = o3d.utility.Vector3dVector(colors)
 
         # Remove statistical outliers
         scene_pcd, _ = scene_pcd.remove_statistical_outlier(
