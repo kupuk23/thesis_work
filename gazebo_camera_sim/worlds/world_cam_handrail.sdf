@@ -230,12 +230,12 @@
       <self_collide>false</self_collide>
     </model>
 
-    <include>
+    <!-- <include>
       <uri>
 https://fuel.gazebosim.org/1.0/OpenRobotics/models/NIST maze wall 120
       </uri>
       <pose>0 3 0 0 0 1.57</pose>
-    </include>
+    </include> -->
 
     <model name='points_plane'>
       <static>true</static>

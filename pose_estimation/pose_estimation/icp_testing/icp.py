@@ -5,7 +5,7 @@ import cv2
 
 
 pcd_source = o3d.io.read_point_cloud("/home/tafarrel/o3d_logs/source.pcd")
-pcd_target = o3d.io.read_point_cloud("/home/tafarrel/o3d_logs/target.pcd")
+pcd_target = o3d.io.read_point_cloud("/home/tafarrel/o3d_logs/handrail_test.pcd")
 pcd_target_offset_right = o3d.io.read_point_cloud("/home/tafarrel/o3d_logs/target_test.pcd")
 pcd_target_offset_left = o3d.io.read_point_cloud("/home/tafarrel/o3d_logs/handrail_test2.pcd")
 
@@ -143,14 +143,15 @@ def visualize_registration(target_points, source_points, transformation_matrix):
 # visualize_registration(target, source, result.T_target_source)
 
 if __name__ == "__main__":
-    # view_pc(pcd_source, pcd_target_offset_left)
-    T_matrix = align_pc(pcd_source, pcd_target_offset_right)
+    view_pc(pcd_source, pcd_target)
+    T_matrix = align_pc(pcd_source, pcd_source)
     translation = T_matrix.T_target_source[:3, 3]
     rotation = T_matrix.T_target_source[:3, :3]
     
     # TODO: check ICP result with different images and PC
     img_target_left = cv2.imread("/home/tafarrel/handrail_test2.jpg")
     img_target_right = cv2.imread("/home/tafarrel/handrail_test.jpg")
+    img_source = cv2.imread("/home/tafarrel/handrail.jpg")
     K = np.array(
             [
                 [500.0, 0.0, 320.0],  # fx, 0, cx
@@ -158,6 +159,6 @@ if __name__ == "__main__":
                 [0.0, 0.0, 1.0],  # 0, 0, 1
             ]
         )
-    image = draw_pose_axes(img_target_right, rotation, translation, K, axis_length=0.1)
+    image = draw_pose_axes(img_source, rotation, translation, K, axis_length=0.1)
     cv2.imshow("image", image)
     cv2.waitKey(0)

@@ -7,11 +7,14 @@ import cv2
 from cv_bridge import CvBridge
 import struct
 import matplotlib.pyplot as plt
-
+import time
+import ctypes
 from sensor_msgs.msg import PointCloud2, Image, CompressedImage
 import sensor_msgs_py.point_cloud2 as pc2
 # from icp_testing.icp import align_pc
 from icp_testing.pnp_tracker import PnPTracker
+from pose_estimation.icp_testing.icp import align_pc, draw_pose_axes
+from pose_estimation.tools.visualizer import visualize_point_cloud
 
 
 class PoseEstimationNode(Node):
@@ -58,6 +61,7 @@ class PoseEstimationNode(Node):
         self.latest_depth_image = None
         self.latest_rgb_image = None
 
+
         self.get_logger().info("Pose estimation node initialized")
 
     def preprocess_model(self, model_path, voxel_size=0.01):
@@ -102,29 +106,60 @@ class PoseEstimationNode(Node):
 
     def pointcloud_callback(self, msg):
         """Process incoming pointcloud data"""
-        self.latest_pointcloud = msg
+        try:
+            start_time = time.perf_counter()
+            # xyz, rgb = self.pointcloud2_to_xyzrgb(msg)
+            # o3d_cloud = o3d.geometry.PointCloud()
+            # o3d_cloud.points = o3d.utility.Vector3dVector(xyz)
+            # o3d_cloud.colors = o3d.utility.Vector3dVector(rgb)
+            # self.get_logger().info(f"Point cloud received: {len(xyz)} points")
+            # o3d_cloud, _, _= self.converter.ROSpc2_to_O3DPointCloud(msg)
+            # self.get_logger().info(f"Point cloud received: {len(o3d_cloud.points)} points")
+            o3d_cloud = self.pc2_to_o3d_color_works(msg)
+            finished_time = time.perf_counter()
+            
+            self.get_logger().info(f"Time taken to convert pointcloud: {finished_time - start_time}")
+            
 
-        # Process the pointcloud directly
-        self.get_logger().info("Processing Pointcloud... ")
-        scene_pcd = self.preprocess_pointcloud(msg, voxel_size=self.voxel_size)
-        self.visualize_point_clouds(source=self.model_pcd, target=scene_pcd)
-        # result = align_pc(self.model_pcd, scene_pcd)
 
-        # T_camera_object = np.linalg.inv(result.T_target_source)
+            
+            
+            # Process the pointcloud directly
+            self.get_logger().info("Processing Pointcloud... ")
+            
+            scene_pcd = self.preprocess_pointcloud(o3d_cloud, voxel_size=self.voxel_size)
+            visualize_point_cloud(self.model_pcd)
+            # self.visualize_point_clouds(target=scene_pcd, target_filename="handrail_test.pcd")
+            
 
-        # # This is the object's pose in camera coordinates
-        # position = T_camera_object[:3, 3]  # Translation vector
-        # rotation = T_camera_object[:3, :3]  # Rotation matrix
+            result = align_pc(self.model_pcd, scene_pcd)
 
-        # print(f"Object position in camera frame: {position} and rotation: {rotation}")
+            if result is None:
+                self.get_logger().info("ICP did not converge")
+                return
+            
+            T_camera_object = np.linalg.inv(result.T_target_source)
 
-        # Now you can use this for pose estimation
-        # if scene_pcd is not None:
-        #     self.process_for_pose_estimation(scene_pcd)
+            # This is the object's pose in camera coordinates
+            position = T_camera_object[:3, 3]  # Translation vector
+            rotation = T_camera_object[:3, :3]  # Rotation matrix
 
-    # TODO: make the processing more efficient computationally
+            predicted_image_pose = draw_pose_axes(self.cv_image, rotation, position, self.K)
+
+            # Display the image with the pose
+            cv2.imshow("Pose Estimation", predicted_image_pose)
+            cv2.waitKey(1)
+
+            # print(f"Object position in camera frame: {position} and rotation: {rotation}")
+
+            # Now you can use this for pose estimation
+            # if scene_pcd is not None:
+            #     self.process_for_pose_estimation(scene_pcd)
+        except Exception as e:
+            self.get_logger().info(f"Error processing point cloud: {e}")
+
     # TODO: display the estimated pose in the image
-    def preprocess_pointcloud(self, pointcloud_msg, voxel_size=0.01):
+    def preprocess_pointcloud(self, o3d_msg , voxel_size=0.01):
         """
         Preprocess the pointcloud from ROS topic
 
@@ -136,9 +171,111 @@ class PoseEstimationNode(Node):
             Preprocessed scene point cloud as Open3D point cloud
         """
 
+        # Remove statistical outliers
+        
+        
+        # o3d_msg, _ = o3d_msg.remove_statistical_outlier(
+        #     nb_neighbors=20, std_ratio=2.0
+        # )
+
+        # filter maximum depth by z and x
+        points_down = np.asarray(o3d_msg.points)
+        colors_down = np.asarray(o3d_msg.colors)
+        mask = (points_down[:, 2] > -0.7) & (points_down[:, 0] < 1)
+
+
+        filtered_points = points_down[mask]
+        filtered_colors = colors_down[mask]
+
+        o3d_msg.points = o3d.utility.Vector3dVector(filtered_points)
+        o3d_msg.colors = o3d.utility.Vector3dVector(filtered_colors)
+
+        # Estimate normals
+        # scene_pcd_down.estimate_normals(
+        #     search_param=o3d.geometry.KDTreeSearchParamHybrid(
+        #         radius=voxel_size * 2, max_nn=30
+        #     )
+        # )
+
+        self.get_logger().info(
+            f"Pointcloud processed: {len(o3d_msg.points)} points"
+        )
+        # self.visualize_point_cloud_matplotlib(scene_pcd_down)
+        # Add debugging - check the bounds and orientation
+        points_array = np.array(o3d_msg.points)
+        min_bounds = np.min(points_array, axis=0)
+        max_bounds = np.max(points_array, axis=0)
+        center = np.mean(points_array, axis=0)
+        
+        self.get_logger().info(f"Point cloud bounds: min={min_bounds}, max={max_bounds}")
+        self.get_logger().info(f"Point cloud center: {center}")
+
+
+        # self.visualize_point_clouds(source=self.model_pcd, target=scene_pcd_down)
+        return o3d_msg
+
+    # Example usage
+    # diagnose_point_cloud(o3d_msg)
+
+    def depth_callback(self, msg):
+        """Process incoming depth image"""
+        self.latest_depth_image = msg
+
+        # Convert depth image to point cloud if needed
+        # Note: This is an alternative to using the pointcloud topic
+        if self.latest_pointcloud is None:  # Only use if pointcloud isn't available
+            # Convert ROS image to OpenCV image
+            depth_image = self.cv_bridge.imgmsg_to_cv2(
+                msg, desired_encoding="passthrough"
+            )
+
+            # Here you would convert depth to pointcloud using camera intrinsics
+            # This would require camera intrinsic parameters
+            # For now we'll skip this as we're using the direct pointcloud
+
+    def pc2_to_o3d_color(self, pc2_msg):
+        gen = pc2.read_points(pc2_msg, skip_nans=True)
+        int_data = list(gen)
+
+        xyz = np.empty((len(int_data), 3))
+        rgb = np.empty((len(int_data), 3))
+        idx = 0
+        for x in int_data:
+            test = x[3] 
+            # cast float32 to int so that bitwise operations are possible
+            s = struct.pack('>f' ,test)
+            i = struct.unpack('>l',s)[0]
+            # you can get back the float value by the inverse operations
+            pack = ctypes.c_uint32(i).value
+            r = (pack & 0x00FF0000)>> 16
+            g = (pack & 0x0000FF00)>> 8
+            b = (pack & 0x000000FF)
+            # prints r,g,b values in the 0-255 range
+                        # x,y,z can be retrieved from the x[0],x[1],x[2]
+            # xyz = np.append(xyz,[[x[0],x[1],x[2]]], axis = 0)
+            # rgb = np.append(rgb,[[r,g,b]], axis = 0)
+            xyz[idx] = [x[0],x[1],x[2]]
+            rgb[idx] = [r/255,g/255,b/255]
+            idx = idx + 1
+
+        # Find valid points (not NaN or inf)
+        valid_idx = np.all(np.isfinite(xyz), axis=1)
+        points = xyz[valid_idx]
+        colors = rgb[valid_idx]
+
+
+        # Convert NumPy -> Open3D
+        cloud = o3d.geometry.PointCloud()
+        cloud.points = o3d.utility.Vector3dVector(points)
+        cloud.colors = o3d.utility.Vector3dVector(colors)
+
+        cloud.voxel_down_sample(voxel_size=0.01)
+        return cloud
+    
+    def pc2_to_o3d_color_works(self, pc2_msg):
         # Convert ROS -> NumPy
         pc_array = pc2.read_points(
-        pointcloud_msg, 
+        pc2_msg, 
         field_names=("x", "y", "z", "rgb"),
         skip_nans=True,
         reshape_organized_cloud=False
@@ -159,70 +296,20 @@ class PoseEstimationNode(Node):
         # Normalize to [0, 1] range and combine
         colors = np.column_stack([r, g, b]).astype(np.float32) / 255.0
 
-        # Create Open3D point cloud
-        scene_pcd = o3d.geometry.PointCloud()
-        scene_pcd.points = o3d.utility.Vector3dVector(points)
-        scene_pcd.colors = o3d.utility.Vector3dVector(colors)
-
-        # Remove statistical outliers
-        scene_pcd, _ = scene_pcd.remove_statistical_outlier(
-            nb_neighbors=20, std_ratio=2.0
-        )
-
-        # Downsample the point cloud
-        scene_pcd_down = scene_pcd.voxel_down_sample(voxel_size)
-
-        # filter maximum depth by z and x
-        points_down = np.asarray(scene_pcd_down.points)
-        colors_down = np.asarray(scene_pcd_down.colors)
-        mask = (points_down[:, 2] > -0.7) & (points_down[:, 0] < 1)
+        # Find valid points (not NaN or inf)
+        valid_idx = np.all(np.isfinite(points), axis=1)
+        points = points[valid_idx]
+        colors = colors[valid_idx]
 
 
-        filtered_points = points_down[mask]
-        filtered_colors = colors_down[mask]
+        # Convert NumPy -> Open3D
+        cloud = o3d.geometry.PointCloud()
+        cloud.points = o3d.utility.Vector3dVector(points)
+        cloud.colors = o3d.utility.Vector3dVector(colors)
 
-        scene_pcd_down.points = o3d.utility.Vector3dVector(filtered_points)
-        scene_pcd_down.colors = o3d.utility.Vector3dVector(filtered_colors)
+        cloud.voxel_down_sample(voxel_size=0.01)
 
-        # Estimate normals
-        # scene_pcd_down.estimate_normals(
-        #     search_param=o3d.geometry.KDTreeSearchParamHybrid(
-        #         radius=voxel_size * 2, max_nn=30
-        #     )
-        # )
-
-        self.get_logger().info(
-            f"Pointcloud processed: {len(scene_pcd_down.points)} points"
-        )
-        # self.visualize_point_cloud_matplotlib(scene_pcd_down)
-        # Add debugging - check the bounds and orientation
-        points_array = np.array(scene_pcd_down.points)
-        min_bounds = np.min(points_array, axis=0)
-        max_bounds = np.max(points_array, axis=0)
-        center = np.mean(points_array, axis=0)
-        
-        self.get_logger().info(f"Point cloud bounds: min={min_bounds}, max={max_bounds}")
-        self.get_logger().info(f"Point cloud center: {center}")
-
-
-        # self.visualize_point_clouds(source=self.model_pcd, target=scene_pcd_down)
-        return scene_pcd_down
-
-    def depth_callback(self, msg):
-        """Process incoming depth image"""
-        self.latest_depth_image = msg
-
-        # Convert depth image to point cloud if needed
-        # Note: This is an alternative to using the pointcloud topic
-        if self.latest_pointcloud is None:  # Only use if pointcloud isn't available
-            # Convert ROS image to OpenCV image
-            depth_image = self.cv_bridge.imgmsg_to_cv2(
-                msg, desired_encoding="passthrough"
-            )
-
-            # Here you would convert depth to pointcloud using camera intrinsics
-            # This would require camera intrinsic parameters
-            # For now we'll skip this as we're using the direct pointcloud
+        return cloud
 
     def rgb_callback(self, msg):
         """Process incoming RGB image"""
@@ -235,7 +322,7 @@ class PoseEstimationNode(Node):
             self.get_logger().info("Error converting image")
         # Could be used for visualization or feature extraction from RGB
 
-    def visualize_point_clouds(self, source, target, transformed_source=None):
+    def visualize_point_clouds(self, target, source = None, target_filename = "target.pcd", transformed_source=None):
         """
         Visualize the point clouds (non-blocking in separate process)
 
@@ -244,27 +331,22 @@ class PoseEstimationNode(Node):
             target: Target point cloud (scene)
             transformed_source: Transformed source after registration (if available)
         """
+        if source is not None:
+            source_temp = copy.deepcopy(source)
+            source_temp.paint_uniform_color([1, 0, 0])  # Red for model
+            o3d.io.write_point_cloud("/home/tafarrel/o3d_logs/source.pcd", source_temp)
+
         # Create visualization geometries
-        source_temp = copy.deepcopy(source)
+        
         target_temp = copy.deepcopy(target)
 
         # Color the point clouds
-        source_temp.paint_uniform_color([1, 0, 0])  # Red for model
+        
         target_temp.paint_uniform_color([0, 1, 0])  # Green for scene
 
-        geometries = [source_temp, target_temp]
-
-        # Add transformed source if available
-        if transformed_source is not None:
-            transformed_temp = copy.deepcopy(transformed_source)
-            transformed_temp.paint_uniform_color(
-                [0, 0, 1]
-            )  # Blue for transformed model
-            geometries.append(transformed_temp)
-
         # Save to file for later visualization (non-blocking)
-        o3d.io.write_point_cloud("/home/tafarrel/o3d_logs/source.pcd", source_temp)
-        o3d.io.write_point_cloud("/home/tafarrel/o3d_logs/handrail_test2.pcd", target_temp)
+        
+        o3d.io.write_point_cloud(f"/home/tafarrel/o3d_logs/{target_filename}", target_temp)
         self.get_logger().info(
             "Point clouds saved to /home/tafarrel/o3d_logs/ directory for visualization"
         )
@@ -288,4 +370,5 @@ def main(args=None):
 
 
 if __name__ == "__main__":
+
     main()
