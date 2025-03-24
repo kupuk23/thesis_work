@@ -2,19 +2,33 @@ import small_gicp
 import open3d as o3d
 import numpy as np
 import cv2
+from pose_estimation.icp_testing.icp_visualizer import visualize_pose_in_image
 
+
+img_target_left = cv2.imread("/home/tafarrel/handrail_test2.jpg")
+img_target_right = cv2.imread("/home/tafarrel/handrail_offset_right.jpg")
+img_source = cv2.imread("/home/tafarrel/handrail.jpg")
+K = np.array(
+                [
+                    [500.0, 0.0, 320.0],  # fx, 0, cx
+                    [0.0, 500.0, 240.0],  # 0, fy, cy
+                    [0.0, 0.0, 1.0],  # 0, 0, 1
+                ]
+            )
+
+test = 2 # 1 for center, 2 for left, 3 for right
 
 pcd_source = o3d.io.read_point_cloud("/home/tafarrel/o3d_logs/source.pcd")
-pcd_target = o3d.io.read_point_cloud("/home/tafarrel/o3d_logs/handrail_test.pcd")
-pcd_target_offset_right = o3d.io.read_point_cloud("/home/tafarrel/o3d_logs/target_test.pcd")
+pcd_target = o3d.io.read_point_cloud("/home/tafarrel/o3d_logs/handrail_origin.pcd")
+pcd_target_offset_right = o3d.io.read_point_cloud("/home/tafarrel/o3d_logs/handrail_offset_right.pcd")
 pcd_target_offset_left = o3d.io.read_point_cloud("/home/tafarrel/o3d_logs/handrail_test2.pcd")
 
 
 
 def view_pc(pcd_source, pcd_target):
     # view 2 point clouds together with different color
-    pcd_source.paint_uniform_color([1, 0, 0])
-    pcd_target.paint_uniform_color([0, 0, 1])
+    # pcd_source.paint_uniform_color([1, 0, 0])
+    # pcd_target.paint_uniform_color([0, 0, 1])
     coordinate_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(
         size=0.05, origin=[0, 0, 0]
     )
@@ -29,12 +43,13 @@ def align_pc(pcd_source, pcd_target):
     target = np.dot(target, np.array([[-1, 0, 0], [0, 0, 1], [0, -1, 0]]))
 
     target = np.dot(target, np.array([[0, 0, 1], [0, 1, 0], [1, 0, 0]]))
-    pcd_target.points = o3d.utility.Vector3dVector(target)
+    # pcd_target.points = o3d.utility.Vector3dVector(target)
+    # view_pc(pcd_source, pcd_target)
 
     # visualize source pointcloud
     # o3d.visualization.draw_geometries([pcd_source, pcd_target])
 
-    result = small_gicp.align(target, source, downsampling_resolution=0.25)
+    result = small_gicp.align(target, source, registration_type='VGICP' , downsampling_resolution=0.1)
     if result.converged:
         print("Small GICP converged!")
         # print(f"Final transformation matrix: {result.T_target_source}")
@@ -47,7 +62,7 @@ def align_pc(pcd_source, pcd_target):
         print("Small GICP did not converge.")
         return None
 
-def draw_pose_axes(image, rotation, translation, camera_matrix, dist_coeffs=None, axis_length=0.5):
+def draw_pose_axes(image, rotation, translation, camera_matrix, dist_coeffs=None, axis_length=0.2):
     """
     Draw 3D coordinate axes on the image to visualize the estimated pose.
     
@@ -142,23 +157,37 @@ def visualize_registration(target_points, source_points, transformation_matrix):
 # result.T_target_source: transformation matrix from small_gicp
 # visualize_registration(target, source, result.T_target_source)
 
+
 if __name__ == "__main__":
-    view_pc(pcd_source, pcd_target)
-    T_matrix = align_pc(pcd_source, pcd_source)
-    translation = T_matrix.T_target_source[:3, 3]
-    rotation = T_matrix.T_target_source[:3, :3]
+    if test == 1:
+        T_matrix = align_pc(pcd_source, pcd_target)
+        translation = T_matrix.T_target_source[:3, 3]
+        rotation = T_matrix.T_target_source[:3, :3]
+
+        print(translation)
+        print(rotation)
+        
     
-    # TODO: check ICP result with different images and PC
-    img_target_left = cv2.imread("/home/tafarrel/handrail_test2.jpg")
-    img_target_right = cv2.imread("/home/tafarrel/handrail_test.jpg")
-    img_source = cv2.imread("/home/tafarrel/handrail.jpg")
-    K = np.array(
-            [
-                [500.0, 0.0, 320.0],  # fx, 0, cx
-                [0.0, 500.0, 240.0],  # 0, fy, cy
-                [0.0, 0.0, 1.0],  # 0, 0, 1
-            ]
-        )
-    image = draw_pose_axes(img_source, rotation, translation, K, axis_length=0.1)
+        image = visualize_pose_in_image(img_source, T_matrix.T_target_source, K)
+        # image = draw_pose_axes(img_source, rotation, translation, K, axis_length=0.1)
+    # image = draw_pose_axes(img_source, rotation, translation, K, axis_length=0.1)
+    elif test == 2:
+        T_matrix = align_pc(pcd_source, pcd_target_offset_left)
+        translation = T_matrix.T_target_source[:3, 3]
+        rotation = T_matrix.T_target_source[:3, :3]
+
+        print(translation)
+        print(rotation)       
+        image = draw_pose_axes(img_target_left, rotation, translation, K, axis_length=0.1)
+        # image = visualize_object_frame_in_image(img_target_left, T_matrix.T_target_source, K)
+    elif test == 3:
+        T_matrix = align_pc(pcd_source, pcd_target_offset_right)
+        translation = T_matrix.T_target_source[:3, 3]
+        rotation = T_matrix.T_target_source[:3, :3]
+
+        print(translation)
+        print(rotation)       
+        image = draw_pose_axes(img_target_right, rotation, translation, K, axis_length=0.1)
+        # image = visualize_object_frame_in_image(img_target_right, T_matrix.T_target_source, K)
     cv2.imshow("image", image)
     cv2.waitKey(0)

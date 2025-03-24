@@ -29,7 +29,7 @@ def visualize_point_cloud(pcd, window_name="RGB Point Cloud Visualization"):
     render_option = vis.get_render_option()
     
     # Improve visualization settings
-    render_option.background_color = np.array([0.1, 0.1, 0.1])  # Dark background
+    render_option.background_color = np.array([1, 1, 1])  # Dark background
     render_option.point_size = 2.0  # Larger points
     render_option.show_coordinate_frame = True  # Show coordinate frame
     

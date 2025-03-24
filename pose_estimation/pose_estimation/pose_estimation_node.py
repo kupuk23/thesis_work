@@ -24,12 +24,12 @@ class PoseEstimationNode(Node):
         # Initialize CV bridge for image conversion
         self.cv_bridge = CvBridge()
 
-        self.voxel_size = 0.01
+        self.voxel_size = 0.005
 
         # Load the model (only needs to be done once)
         # self.model_pcd = self.preprocess_model(
         #     "/home/tafarrel/blender_files/handrail/handrail.obj",
-        #     voxel_size=self.voxel_size,
+        #     voxel_size=0.005,
         # )
 
         self.model_pcd = o3d.io.read_point_cloud("/home/tafarrel/o3d_logs/handrail_pcd_down.pcd")
@@ -108,6 +108,7 @@ class PoseEstimationNode(Node):
         """Process incoming pointcloud data"""
         try:
             start_time = time.perf_counter()
+
             # xyz, rgb = self.pointcloud2_to_xyzrgb(msg)
             # o3d_cloud = o3d.geometry.PointCloud()
             # o3d_cloud.points = o3d.utility.Vector3dVector(xyz)
@@ -115,23 +116,18 @@ class PoseEstimationNode(Node):
             # self.get_logger().info(f"Point cloud received: {len(xyz)} points")
             # o3d_cloud, _, _= self.converter.ROSpc2_to_O3DPointCloud(msg)
             # self.get_logger().info(f"Point cloud received: {len(o3d_cloud.points)} points")
-            o3d_cloud = self.pc2_to_o3d_color_works(msg)
+
+            o3d_cloud = self.pc2_to_o3d_color(msg)
             finished_time = time.perf_counter()
             
-            self.get_logger().info(f"Time taken to convert pointcloud: {finished_time - start_time}")
+            self.get_logger().info(f"Time taken to convert pointcloud: {finished_time - start_time}")           
             
-
-
-            
-            
-            # Process the pointcloud directly
             self.get_logger().info("Processing Pointcloud... ")
-            
             scene_pcd = self.preprocess_pointcloud(o3d_cloud, voxel_size=self.voxel_size)
-            visualize_point_cloud(self.model_pcd)
-            # self.visualize_point_clouds(target=scene_pcd, target_filename="handrail_test.pcd")
+            # visualize_point_cloud(scene_pcd)
+            # self.visualize_point_clouds(target=scene_pcd, target_filename="handrail_offset_right.pcd")
             
-
+            # TODO: get handrail pose from gz bridge, then use it as initial transformation
             result = align_pc(self.model_pcd, scene_pcd)
 
             if result is None:
@@ -200,16 +196,6 @@ class PoseEstimationNode(Node):
         self.get_logger().info(
             f"Pointcloud processed: {len(o3d_msg.points)} points"
         )
-        # self.visualize_point_cloud_matplotlib(scene_pcd_down)
-        # Add debugging - check the bounds and orientation
-        points_array = np.array(o3d_msg.points)
-        min_bounds = np.min(points_array, axis=0)
-        max_bounds = np.max(points_array, axis=0)
-        center = np.mean(points_array, axis=0)
-        
-        self.get_logger().info(f"Point cloud bounds: min={min_bounds}, max={max_bounds}")
-        self.get_logger().info(f"Point cloud center: {center}")
-
 
         # self.visualize_point_clouds(source=self.model_pcd, target=scene_pcd_down)
         return o3d_msg
@@ -234,71 +220,38 @@ class PoseEstimationNode(Node):
             # For now we'll skip this as we're using the direct pointcloud
 
     def pc2_to_o3d_color(self, pc2_msg):
-        gen = pc2.read_points(pc2_msg, skip_nans=True)
-        int_data = list(gen)
+        n_points = pc2_msg.width * pc2_msg.height
+        if n_points == 0:
+            return o3d.geometry.PointCloud()
 
-        xyz = np.empty((len(int_data), 3))
-        rgb = np.empty((len(int_data), 3))
-        idx = 0
-        for x in int_data:
-            test = x[3] 
-            # cast float32 to int so that bitwise operations are possible
-            s = struct.pack('>f' ,test)
-            i = struct.unpack('>l',s)[0]
-            # you can get back the float value by the inverse operations
-            pack = ctypes.c_uint32(i).value
-            r = (pack & 0x00FF0000)>> 16
-            g = (pack & 0x0000FF00)>> 8
-            b = (pack & 0x000000FF)
-            # prints r,g,b values in the 0-255 range
-                        # x,y,z can be retrieved from the x[0],x[1],x[2]
-            # xyz = np.append(xyz,[[x[0],x[1],x[2]]], axis = 0)
-            # rgb = np.append(rgb,[[r,g,b]], axis = 0)
-            xyz[idx] = [x[0],x[1],x[2]]
-            rgb[idx] = [r/255,g/255,b/255]
-            idx = idx + 1
+        # Each 'float32' is 4 bytes. For example, if point_step=24 -> 24/4 = 6 floats/point
+        floats_per_point = pc2_msg.point_step // 4
+
+        # Parse all raw data in one shot
+        data = np.frombuffer(pc2_msg.data, dtype=np.float32)
+        data = data.reshape(n_points, floats_per_point)
+
+        # Adjust these slices for your actual offsets:
+        #   x = column 0
+        #   y = column 1
+        #   z = column 2
+        #   (possible padding at column 3)
+        #   rgb = column 4
+        xyz = data[:, 0:3]
+        rgb_floats = data[:, 4]  # float packed color (if offset=16 => col 4)
+
+        # Convert float -> int for bitwise
+        rgb_int = rgb_floats.view(np.int32)
+        r = (rgb_int >> 16) & 0xFF
+        g = (rgb_int >>  8) & 0xFF
+        b =  rgb_int        & 0xFF
+
+        # Combine & normalize
+        colors = np.column_stack((r, g, b)).astype(np.float32) / 255.0
 
         # Find valid points (not NaN or inf)
         valid_idx = np.all(np.isfinite(xyz), axis=1)
         points = xyz[valid_idx]
-        colors = rgb[valid_idx]
-
-
-        # Convert NumPy -> Open3D
-        cloud = o3d.geometry.PointCloud()
-        cloud.points = o3d.utility.Vector3dVector(points)
-        cloud.colors = o3d.utility.Vector3dVector(colors)
-
-        cloud.voxel_down_sample(voxel_size=0.01)
-        return cloud
-    
-    def pc2_to_o3d_color_works(self, pc2_msg):
-        # Convert ROS -> NumPy
-        pc_array = pc2.read_points(
-        pc2_msg, 
-        field_names=("x", "y", "z", "rgb"),
-        skip_nans=True,
-        reshape_organized_cloud=False
-    )
-        
-         # Convert to numpy arrays more efficiently
-        points = np.array([(x, y, z) for x, y, z, _ in pc_array], dtype=np.float32)
-        
-        # Extract RGB using vectorized operations
-        rgb_packed = np.array([rgb for _, _, _, rgb in pc_array], dtype=np.float32)
-        rgb_bytes = rgb_packed.view(np.uint32)
-
-        # Extract color channels using bitwise operations on the entire array at once
-        r = np.bitwise_and(np.right_shift(rgb_bytes, 16), 255).astype(np.uint8)
-        g = np.bitwise_and(np.right_shift(rgb_bytes, 8), 255).astype(np.uint8)
-        b = np.bitwise_and(rgb_bytes, 255).astype(np.uint8)
-        
-        # Normalize to [0, 1] range and combine
-        colors = np.column_stack([r, g, b]).astype(np.float32) / 255.0
-
-        # Find valid points (not NaN or inf)
-        valid_idx = np.all(np.isfinite(points), axis=1)
-        points = points[valid_idx]
         colors = colors[valid_idx]
 
 
@@ -308,7 +261,6 @@ class PoseEstimationNode(Node):
         cloud.colors = o3d.utility.Vector3dVector(colors)
 
         cloud.voxel_down_sample(voxel_size=0.01)
-
         return cloud
 
     def rgb_callback(self, msg):
@@ -317,7 +269,7 @@ class PoseEstimationNode(Node):
             # Convert ROS Image message to OpenCV image
             np_arr = np.frombuffer(msg.data, np.uint8)
             self.cv_image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-            # cv2.imwrite("/home/tafarrel/handrail_test2.jpg", self.cv_image)
+            # cv2.imwrite("/home/tafarrel/handrail_offset_right.jpg", self.cv_image)
         except:
             self.get_logger().info("Error converting image")
         # Could be used for visualization or feature extraction from RGB

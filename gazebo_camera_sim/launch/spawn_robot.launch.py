@@ -145,6 +145,8 @@ def generate_launch_description():
             "/cmd_vel@geometry_msgs/msg/Twist@gz.msgs.Twist",  # @ means the message type is bi directional
             "/odom@nav_msgs/msg/Odometry@gz.msgs.Odometry",
             "/tf@tf2_msgs/msg/TFMessage@gz.msgs.Pose_V",
+            # add the world pose
+            "/world/iss_world/pose/info@geometry_msgs/msg/PoseArray@gz.msgs.Pose_V"
             # "/camera/image@sensor_msgs/msg/Image@gz.msgs.Image",
             "/camera/camera_info@sensor_msgs/msg/CameraInfo@gz.msgs.CameraInfo",
             "/camera/depth_image@sensor_msgs/msg/Image@gz.msgs.Image",
