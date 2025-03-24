@@ -1,6 +1,10 @@
 import os
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
+from launch.actions import (
+    DeclareLaunchArgument,
+    IncludeLaunchDescription,
+    OpaqueFunction,
+)
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Command
@@ -63,6 +67,14 @@ def generate_launch_description():
         }.items(),
     )
 
+    tf_world_publisher = Node(
+        package="tf2_ros",
+        executable="static_transform_publisher",
+        name="world_to_odom_broadcaster",
+        arguments=["0", "0", "0", "0", "0", "0", "map", "odom"],
+        output="screen",
+    )
+
     # Launch rviz
     rviz_node = Node(
         package="rviz2",
@@ -76,6 +88,7 @@ def generate_launch_description():
             {"use_sim_time": True},
         ],
     )
+
 
     def create_robot_spawner(name, x, y, z, R, P, Y, namespace=None):
         """Create a node for spawning a robot"""
@@ -146,7 +159,7 @@ def generate_launch_description():
             "/odom@nav_msgs/msg/Odometry@gz.msgs.Odometry",
             "/tf@tf2_msgs/msg/TFMessage@gz.msgs.Pose_V",
             # add the world pose
-            "/world/iss_world/pose/info@geometry_msgs/msg/PoseArray@gz.msgs.Pose_V"
+            "/world/iss_world/pose/info@geometry_msgs/msg/PoseArray@gz.msgs.Pose_V",
             # "/camera/image@sensor_msgs/msg/Image@gz.msgs.Image",
             "/camera/camera_info@sensor_msgs/msg/CameraInfo@gz.msgs.CameraInfo",
             "/camera/depth_image@sensor_msgs/msg/Image@gz.msgs.Image",
@@ -216,11 +229,15 @@ def generate_launch_description():
     # launchDescriptionObject.add_action(create_robot_spawner("my_robot", -2, 0, 1.25, 0.0, 0, 0)) # default case
     # launchDescriptionObject.add_action(create_robot_spawner("my_robot", -2, 0.8, 1.4, 0.6, -0.3, -0.4)) # ibvs_sample case
     # launchDescriptionObject.add_action(create_robot_spawner("my_robot", -1.26, 0, 1.44, 0, -0.04, 0)) # PnP case
-    launchDescriptionObject.add_action(create_robot_spawner("my_robot", -2, 3, 1, 0.0, 0, 0)) # handrail case
+
+    launchDescriptionObject.add_action(
+        create_robot_spawner("my_robot", -2, 3, 1, 0.0, 0, 0)
+    )  # handrail case
     launchDescriptionObject.add_action(robot_state_publisher_node)
     launchDescriptionObject.add_action(gz_bridge_node)
     launchDescriptionObject.add_action(gz_image_bridge_node)
     launchDescriptionObject.add_action(relay_camera_info_node)
+    launchDescriptionObject.add_action(tf_world_publisher)
     # launchDescriptionObject.add_action(ibvs_node)
     # launchDescriptionObject.add_action(depth_image_proc_node)
     # launchDescriptionObject.add_action(relay_cmd_vel)

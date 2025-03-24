@@ -19,25 +19,6 @@ find_package(gz-msgs10 REQUIRED)
 find_package(rclpy REQUIRED)
 find_package(geometry_msgs REQUIRED)
 
-# add_library(six_dof_velocity_control SHARED src/six_dof_velocity_control.cc)
-# target_include_directories(six_dof_velocity_control PUBLIC include)
-# target_link_libraries(six_dof_velocity_control
-#   gz-plugin2::register
-#   gz-common5::gz-common5
-#   gz-cmake3::gz-cmake3
-#   gz-transport13::gz-transport13
-#   gz-msgs10::gz-msgs10
-# )
-# ament_export_libraries(six_dof_velocity_control)
-# ament_target_dependencies(six_dof_velocity_control
-#   "ros_gz_sim",
-#   "gz-plugin2",
-#   "gz-common5",
-#   "gz-cmake3",
-#   "gz-transport13",
-#   "gz-msgs10"
-# )
-
 
 
 
@@ -46,12 +27,7 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}
 )
 
-# install(TARGETS
-#   SixDOFVelocityControl
-#   ARCHIVE DESTINATION lib
-#   LIBRARY DESTINATION lib
-#   RUNTIME DESTINATION bin
-# )
+
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

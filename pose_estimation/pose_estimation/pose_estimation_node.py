@@ -11,6 +11,8 @@ import time
 import ctypes
 from sensor_msgs.msg import PointCloud2, Image, CompressedImage
 import sensor_msgs_py.point_cloud2 as pc2
+from geometry_msgs.msg import PoseArray
+
 # from icp_testing.icp import align_pc
 from icp_testing.pnp_tracker import PnPTracker
 from pose_estimation.icp_testing.icp import align_pc, draw_pose_axes
@@ -32,7 +34,9 @@ class PoseEstimationNode(Node):
         #     voxel_size=0.005,
         # )
 
-        self.model_pcd = o3d.io.read_point_cloud("/home/tafarrel/o3d_logs/handrail_pcd_down.pcd")
+        self.model_pcd = o3d.io.read_point_cloud(
+            "/home/tafarrel/o3d_logs/handrail_pcd_down.pcd"
+        )
         self.K = np.array(
             [
                 [500.0, 0.0, 320.0],  # fx, 0, cx
@@ -45,7 +49,14 @@ class PoseEstimationNode(Node):
 
         # Create subscribers
         self.pointcloud_sub = self.create_subscription(
-            PointCloud2, "/camera/points", self.pointcloud_callback, 10
+            PointCloud2,
+            "/asd",
+            self.pointcloud_callback,
+            10,  # /camera/points <- CHANGE LATER!
+        )
+
+        self.world_pose_sub = self.create_subscription(
+            PoseArray, "/world/iss_world/pose/info", self.world_pose_callback, 10
         )
 
         self.depth_sub = self.create_subscription(
@@ -60,7 +71,7 @@ class PoseEstimationNode(Node):
         self.latest_pointcloud = None
         self.latest_depth_image = None
         self.latest_rgb_image = None
-
+        self.handrail_pose = None
 
         self.get_logger().info("Pose estimation node initialized")
 
@@ -97,7 +108,9 @@ class PoseEstimationNode(Node):
         )
 
         # save the preprocessed model
-        o3d.io.write_point_cloud("/home/tafarrel/o3d_logs/handrail_pcd_down.pcd", model_pcd_down)
+        o3d.io.write_point_cloud(
+            "/home/tafarrel/o3d_logs/handrail_pcd_down.pcd", model_pcd_down
+        )
 
         self.get_logger().info(
             f"Model preprocessed: {len(model_pcd_down.points)} points"
@@ -119,43 +132,45 @@ class PoseEstimationNode(Node):
 
             o3d_cloud = self.pc2_to_o3d_color(msg)
             finished_time = time.perf_counter()
-            
-            self.get_logger().info(f"Time taken to convert pointcloud: {finished_time - start_time}")           
-            
+
+            self.get_logger().info(
+                f"Time taken to convert pointcloud: {finished_time - start_time}"
+            )
+
             self.get_logger().info("Processing Pointcloud... ")
-            scene_pcd = self.preprocess_pointcloud(o3d_cloud, voxel_size=self.voxel_size)
+            scene_pcd = self.preprocess_pointcloud(
+                o3d_cloud, voxel_size=self.voxel_size
+            )
             # visualize_point_cloud(scene_pcd)
             # self.visualize_point_clouds(target=scene_pcd, target_filename="handrail_offset_right.pcd")
-            
+
             # TODO: get handrail pose from gz bridge, then use it as initial transformation
+
             result = align_pc(self.model_pcd, scene_pcd)
 
             if result is None:
                 self.get_logger().info("ICP did not converge")
                 return
-            
+
             T_camera_object = np.linalg.inv(result.T_target_source)
 
             # This is the object's pose in camera coordinates
             position = T_camera_object[:3, 3]  # Translation vector
             rotation = T_camera_object[:3, :3]  # Rotation matrix
 
-            predicted_image_pose = draw_pose_axes(self.cv_image, rotation, position, self.K)
+            predicted_image_pose = draw_pose_axes(
+                self.cv_image, rotation, position, self.K
+            )
 
             # Display the image with the pose
             cv2.imshow("Pose Estimation", predicted_image_pose)
             cv2.waitKey(1)
 
-            # print(f"Object position in camera frame: {position} and rotation: {rotation}")
-
-            # Now you can use this for pose estimation
-            # if scene_pcd is not None:
-            #     self.process_for_pose_estimation(scene_pcd)
         except Exception as e:
             self.get_logger().info(f"Error processing point cloud: {e}")
 
     # TODO: display the estimated pose in the image
-    def preprocess_pointcloud(self, o3d_msg , voxel_size=0.01):
+    def preprocess_pointcloud(self, o3d_msg, voxel_size=0.01):
         """
         Preprocess the pointcloud from ROS topic
 
@@ -168,8 +183,7 @@ class PoseEstimationNode(Node):
         """
 
         # Remove statistical outliers
-        
-        
+
         # o3d_msg, _ = o3d_msg.remove_statistical_outlier(
         #     nb_neighbors=20, std_ratio=2.0
         # )
@@ -178,7 +192,6 @@ class PoseEstimationNode(Node):
         points_down = np.asarray(o3d_msg.points)
         colors_down = np.asarray(o3d_msg.colors)
         mask = (points_down[:, 2] > -0.7) & (points_down[:, 0] < 1)
-
 
         filtered_points = points_down[mask]
         filtered_colors = colors_down[mask]
@@ -193,15 +206,28 @@ class PoseEstimationNode(Node):
         #     )
         # )
 
-        self.get_logger().info(
-            f"Pointcloud processed: {len(o3d_msg.points)} points"
-        )
+        self.get_logger().info(f"Pointcloud processed: {len(o3d_msg.points)} points")
 
         # self.visualize_point_clouds(source=self.model_pcd, target=scene_pcd_down)
         return o3d_msg
 
     # Example usage
     # diagnose_point_cloud(o3d_msg)
+
+    def world_pose_callback(self, msg):
+        """
+        Process incoming world pose message and extract the pose of the handrail
+
+        Args:
+            msg: PoseArray message containing the world pose
+        """
+
+        if len(msg.poses) == 0:
+            self.get_logger().info("No poses received")
+            return
+
+        # Extract the pose of the handrail
+        self.handrail_pose = msg.poses[1] # the handrail is the second object in the list
 
     def depth_callback(self, msg):
         """Process incoming depth image"""
@@ -243,8 +269,8 @@ class PoseEstimationNode(Node):
         # Convert float -> int for bitwise
         rgb_int = rgb_floats.view(np.int32)
         r = (rgb_int >> 16) & 0xFF
-        g = (rgb_int >>  8) & 0xFF
-        b =  rgb_int        & 0xFF
+        g = (rgb_int >> 8) & 0xFF
+        b = rgb_int & 0xFF
 
         # Combine & normalize
         colors = np.column_stack((r, g, b)).astype(np.float32) / 255.0
@@ -253,7 +279,6 @@ class PoseEstimationNode(Node):
         valid_idx = np.all(np.isfinite(xyz), axis=1)
         points = xyz[valid_idx]
         colors = colors[valid_idx]
-
 
         # Convert NumPy -> Open3D
         cloud = o3d.geometry.PointCloud()
@@ -274,7 +299,9 @@ class PoseEstimationNode(Node):
             self.get_logger().info("Error converting image")
         # Could be used for visualization or feature extraction from RGB
 
-    def visualize_point_clouds(self, target, source = None, target_filename = "target.pcd", transformed_source=None):
+    def visualize_point_clouds(
+        self, target, source=None, target_filename="target.pcd", transformed_source=None
+    ):
         """
         Visualize the point clouds (non-blocking in separate process)
 
@@ -289,16 +316,18 @@ class PoseEstimationNode(Node):
             o3d.io.write_point_cloud("/home/tafarrel/o3d_logs/source.pcd", source_temp)
 
         # Create visualization geometries
-        
+
         target_temp = copy.deepcopy(target)
 
         # Color the point clouds
-        
+
         target_temp.paint_uniform_color([0, 1, 0])  # Green for scene
 
         # Save to file for later visualization (non-blocking)
-        
-        o3d.io.write_point_cloud(f"/home/tafarrel/o3d_logs/{target_filename}", target_temp)
+
+        o3d.io.write_point_cloud(
+            f"/home/tafarrel/o3d_logs/{target_filename}", target_temp
+        )
         self.get_logger().info(
             "Point clouds saved to /home/tafarrel/o3d_logs/ directory for visualization"
         )

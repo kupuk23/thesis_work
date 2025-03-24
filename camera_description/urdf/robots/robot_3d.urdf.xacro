@@ -32,6 +32,7 @@
 
   <!-- Define the new root link (dummy_link) -->
   <link name="dummy_link">
+    <gravity>0</gravity>
     <visual>
       <geometry>
         <box size="0.001 0.001 0.001"/>
@@ -44,6 +45,7 @@
   </link>
 
   <link name="base_link">
+    <gravity>0</gravity>
     <inertial>
       <origin xyz="0 0 0" rpy="0 0 0"/>
       <mass value="1.0"/>
@@ -68,6 +70,7 @@
 
   <!-- Fixed joint connecting dummy_link to base_link -->
   <joint name="dummy_to_base" type="fixed">
+    <gravity>0</gravity>
     <parent link="dummy_link"/>
     <child link="base_link"/>
     <origin xyz="0 0 0" rpy="0 0 0"/>
