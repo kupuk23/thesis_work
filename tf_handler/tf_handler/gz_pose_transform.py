@@ -2,10 +2,9 @@
 
 import rclpy
 from rclpy.node import Node
-from geometry_msgs.msg import Pose, PoseStamped, TransformStamped
-from geometry_msgs.msg import PoseArray
-import tf2_ros
-from tf2_ros import TransformBroadcaster
+from geometry_msgs.msg import PoseArray, PoseStamped, TransformStamped
+from sensor_msgs.msg import PointCloud2
+from tf2_ros import Buffer, TransformListener, TransformBroadcaster
 
 
 class GazeboPoseExtractor(Node):
@@ -27,13 +26,20 @@ class GazeboPoseExtractor(Node):
             PoseStamped, "/iss_world/handrail_pose", 10
         )
 
+        self.pointcloud_subscribe = self.create_subscription(PointCloud2, "/camera/points", self.pointcloud_callback, 10)
+
         # Set up the transform broadcaster
         self.tf_broadcaster = TransformBroadcaster(self)
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
 
         # Store the handrail pose
         self.handrail_pose = None
 
         self.get_logger().info("Gazebo Pose Extractor Node has been initialized")
+
+    def pointcloud_callback(self, msg):
+        self.timestamp = msg.header.stamp
 
     def world_pose_callback(self, msg):
         """
@@ -42,31 +48,30 @@ class GazeboPoseExtractor(Node):
         Args:
             msg: PoseArray message containing the world pose
         """
+        try:
+            if len(msg.poses) == 0:
+                self.get_logger().info("No poses received")
+                return
 
-        if len(msg.poses) == 0:
-            self.get_logger().info("No poses received")
-            return
+            # Extract the pose of the handrail
+            self.handrail_pose = msg.poses[
+                1
+            ]  # the handrail is the second object in the list
 
-        # Extract the pose of the handrail
-        self.handrail_pose = msg.poses[
-            1
-        ]  # the handrail is the second object in the list
+            # # Publish the extracted pose as a PoseStamped message
+            pose_stamped = PoseStamped()
+            pose_stamped.header.stamp = self.timestamp
+            pose_stamped.header.frame_id = "map"
+            pose_stamped.pose = self.handrail_pose
 
-        # Publish the extracted pose as a PoseStamped message
-        pose_stamped = PoseStamped()
-        pose_stamped.header.stamp = self.get_clock().now().to_msg()
-        pose_stamped.header.frame_id = "map"
-        pose_stamped.pose = self.handrail_pose
+            self.handrail_pose_publisher.publish(pose_stamped)
 
-        self.handrail_pose_publisher.publish(pose_stamped)
+            # self.get_logger().info(f"Timestamp: {timestamp}")
+            # Broadcast the transform to the TF tree
+            self.broadcast_transform(self.handrail_pose, self.timestamp)
 
-        current_time = self.get_clock().now().to_msg()
-
-        # Broadcast the transform to the TF tree
-        self.broadcast_transform(self.handrail_pose, current_time)
-
-        # self.get_logger().debug(f"Handrail pose extracted: x={self.handrail_pose.position.x}, " +
-        #                       f"y={self.handrail_pose.position.y}, z={self.handrail_pose.position.z}")
+        except Exception as e:
+            self.get_logger().warn(f"Error broadcasting transform: {e}")
 
     def broadcast_transform(self, pose, timestamp):
         """

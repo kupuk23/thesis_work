@@ -194,6 +194,15 @@ def generate_launch_description():
         output="screen",
     )
 
+    # add handrail node publisher
+    handrail_node = Node(
+        package="tf_handler",
+        executable="gz_pose_transform",
+        name="gz_pose_transform",
+        output="screen",
+    )
+        
+
     # Relay node to republish /camera/camera_info to /camera/image/camera_info
     relay_camera_info_node = Node(
         package="topic_tools",
@@ -233,6 +242,7 @@ def generate_launch_description():
     launchDescriptionObject.add_action(
         create_robot_spawner("my_robot", -2, 3, 1, 0.0, 0, 0)
     )  # handrail case
+    launchDescriptionObject.add_action(handrail_node)
     launchDescriptionObject.add_action(robot_state_publisher_node)
     launchDescriptionObject.add_action(gz_bridge_node)
     launchDescriptionObject.add_action(gz_image_bridge_node)

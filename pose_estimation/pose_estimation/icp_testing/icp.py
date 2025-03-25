@@ -2,6 +2,7 @@ import small_gicp
 import open3d as o3d
 import numpy as np
 import cv2
+from pose_estimation.tools.pose_estimation_tools import preprocess_model
 from pose_estimation.icp_testing.icp_visualizer import visualize_pose_in_image
 
 
@@ -16,9 +17,13 @@ K = np.array(
                 ]
             )
 
-test = 2 # 1 for center, 2 for left, 3 for right
+test = 1 # 1 for center, 2 for left, 3 for right
+# preprocess_model(
+#             "/home/tafarrel/blender_files/handrail/handrail.obj",
+#             voxel_size=0.005,
+#         )
 
-pcd_source = o3d.io.read_point_cloud("/home/tafarrel/o3d_logs/source.pcd")
+pcd_source = o3d.io.read_point_cloud("/home/tafarrel/o3d_logs/handrail_pcd_down.pcd")
 pcd_target = o3d.io.read_point_cloud("/home/tafarrel/o3d_logs/handrail_origin.pcd")
 pcd_target_offset_right = o3d.io.read_point_cloud("/home/tafarrel/o3d_logs/handrail_offset_right.pcd")
 pcd_target_offset_left = o3d.io.read_point_cloud("/home/tafarrel/o3d_logs/handrail_test2.pcd")
@@ -27,29 +32,31 @@ pcd_target_offset_left = o3d.io.read_point_cloud("/home/tafarrel/o3d_logs/handra
 
 def view_pc(pcd_source, pcd_target):
     # view 2 point clouds together with different color
+    
     # pcd_source.paint_uniform_color([1, 0, 0])
     # pcd_target.paint_uniform_color([0, 0, 1])
     coordinate_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(
         size=0.05, origin=[0, 0, 0]
     )
-    o3d.visualization.draw_geometries([pcd_source, pcd_target])
+    o3d.visualization.draw_geometries([pcd_source, pcd_target, coordinate_frame])
 
 
-def align_pc(pcd_source, pcd_target):
+def align_pc(pcd_source, pcd_target, init_T=None):
     source = np.asarray(pcd_source.points)  # Mx3 numpy array
     target = np.asarray(pcd_target.points)  # Nx3 numpy array
 
-    # rotate target PC
-    target = np.dot(target, np.array([[-1, 0, 0], [0, 0, 1], [0, -1, 0]]))
-
-    target = np.dot(target, np.array([[0, 0, 1], [0, 1, 0], [1, 0, 0]]))
+    # perform inittial alignment to target to visualize
+    # pcd_source.points = o3d.utility.Vector3dVector(source)
     # pcd_target.points = o3d.utility.Vector3dVector(target)
+
+    
+
     # view_pc(pcd_source, pcd_target)
 
     # visualize source pointcloud
     # o3d.visualization.draw_geometries([pcd_source, pcd_target])
 
-    result = small_gicp.align(target, source, registration_type='VGICP' , downsampling_resolution=0.1)
+    result = small_gicp.align(target, source, registration_type='VGICP' , downsampling_resolution=0.1, init_T_target_source=init_T)
     if result.converged:
         print("Small GICP converged!")
         # print(f"Final transformation matrix: {result.T_target_source}")
@@ -160,6 +167,8 @@ def visualize_registration(target_points, source_points, transformation_matrix):
 
 if __name__ == "__main__":
     if test == 1:
+        
+        # view_pc(pcd_source, pcd_target)
         T_matrix = align_pc(pcd_source, pcd_target)
         translation = T_matrix.T_target_source[:3, 3]
         rotation = T_matrix.T_target_source[:3, :3]

@@ -1,6 +1,48 @@
 import open3d as o3d
 import numpy as np
 
+def preprocess_model(model_path, voxel_size=0.01):
+        """
+        Preprocess the 3D model from Blender
+
+        Args:
+            model_path: Path to the model file (.obj, .stl, etc.)
+            voxel_size: Downsampling voxel size
+
+        Returns:
+            Preprocessed model point cloud
+        """
+        print(f"Loading model from {model_path}")
+
+        # Load the model
+        model = o3d.io.read_triangle_mesh(model_path)
+
+        # Ensure model has normals
+        model.compute_vertex_normals()
+
+        # Sample points from the model surface
+        model_pcd = model.sample_points_uniformly(number_of_points=10000)
+
+        # Downsample the point cloud
+        model_pcd_down = model_pcd.voxel_down_sample(voxel_size)
+
+        # Estimate normals if they don't exist or need recalculation
+        model_pcd_down.estimate_normals(
+            search_param=o3d.geometry.KDTreeSearchParamHybrid(
+                radius=voxel_size * 2, max_nn=30
+            )
+        )
+
+        # save the preprocessed model
+        o3d.io.write_point_cloud(
+            "/home/tafarrel/o3d_logs/handrail_pcd_down.pcd", model_pcd_down
+        )
+
+        print(
+            f"Model preprocessed: {len(model_pcd_down.points)} points"
+        )
+        return model_pcd_down
+
 
 def extract_features(pcd, voxel_size):
     """
@@ -96,53 +138,3 @@ def fine_registration(source, target, initial_transform, voxel_size):
     
     
     return result
-
-def calculate_pose_from_transformation(transformation_matrix):
-    """
-    Extract position and orientation from transformation matrix
-    
-    Args:
-        transformation_matrix: 4x4 transformation matrix
-        
-    Returns:
-        tuple (position, quaternion)
-    """
-    # Extract rotation matrix (3x3) and translation vector (3x1)
-    rotation_matrix = transformation_matrix[:3, :3]
-    translation_vector = transformation_matrix[:3, 3]
-    
-    # Convert rotation matrix to quaternion
-    # trace of rotation matrix
-    trace = np.trace(rotation_matrix)
-    
-    # Check the trace to determine the best computation method
-    if trace > 0:
-        S = np.sqrt(trace + 1.0) * 2
-        qw = 0.25 * S
-        qx = (rotation_matrix[2, 1] - rotation_matrix[1, 2]) / S
-        qy = (rotation_matrix[0, 2] - rotation_matrix[2, 0]) / S
-        qz = (rotation_matrix[1, 0] - rotation_matrix[0, 1]) / S
-    elif rotation_matrix[0, 0] > rotation_matrix[1, 1] and rotation_matrix[0, 0] > rotation_matrix[2, 2]:
-        S = np.sqrt(1.0 + rotation_matrix[0, 0] - rotation_matrix[1, 1] - rotation_matrix[2, 2]) * 2
-        qw = (rotation_matrix[2, 1] - rotation_matrix[1, 2]) / S
-        qx = 0.25 * S
-        qy = (rotation_matrix[0, 1] + rotation_matrix[1, 0]) / S
-        qz = (rotation_matrix[0, 2] + rotation_matrix[2, 0]) / S
-    elif rotation_matrix[1, 1] > rotation_matrix[2, 2]:
-        S = np.sqrt(1.0 + rotation_matrix[1, 1] - rotation_matrix[0, 0] - rotation_matrix[2, 2]) * 2
-        qw = (rotation_matrix[0, 2] - rotation_matrix[2, 0]) / S
-        qx = (rotation_matrix[0, 1] + rotation_matrix[1, 0]) / S
-        qy = 0.25 * S
-        qz = (rotation_matrix[1, 2] + rotation_matrix[2, 1]) / S
-    else:
-        S = np.sqrt(1.0 + rotation_matrix[2, 2] - rotation_matrix[0, 0] - rotation_matrix[1, 1]) * 2
-        qw = (rotation_matrix[1, 0] - rotation_matrix[0, 1]) / S
-        qx = (rotation_matrix[0, 2] + rotation_matrix[2, 0]) / S
-        qy = (rotation_matrix[1, 2] + rotation_matrix[2, 1]) / S
-        qz = 0.25 * S
-    
-    # Return position and quaternion
-    position = translation_vector
-    quaternion = np.array([qw, qx, qy, qz])
-    
-    return position, quaternion
