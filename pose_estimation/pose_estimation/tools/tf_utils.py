@@ -2,22 +2,22 @@ import numpy as np
 from geometry_msgs.msg import PoseStamped, Transform, TransformStamped
 import tf_transformations
 
-def pose_stamped_to_matrix(pose_stamped_msg):
+def pose_to_matrix(pose_msg):
     """
     Convert a PoseStamped message to a 4x4 transformation matrix.
     
     Args:
-        pose_stamped_msg (PoseStamped): The ROS PoseStamped message
+        pose_msg (PoseStamped): The ROS PoseStamped message
         
     Returns:
         numpy.ndarray: 4x4 transformation matrix
     """
     # Extract position
-    position = pose_stamped_msg.pose.position
+    position = pose_msg.position
     position_vector = np.array([position.x, position.y, position.z])
     
     # Extract orientation as quaternion
-    orientation = pose_stamped_msg.pose.orientation
+    orientation = pose_msg.orientation
     quaternion = np.array([orientation.x, orientation.y, orientation.z, orientation.w])
     
     # Create rotation matrix from quaternion
