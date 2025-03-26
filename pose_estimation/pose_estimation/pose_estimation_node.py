@@ -14,7 +14,7 @@ from tf2_ros import Buffer, TransformListener
 import tf2_geometry_msgs
 
 # from icp_testing.icp import align_pc
-from pose_estimation.icp_testing.icp import align_pc, draw_pose_axes
+from pose_estimation.icp_testing.icp import align_pc, draw_pose_axes, align_pc_o3d
 from pose_estimation.tools.visualizer import visualize_point_cloud
 from pose_estimation.tools.pose_estimation_tools import preprocess_model
 from pose_estimation.tools.tf_utils import pose_to_matrix, matrix_to_pose
@@ -28,7 +28,7 @@ class PoseEstimationNode(Node):
         self.cv_bridge = CvBridge()
 
         self.voxel_size = 0.001
-
+        # preprocess_model("/home/tafarrel/", voxel_size=self.voxel_size)
         self.model_pcd = o3d.io.read_point_cloud(
             "/home/tafarrel/o3d_logs/handrail_pcd_down.pcd"
         )
@@ -100,7 +100,7 @@ class PoseEstimationNode(Node):
             scene_pcd = self.preprocess_pointcloud(o3d_cloud)
             # self.visualize_point_clouds(target=scene_pcd, target_filename="handrail_offset_right.pcd")
 
-            visualize_point_cloud(scene_pcd)
+            # visualize_point_cloud(scene_pcd)
 
             # if scene_pcd empty, return
             if len(scene_pcd.points) == 0:
@@ -110,7 +110,8 @@ class PoseEstimationNode(Node):
                 pose_msg, pointcloud_msg.header.frame_id
             )
 
-            result = align_pc(self.model_pcd, scene_pcd, init_T=initial_transformation)
+            # result = align_pc(self.model_pcd, scene_pcd, init_T=initial_transformation)
+            result = align_pc_o3d(self.model_pcd, scene_pcd, init_T=initial_transformation, voxel_size=self.voxel_size)
 
             if result is None:
                 self.get_logger().info("ICP did not converge")

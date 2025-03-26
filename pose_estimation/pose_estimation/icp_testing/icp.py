@@ -4,6 +4,7 @@ import numpy as np
 import cv2
 from pose_estimation.tools.pose_estimation_tools import preprocess_model
 from pose_estimation.icp_testing.icp_visualizer import visualize_pose_in_image
+import copy
 
 
 img_target_left = cv2.imread("/home/tafarrel/handrail_test2.jpg")
@@ -20,7 +21,7 @@ K = np.array(
 test = 1  # 1 for center, 2 for left, 3 for right
 # preprocess_model(
 #             "/home/tafarrel/blender_files/handrail/handrail.obj",
-#             voxel_size=0.005,
+#             voxel_size=0.001,
 #         )
 
 pcd_source = o3d.io.read_point_cloud("/home/tafarrel/o3d_logs/handrail_pcd_down.pcd")
@@ -33,20 +34,125 @@ pcd_target_offset_left = o3d.io.read_point_cloud(
 )
 
 
-def view_pc(pcd_source, pcd_target):
-    # view 2 point clouds together with different color
+def align_pc_o3d(pcd_source, pcd_target, init_T = None, voxel_size=0.001):
+    """
+    Align source point cloud to target point cloud using ICP.
+    
+    Args:
+        pcd_source: Source point cloud (o3d.geometry.PointCloud)
+        pcd_target: Target point cloud (o3d.geometry.PointCloud)
+        init_T: Initial transformation matrix (np.ndarray, 4x4)
+        
+    Returns:
+        result: Registration result containing transformation, fitness and RMSE
+    """
 
-    # pcd_source.paint_uniform_color([1, 0, 0])
-    # pcd_target.paint_uniform_color([0, 0, 1])
+    if not isinstance(pcd_source, o3d.geometry.PointCloud) or not isinstance(pcd_target, o3d.geometry.PointCloud):
+        print("Input point clouds must be Open3D PointCloud objects")
+        return None
+    
+    # Create copies to avoid modifying the original point clouds
+    source = copy.deepcopy(pcd_source)
+    target = copy.deepcopy(pcd_target)
+
+     # Estimate normals if not already computed (important for point-to-plane ICP)
+    source.estimate_normals(
+        search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=voxel_size*2, max_nn=30))
+    target.estimate_normals(
+        search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=voxel_size*2, max_nn=30))
+    
+    # display PC with normals
+    # draw_registration_result(source, target)
+    
+    # Initial alignment (if not provided)
+    current_transformation = np.identity(4) if init_T is None else init_T
+    
+     # Point-to-plane ICP
+    criteria = o3d.pipelines.registration.ICPConvergenceCriteria(
+        relative_fitness=1e-6,
+        relative_rmse=1e-6,
+        max_iteration=50)
+    
+    result = o3d.pipelines.registration.registration_icp(
+        source, target, 
+        max_correspondence_distance=voxel_size*1,
+        init=current_transformation,
+        estimation_method=o3d.pipelines.registration.TransformationEstimationPointToPlane(),
+        criteria=criteria
+        )
+    
+    if result.fitness > 0.6:  # Adjust this threshold based on your application
+        print(f"ICP registration successful!")
+        print(f"Fitness: {result.fitness}, RMSE: {result.inlier_rmse}")
+        return result
+    else:
+        print(f"ICP registration might not be optimal. Fitness: {result.fitness}")
+        
+        # # Try global registration if ICP doesn't give good results
+        # print("Attempting global registration...")
+        # source_fpfh = compute_fpfh_features(source, voxel_size)
+        # target_fpfh = compute_fpfh_features(target, voxel_size)
+        
+        # global_result = execute_global_registration(
+        #     source, target, source_fpfh, target_fpfh, voxel_size)
+        
+        # # Refine with ICP
+        # refined_result = o3d.pipelines.registration.registration_icp(
+        #     source, target, 
+        #     max_correspondence_distance=voxel_size,
+        #     init=global_result.transformation,
+        #     estimation_method=o3d.pipelines.registration.TransformationEstimationPointToPlane(),
+        #     criteria=criteria)
+        
+        # print(f"Refined registration: Fitness: {refined_result.fitness}, RMSE: {refined_result.inlier_rmse}")
+        # return refined_result
+
+
+def compute_fpfh_features(pcd, voxel_size):
+    """Compute FPFH features for global registration."""
+    radius_normal = voxel_size * 2
+    radius_feature = voxel_size * 5
+    
+    pcd.estimate_normals(
+        o3d.geometry.KDTreeSearchParamHybrid(radius=radius_normal, max_nn=30))
+    
+    return o3d.pipelines.registration.compute_fpfh_feature(
+        pcd, o3d.geometry.KDTreeSearchParamHybrid(radius=radius_feature, max_nn=100))
+
+def execute_global_registration(source, target, source_fpfh, target_fpfh, voxel_size):
+    """Perform global registration using RANSAC."""
+    distance_threshold = voxel_size * 1.5
+    
+    return o3d.pipelines.registration.registration_ransac_based_on_feature_matching(
+        source, target, source_fpfh, target_fpfh,
+        mutual_filter=True,
+        max_correspondence_distance=distance_threshold,
+        estimation_method=o3d.pipelines.registration.TransformationEstimationPointToPoint(False),
+        ransac_n=4,
+        checkers=[
+            o3d.pipelines.registration.CorrespondenceCheckerBasedOnEdgeLength(0.9),
+            o3d.pipelines.registration.CorrespondenceCheckerBasedOnDistance(distance_threshold)
+        ],
+        criteria=o3d.pipelines.registration.RANSACConvergenceCriteria(4000000, 500))
+
+def draw_registration_result(source, target, transformation = None):
+    source_temp = copy.deepcopy(source)
+    target_temp = copy.deepcopy(target)
+    source_temp.paint_uniform_color([1, 0.706, 0])
+    target_temp.paint_uniform_color([0, 0.651, 0.929])
+    if transformation is not None:
+        source_temp.transform(transformation)
+
     coordinate_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(
         size=0.05, origin=[0, 0, 0]
     )
-    o3d.visualization.draw_geometries([pcd_source, pcd_target, coordinate_frame])
 
-
+    o3d.visualization.draw_geometries([source_temp, target_temp, coordinate_frame], point_show_normal=True)
+    
 def align_pc(pcd_source, pcd_target, init_T=None):
     source = np.asarray(pcd_source.points)  # Mx3 numpy array
     target = np.asarray(pcd_target.points)  # Nx3 numpy array
+    # draw_registration_result(pcd_source, pcd_target, init_T)
 
     # perform inittial alignment to target to visualize
     # pcd_source.points = o3d.utility.Vector3dVector(source)

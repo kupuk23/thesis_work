@@ -26,13 +26,6 @@ def preprocess_model(model_path, voxel_size=0.01):
         # Downsample the point cloud
         model_pcd_down = model_pcd.voxel_down_sample(voxel_size)
 
-        # Estimate normals if they don't exist or need recalculation
-        model_pcd_down.estimate_normals(
-            search_param=o3d.geometry.KDTreeSearchParamHybrid(
-                radius=voxel_size * 2, max_nn=30
-            )
-        )
-
         # save the preprocessed model
         o3d.io.write_point_cloud(
             "/home/tafarrel/o3d_logs/handrail_pcd_down.pcd", model_pcd_down
