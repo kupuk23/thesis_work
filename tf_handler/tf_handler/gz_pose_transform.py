@@ -26,7 +26,9 @@ class GazeboPoseExtractor(Node):
             PoseStamped, "/iss_world/handrail_pose", 10
         )
 
-        self.pointcloud_subscribe = self.create_subscription(PointCloud2, "/camera/points", self.pointcloud_callback, 10)
+        self.pointcloud_subscribe = self.create_subscription(
+            PointCloud2, "/camera/points", self.pointcloud_callback, 10
+        )
 
         # Set up the transform broadcaster
         self.tf_broadcaster = TransformBroadcaster(self)
@@ -54,26 +56,28 @@ class GazeboPoseExtractor(Node):
                 return
 
             # Extract the pose of the handrail
-            self.handrail_pose = msg.poses[
-                1
-            ]  # the handrail is the second object in the list
+            self.handrail_pose = msg.poses[1]  # handrail is the second object
+
+            self.grapple_pose = msg.poses[2]  # grapple is the third object
 
             # # Publish the extracted pose as a PoseStamped message
-            pose_stamped = PoseStamped()
-            pose_stamped.header.stamp = self.timestamp
-            pose_stamped.header.frame_id = "map"
-            pose_stamped.pose = self.handrail_pose
+            # pose_stamped = PoseStamped()
+            # pose_stamped.header.stamp = self.timestamp
+            # pose_stamped.header.frame_id = "map"
+            # pose_stamped.pose = self.handrail_pose
 
-            self.handrail_pose_publisher.publish(pose_stamped)
+            # self.handrail_pose_publisher.publish(pose_stamped)
 
             # self.get_logger().info(f"Timestamp: {timestamp}")
             # Broadcast the transform to the TF tree
-            self.broadcast_transform(self.handrail_pose, self.timestamp)
+            self.broadcast_transform(
+                self.handrail_pose, self.grapple_pose, self.timestamp
+            )
 
         except Exception as e:
             self.get_logger().warn(f"Error broadcasting transform: {e}")
 
-    def broadcast_transform(self, pose, timestamp):
+    def broadcast_transform(self, handrail_pose, grapple_pose, timestamp):
         """
         Broadcast the pose as a transform to the TF tree
 
@@ -89,18 +93,35 @@ class GazeboPoseExtractor(Node):
         transform.child_frame_id = "handrail"
 
         # Set translation
-        transform.transform.translation.x = pose.position.x
-        transform.transform.translation.y = pose.position.y
-        transform.transform.translation.z = pose.position.z
+        transform.transform.translation.x = handrail_pose.position.x
+        transform.transform.translation.y = handrail_pose.position.y
+        transform.transform.translation.z = handrail_pose.position.z
 
         # Set rotation
-        transform.transform.rotation.x = pose.orientation.x
-        transform.transform.rotation.y = pose.orientation.y
-        transform.transform.rotation.z = pose.orientation.z
-        transform.transform.rotation.w = pose.orientation.w
+        transform.transform.rotation.x = handrail_pose.orientation.x
+        transform.transform.rotation.y = handrail_pose.orientation.y
+        transform.transform.rotation.z = handrail_pose.orientation.z
+        transform.transform.rotation.w = handrail_pose.orientation.w
 
         # Broadcast the transform
         self.tf_broadcaster.sendTransform(transform)
+
+        # create grapple transform
+        grapple_transform = TransformStamped()
+        grapple_transform.header.stamp = timestamp
+        grapple_transform.header.frame_id = "map"
+        grapple_transform.child_frame_id = "grapple"
+
+        grapple_transform.transform.translation.x = grapple_pose.position.x
+        grapple_transform.transform.translation.y = grapple_pose.position.y
+        grapple_transform.transform.translation.z = grapple_pose.position.z
+
+        grapple_transform.transform.rotation.x = grapple_pose.orientation.x
+        grapple_transform.transform.rotation.y = grapple_pose.orientation.y
+        grapple_transform.transform.rotation.z = grapple_pose.orientation.z
+        grapple_transform.transform.rotation.w = grapple_pose.orientation.w
+
+        self.tf_broadcaster.sendTransform(grapple_transform)
 
 
 def main(args=None):

@@ -28,6 +28,33 @@ def pose_to_matrix(pose_msg):
     
     return rotation_matrix
 
+from geometry_msgs.msg import Transform, Pose
+
+def transform_to_pose(transform):
+    """
+    Convert a Transform message to a Pose message
+    
+    Args:
+        transform (geometry_msgs.msg.Transform): The transform to convert
+        
+    Returns:
+        geometry_msgs.msg.Pose: The resulting pose
+    """
+    pose = Pose()
+    
+    # Copy the translation
+    pose.position.x = transform.translation.x
+    pose.position.y = transform.translation.y
+    pose.position.z = transform.translation.z
+    
+    # Copy the rotation
+    pose.orientation.x = transform.rotation.x
+    pose.orientation.y = transform.rotation.y
+    pose.orientation.z = transform.rotation.z
+    pose.orientation.w = transform.rotation.w
+    
+    return pose
+
 def transform_to_matrix(transform_msg):
     """
     Convert a Transform or TransformStamped message to a 4x4 transformation matrix.

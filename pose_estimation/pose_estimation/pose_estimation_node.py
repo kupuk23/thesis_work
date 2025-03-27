@@ -1,4 +1,5 @@
 import rclpy
+import rclpy.duration
 from rclpy.node import Node
 import numpy as np
 import open3d as o3d
@@ -17,7 +18,11 @@ import tf2_geometry_msgs
 from pose_estimation.icp_testing.icp import align_pc, draw_pose_axes, align_pc_o3d
 from pose_estimation.tools.visualizer import visualize_point_cloud
 from pose_estimation.tools.pose_estimation_tools import preprocess_model
-from pose_estimation.tools.tf_utils import pose_to_matrix, matrix_to_pose
+from pose_estimation.tools.tf_utils import (
+    pose_to_matrix,
+    matrix_to_pose,
+    transform_to_pose,
+)
 
 
 class PoseEstimationNode(Node):
@@ -29,8 +34,21 @@ class PoseEstimationNode(Node):
 
         self.voxel_size = 0.001
         # preprocess_model("/home/tafarrel/", voxel_size=self.voxel_size)
-        self.model_pcd = o3d.io.read_point_cloud(
+
+        object = "grapple" # or "handrail"
+
+        self.model_pcd = (
+            o3d.io.read_point_cloud("/home/tafarrel/o3d_logs/grapple_fixture_down.pcd")
+            if object == "grapple"
+            else o3d.io.read_point_cloud(
+                "/home/tafarrel/o3d_logs/handrail_pcd_down.pcd"
+            )
+        )
+        self.model_handrail_pcd = o3d.io.read_point_cloud(
             "/home/tafarrel/o3d_logs/handrail_pcd_down.pcd"
+        )
+        self.model_grapple_pcd = o3d.io.read_point_cloud(
+            "/home/tafarrel/o3d_logs/grapple_fixture_down.pcd"
         )
         self.K = np.array(
             [
@@ -49,19 +67,13 @@ class PoseEstimationNode(Node):
         )
 
         # Create subscribers for timeSync with pointcloud and pose
-        self.pointcloud_sub = message_filters.Subscriber(
-            self, PointCloud2, "/camera/points"  # /camera/points <- CHANGE LATER!
+        self.pointcloud_sub = self.create_subscription(
+            PointCloud2,
+            "/camera/points",
+            self.pc2_callback,
+            10,  # /camera/points <- CHANGE LATER!
         )
 
-        self.pose_sub = message_filters.Subscriber(
-            self, PoseStamped, "/iss_world/handrail_pose"
-        )
-
-        # Create a time synchronizer with a tolerance of 0.1 seconds
-        self.ts = message_filters.ApproximateTimeSynchronizer(
-            [self.pointcloud_sub, self.pose_sub], queue_size=10, slop=0.2
-        )
-        self.ts.registerCallback(self.synchronized_callback)
         self.tf_buffer = Buffer(cache_time=rclpy.duration.Duration(seconds=5))
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
@@ -76,27 +88,25 @@ class PoseEstimationNode(Node):
 
         self.get_logger().info("Pose estimation node initialized")
 
-    def synchronized_callback(self, pointcloud_msg: PointCloud2, pose_msg: PoseStamped):
+    def pc2_callback(self, pointcloud_msg: PointCloud2):
         """
-        Process synchronized pointcloud and pose messages for ICP
+        Process pointcloud for ICP
 
         Args:
             pointcloud_msg: PointCloud2 message
-            pose_msg: PoseStamped message with handrail pose
         """
 
         try:
-            start_time = time.perf_counter()
+            # start_time = time.perf_counter()
 
             o3d_cloud = self.pc2_to_o3d_color(pointcloud_msg)
-            finished_time = time.perf_counter()
+            # finished_time = time.perf_counter()
 
-            self.get_logger().info(
-                f"Time taken to convert pointcloud: {finished_time - start_time}"
-            )
+            # self.get_logger().info(
+            #     f"Time taken to convert pointcloud: {finished_time - start_time}"
+            # )
 
-
-            self.get_logger().info("Processing Pointcloud... ")
+            # self.get_logger().info("Processing Pointcloud... ")
             scene_pcd = self.preprocess_pointcloud(o3d_cloud)
             # self.visualize_point_clouds(target=scene_pcd, target_filename="handrail_offset_right.pcd")
 
@@ -106,24 +116,27 @@ class PoseEstimationNode(Node):
             if len(scene_pcd.points) == 0:
                 self.get_logger().info("Scene point cloud is empty")
                 return
-            initial_transformation = self.transform_handrail_pose(
-                pose_msg, pointcloud_msg.header.frame_id
+            initial_transformation = self.transform_obj_pose(pointcloud_msg, "grapple")
+
+            # result = align_pc(self.model_handrail_pcd, scene_pcd, init_T=initial_transformation)
+            result = align_pc_o3d(
+                self.model_pcd,
+                scene_pcd,
+                init_T=initial_transformation,
+                voxel_size=self.voxel_size,
             )
 
-            # result = align_pc(self.model_pcd, scene_pcd, init_T=initial_transformation)
-            result = align_pc_o3d(self.model_pcd, scene_pcd, init_T=initial_transformation, voxel_size=self.voxel_size)
-
             if result is None:
-                self.get_logger().info("ICP did not converge")
+                # self.get_logger().info("ICP did not converge")
                 return
 
-            T_camera_object = np.linalg.inv(result.T_target_source)
+            # T_camera_object = np.linalg.inv(result.transformation)
 
             # make a pose stamp and publish it
             pose_msg = PoseStamped()
             pose_msg.header.stamp = pointcloud_msg.header.stamp
             pose_msg.header.frame_id = pointcloud_msg.header.frame_id
-            pose_msg.pose = matrix_to_pose(T_camera_object)
+            pose_msg.pose = matrix_to_pose(result.transformation)
 
             self.icp_result_pub.publish(pose_msg)
 
@@ -142,7 +155,7 @@ class PoseEstimationNode(Node):
         except Exception as e:
             self.get_logger().info(f"Error processing point cloud: {e}")
 
-    def transform_handrail_pose(self, obj_pose_stamped, frame_id):
+    def transform_obj_pose(self, pc2_msg: PointCloud2, obj_frame="handrail"):
         """
         Transform the obj_pose stamped (parent frame : map) to camera frame
         Args:
@@ -153,23 +166,30 @@ class PoseEstimationNode(Node):
         """
         try:
             # Get the transform from world to camera
-            T_map_cam = self.tf_buffer.lookup_transform(
-                frame_id,  # target frame
+            map_T_cam = self.tf_buffer.lookup_transform(
+                pc2_msg.header.frame_id,  # target frame
                 "map",  # source frame (camera frame)
                 rclpy.time.Time(),  # time
                 timeout=rclpy.duration.Duration(seconds=1.0),
             )
 
-            obj_T_map = obj_pose_stamped.pose
+            obj_T_map = self.tf_buffer.lookup_transform(
+                "map",
+                obj_frame,
+                rclpy.time.Time(),
+                timeout=rclpy.duration.Duration(seconds=1),
+            )
+
+            obj_T_map = transform_to_pose(obj_T_map.transform)
             # Convert transform to matrix
             handrail_pose_in_camera_frame = tf2_geometry_msgs.do_transform_pose(
-                obj_T_map, T_map_cam
+                obj_T_map, map_T_cam
             )
             self.get_logger().info("Transformed handrail pose to camera frame")
 
             result_msg = PoseStamped()
-            result_msg.header.stamp = obj_pose_stamped.header.stamp
-            result_msg.header.frame_id = frame_id
+            result_msg.header.stamp = pc2_msg.header.stamp
+            result_msg.header.frame_id = pc2_msg.header.frame_id
             result_msg.pose = handrail_pose_in_camera_frame
 
             # self.icp_result_pub.publish(result_msg)
@@ -219,7 +239,7 @@ class PoseEstimationNode(Node):
 
         self.get_logger().info(f"Pointcloud processed: {len(o3d_msg.points)} points")
 
-        # self.visualize_point_clouds(source=self.model_pcd, target=scene_pcd_down)
+        # self.visualize_point_clouds(source=self.model_handrail_pcd, target=scene_pcd_down)
         return o3d_msg
 
     def depth_callback(self, msg):
@@ -243,7 +263,7 @@ class PoseEstimationNode(Node):
         Convert ROS PointCloud2 message to downsapled Open3D point cloud
         input: PointCloud2 message
         output: Open3D point cloud (downsampled)
-        
+
         """
         n_points = pc2_msg.width * pc2_msg.height
         if n_points == 0:
@@ -285,6 +305,7 @@ class PoseEstimationNode(Node):
         cloud.colors = o3d.utility.Vector3dVector(colors)
 
         cloud = cloud.voxel_down_sample(voxel_size=self.voxel_size)
+
         return cloud
 
     def rgb_callback(self, msg):
