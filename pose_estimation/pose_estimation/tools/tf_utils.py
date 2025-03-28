@@ -1,6 +1,7 @@
 import numpy as np
 from geometry_msgs.msg import PoseStamped, Transform, TransformStamped
 import tf_transformations
+from scipy.spatial.transform import Rotation as R
 
 def pose_to_matrix(pose_msg):
     """
@@ -159,3 +160,37 @@ def get_camera_to_object_transform(world_to_object, world_to_camera):
     camera_to_object = np.matmul(camera_to_world, world_to_object)
     
     return camera_to_object
+
+def apply_noise_to_transform(tf_matrix, t_std = 0.01, r_std= 0.01):
+    """
+    Apply Gaussian noise to a 4x4 transformation matrix.
+    
+    Args:
+        transform_matrix: 4x4 homogeneous transformation matrix
+        translation_std: Standard deviation for translation noise (in same units as your translations)
+        rotation_std: Standard deviation for rotation noise (in rad)
+    
+    Returns:
+        Noisy 4x4 transformation matrix
+    """
+    if tf_matrix is None:
+        return None
+    T_noisy = np.copy(tf_matrix)
+
+    t_noise = np.random.normal(0, t_std, 3)
+    r_noise = np.random.normal(0, r_std, 3)
+    
+
+    # Random Euler angles (in radians)
+    yaw = np.random.normal(0, 0.1)  # Random yaw (rotation around z-axis)
+    pitch = np.random.normal(0, 0.1)  # Random pitch (rotation around y-axis)
+    roll = np.random.normal(0, 0.1)  # Random roll (rotation around x-axis)
+
+    init_rot_euler = R.from_matrix(T_noisy[:3, :3]).as_euler('xyz', degrees=False)
+    noisy_euler = init_rot_euler + r_noise
+    R_noisy = R.from_euler('xyz', noisy_euler).as_matrix() 
+
+    # construct the noise matrices to make new tf matrix
+    T_noisy[:3, 3] += t_noise
+    T_noisy[:3, :3] = R_noisy
+    return T_noisy

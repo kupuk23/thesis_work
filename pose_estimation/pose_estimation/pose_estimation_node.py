@@ -17,11 +17,12 @@ import tf2_geometry_msgs
 # from icp_testing.icp import align_pc
 from pose_estimation.icp_testing.icp import align_pc, draw_pose_axes, align_pc_o3d
 from pose_estimation.tools.visualizer import visualize_point_cloud
-from pose_estimation.tools.pose_estimation_tools import preprocess_model
+from pose_estimation.tools.pose_estimation_tools import preprocess_model, filter_pc_background
 from pose_estimation.tools.tf_utils import (
     pose_to_matrix,
     matrix_to_pose,
     transform_to_pose,
+    apply_noise_to_transform
 )
 
 
@@ -32,7 +33,7 @@ class PoseEstimationNode(Node):
         # Initialize CV bridge for image conversion
         self.cv_bridge = CvBridge()
 
-        self.voxel_size = 0.001
+        self.voxel_size = 0.005
         # preprocess_model("/home/tafarrel/", voxel_size=self.voxel_size)
 
         object = "grapple" # or "handrail"
@@ -44,6 +45,7 @@ class PoseEstimationNode(Node):
                 "/home/tafarrel/o3d_logs/handrail_pcd_down.pcd"
             )
         )
+        
         self.model_handrail_pcd = o3d.io.read_point_cloud(
             "/home/tafarrel/o3d_logs/handrail_pcd_down.pcd"
         )
@@ -118,11 +120,14 @@ class PoseEstimationNode(Node):
                 return
             initial_transformation = self.transform_obj_pose(pointcloud_msg, "grapple")
 
+
+            noisy_transformation = apply_noise_to_transform(initial_transformation, t_std=0.01, r_std=0.1) 
+
             # result = align_pc(self.model_handrail_pcd, scene_pcd, init_T=initial_transformation)
             result = align_pc_o3d(
                 self.model_pcd,
                 scene_pcd,
-                init_T=initial_transformation,
+                init_T=noisy_transformation,
                 voxel_size=self.voxel_size,
             )
 
@@ -165,6 +170,10 @@ class PoseEstimationNode(Node):
             handrail_pose_matrix: Object pose in camera frame as matrix
         """
         try:
+            #wait for transform
+            if not (self.tf_buffer.can_transform(pc2_msg.header.frame_id, "map", rclpy.time.Time()) and self.tf_buffer.can_transform("map", obj_frame, rclpy.time.Time())):
+                
+                return None
             # Get the transform from world to camera
             map_T_cam = self.tf_buffer.lookup_transform(
                 pc2_msg.header.frame_id,  # target frame
@@ -185,7 +194,7 @@ class PoseEstimationNode(Node):
             handrail_pose_in_camera_frame = tf2_geometry_msgs.do_transform_pose(
                 obj_T_map, map_T_cam
             )
-            self.get_logger().info("Transformed handrail pose to camera frame")
+            # self.get_logger().info("Transformed handrail pose to camera frame")
 
             result_msg = PoseStamped()
             result_msg.header.stamp = pc2_msg.header.stamp
@@ -222,7 +231,7 @@ class PoseEstimationNode(Node):
         # filter maximum depth by z and x
         points_down = np.asarray(o3d_msg.points)
         colors_down = np.asarray(o3d_msg.colors)
-        mask = (points_down[:, 2] > -0.7) & (points_down[:, 0] < 1)
+        mask = (points_down[:, 2] > -0.7) & (points_down[:, 0] < 2)
 
         filtered_points = points_down[mask]
         filtered_colors = colors_down[mask]
@@ -298,14 +307,25 @@ class PoseEstimationNode(Node):
         valid_idx = np.all(np.isfinite(xyz), axis=1)
         points = xyz[valid_idx]
         colors = colors[valid_idx]
+        
 
-        # Convert NumPy -> Open3D
+        # visualize point cloud
         cloud = o3d.geometry.PointCloud()
         cloud.points = o3d.utility.Vector3dVector(points)
         cloud.colors = o3d.utility.Vector3dVector(colors)
+        # cloud.paint_uniform_color([0, 1, 0.0])  # Gray for scene
 
         cloud = cloud.voxel_down_sample(voxel_size=self.voxel_size)
 
+        # Remove background points
+
+        filtered_cloud = filter_pc_background(cloud)
+        filtered_cloud.paint_uniform_color([0, 0, 1])  # Gray for scene
+
+        # o3d.visualization.draw_geometries(
+        #     [filtered_cloud])
+        
+        
         return cloud
 
     def rgb_callback(self, msg):

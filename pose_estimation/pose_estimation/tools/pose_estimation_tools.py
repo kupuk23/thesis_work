@@ -1,5 +1,7 @@
 import open3d as o3d
 import numpy as np
+from sklearn import linear_model
+import copy
 
 
 def preprocess_model(model_path, file_name="pcd_down.pcd", voxel_size=0.01):
@@ -130,3 +132,55 @@ def fine_registration(source, target, initial_transform, voxel_size):
     )
 
     return result
+
+
+def filter_pc_background(pointcloud):
+    """filter bacground points from the point cloud
+    Args:
+        points: Point cloud points
+        Returns:
+            filtered points
+    """
+
+    # Estimate plane using RANSAC
+    plane_model, inliers = pointcloud.segment_plane(
+        distance_threshold=0.005, ransac_n=3, num_iterations=500
+    )
+
+    # The plane model contains the coefficients [A, B, C, D] of the plane equation
+    a, b, c, d = plane_model
+    print(f"Plane equation: {a}x + {b}y + {c}z + {d} = 0")
+
+    # Visualize the inliers (points on the plane)
+    inlier_cloud = pointcloud.select_by_index(
+        inliers, invert=True
+    )  # Invert to get outliers
+
+    # Run DBSCAN clustering
+    labels = np.array(inlier_cloud.cluster_dbscan(eps=0.05, min_points=10, print_progress=True))
+
+    # Color the point cloud by cluster
+    max_label = labels.max()
+    print(f"Point cloud has {max_label + 1} clusters")
+
+    colors = np.zeros((len(labels), 3))
+    colors[labels < 0] = [0, 0, 0]  # Black for noise points
+
+    for i in range(max_label + 1):
+        colors[labels == i] = [np.random.uniform(0.3, 1.0), 
+                            np.random.uniform(0.3, 1.0), 
+                            np.random.uniform(0.3, 1.0)]
+
+    colored_pcd = copy.deepcopy(inlier_cloud)
+    colored_pcd.colors = o3d.utility.Vector3dVector(colors)
+
+    # Create coordinate frame for reference
+    coord_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.1, origin=[0, 0, 0])
+
+    # Visualize
+    o3d.visualization.draw_geometries([colored_pcd, coord_frame],
+                                    window_name="DBSCAN Clustering Results",
+                                    width=800,
+                                    height=600)
+
+    return inlier_cloud

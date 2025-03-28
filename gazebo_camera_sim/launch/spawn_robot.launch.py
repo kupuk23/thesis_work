@@ -238,7 +238,7 @@ def generate_launch_description():
     # launchDescriptionObject.add_action(create_robot_spawner("my_robot", -2, 0, 1.25, 0.0, 0, 0)) # default case
     # launchDescriptionObject.add_action(create_robot_spawner("my_robot", -2, 0.8, 1.4, 0.6, -0.3, -0.4)) # ibvs_sample case
     # launchDescriptionObject.add_action(create_robot_spawner("my_robot", -1.26, 0, 1.44, 0, -0.04, 0)) # PnP case
-    launchDescriptionObject.add_action(create_robot_spawner("my_robot", -2, 3, 1, 0.0, 0, -1.57)) # Grapple_fixture case
+    launchDescriptionObject.add_action(create_robot_spawner("my_robot", -2, 3, 1, 0.0, 0, 3.14)) # Grapple_fixture case
 
     # launchDescriptionObject.add_action(
     #     create_robot_spawner("my_robot", -2, 3, 1, 0.0, 0, 0)
