@@ -19,6 +19,12 @@ def preprocess_model(model_path, file_name="pcd_down.pcd", voxel_size=0.01):
 
     # Load the model
     model = o3d.io.read_triangle_mesh(model_path)
+    
+    # load the model with color 
+    # model_color = o3d.io.read_triangle_mesh(model_path, enable_post_processing=True)
+    # model_color_pcd = model_color.sample_points_uniformly(number_of_points=10000)
+    # model_color_pcd_down = model_color_pcd.voxel_down_sample(voxel_size)
+    # o3d.io.write_point_cloud(f"/home/tafarrel/o3d_logs/{file_name}_color.pcd", model_color_pcd_down)
 
     # Ensure model has normals
     model.compute_vertex_normals()
@@ -30,7 +36,7 @@ def preprocess_model(model_path, file_name="pcd_down.pcd", voxel_size=0.01):
     model_pcd_down = model_pcd.voxel_down_sample(voxel_size)
 
     # save the preprocessed model
-    o3d.io.write_point_cloud(f"/home/tafarrel/o3d_logs/{file_name}.pcd", model_pcd_down)
+    # o3d.io.write_point_cloud(f"/home/tafarrel/o3d_logs/{file_name}.pcd", model_pcd_down)
 
     print(f"Model preprocessed: {len(model_pcd_down.points)} points")
     return model_pcd_down
@@ -144,7 +150,7 @@ def filter_pc_background(pointcloud):
 
     # Estimate plane using RANSAC
     plane_model, inliers = pointcloud.segment_plane(
-        distance_threshold=0.005, ransac_n=3, num_iterations=500
+        distance_threshold=0.01, ransac_n=3, num_iterations=500
     )
 
     # The plane model contains the coefficients [A, B, C, D] of the plane equation

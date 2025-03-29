@@ -6,6 +6,7 @@ Panels:
       Expanded:
         - /Global Options1
         - /Image1
+        - /Pose1
       Splitter Ratio: 0.5
     Tree Height: 288
   - Class: rviz_common/Views
@@ -52,53 +53,6 @@ Visualization Manager:
         Expand Link Details: false
         Expand Tree: false
         Link Tree Style: Links in Alphabetic Order
-        base_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        camera_color_frame:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        camera_color_optical_frame:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        camera_depth_frame:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        camera_depth_optical_frame:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        camera_infra1_frame:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        camera_infra1_optical_frame:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        camera_infra2_frame:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        camera_infra2_optical_frame:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        camera_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        dummy_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
       Mass Properties:
         Inertia: false
         Mass: false
@@ -136,6 +90,8 @@ Visualization Manager:
           Value: true
         dummy_link:
           Value: true
+        grapple:
+          Value: true
         handrail:
           Value: true
         map:
@@ -149,6 +105,8 @@ Visualization Manager:
       Show Names: false
       Tree:
         map:
+          grapple:
+            {}
           handrail:
             {}
           odom:
@@ -222,10 +180,10 @@ Visualization Manager:
       Class: rviz_default_plugins/Pose
       Color: 255; 25; 0
       Enabled: true
-      Head Length: 0.30000001192092896
+      Head Length: 0.20000000298023224
       Head Radius: 0.10000000149011612
       Name: Pose
-      Shaft Length: 1
+      Shaft Length: 0.5
       Shaft Radius: 0.05000000074505806
       Shape: Arrow
       Topic:
@@ -251,25 +209,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 7.599032878875732
+      Distance: 5.69210147857666
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0.29948750138282776
-        Y: 0.4732176661491394
-        Z: -0.32840821146965027
+        X: -4.241418361663818
+        Y: 2.6572518348693848
+        Z: 1.1951206922531128
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.3900000751018524
+      Pitch: 0.5250000357627869
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 2.336827516555786
+      Yaw: 0.6118270754814148
     Saved: ~
 Window Geometry:
   Displays:
@@ -284,4 +242,4 @@ Window Geometry:
     collapsed: false
   Width: 1200
   X: 169
-  Y: 1023
+  Y: 243

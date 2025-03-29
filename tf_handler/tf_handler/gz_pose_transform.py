@@ -58,7 +58,7 @@ class GazeboPoseExtractor(Node):
             # Extract the pose of the handrail
             self.handrail_pose = msg.poses[1]  # handrail is the second object
 
-            self.grapple_pose = msg.poses[2]  # grapple is the third object
+            self.grapple_pose = msg.poses[4]  # grapple is the 5th object
 
             # # Publish the extracted pose as a PoseStamped message
             # pose_stamped = PoseStamped()

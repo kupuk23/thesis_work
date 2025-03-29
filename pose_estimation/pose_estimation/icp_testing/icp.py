@@ -20,10 +20,10 @@ K = np.array(
 
 test = 1  # 1 for center, 2 for left, 3 for right
 # preprocess_model(
-#             "/home/tafarrel/blender_files/grapple_fixture/grapple_fixture.obj",
-#             file_name= "grapple_fixture_down",
-#             voxel_size=0.005,
-#         )
+#     "/home/tafarrel/blender_files/grapple_fixture/grapple_fixture.obj",
+#     file_name="grapple_fixture_down",
+#     voxel_size=0.005,
+# )
 
 
 def align_pc_o3d(pcd_source, pcd_target, init_T=None, voxel_size=0.001):
@@ -75,12 +75,15 @@ def align_pc_o3d(pcd_source, pcd_target, init_T=None, voxel_size=0.001):
         relative_fitness=5e-7, relative_rmse=1e-7, max_iteration=50
     )
 
+    # for handrail, it is better to use point-to-point since the normals are not very accurate
+    # for grapple fixture, it is better to use GICP since the normals are more accurate
+    
     result = o3d.pipelines.registration.registration_icp(
         source,
         target,
         0.02,  # Max correspondence distance
         init=current_transformation,
-        estimation_method=o3d.pipelines.registration.TransformationEstimationPointToPlane(),
+        estimation_method=o3d.pipelines.registration.TransformationEstimationPointToPoint(), #TransformationEstimationPointToPlane, TransformationEstimationPointToPoint
         criteria=criteria,
     )
 
@@ -90,8 +93,8 @@ def align_pc_o3d(pcd_source, pcd_target, init_T=None, voxel_size=0.001):
         # draw_registration_result(source, target, result.transformation)
         return result
     # else:
-        # draw_registration_result(source, target, init_T, failed=True)
-        # print(f"ICP registration might not be optimal. Fitness: {result.fitness}")
+    # draw_registration_result(source, target, init_T, failed=True)
+    # print(f"ICP registration might not be optimal. Fitness: {result.fitness}")
 
 
 def draw_registration_result(source, target, transformation=None, failed=False):
@@ -284,6 +287,10 @@ if __name__ == "__main__":
         "/home/tafarrel/o3d_logs/handrail_test2.pcd"
     )
 
+    pcd_color = o3d.io.read_point_cloud(
+        "/home/tafarrel/o3d_logs/grapple_fixture_down_color.pcd"
+    )
+    draw_registration_result(pcd_color, pcd_target_offset_right)
     if test == 1:
 
         # view_pc(pcd_source, pcd_target)

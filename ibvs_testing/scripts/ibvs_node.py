@@ -54,7 +54,7 @@ class IBVSController(Node):
             "min_circle_radius", 10
         )  # Minimum radius for circle detection
         self.declare_parameter(
-            "max_circle_radius", 50
+            "max_circle_radius", 60
         )  # Maximum radius for circle detection
 
         # IBVS control enabled by default

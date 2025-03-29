@@ -254,7 +254,8 @@
         <enable_wind>false</enable_wind>
       </link>
       <static>true</static>
-      <pose>-2.92 3 0.3 0 0 1.57</pose>
+      <!-- <pose>-2.95 3 0.3 0 0 1.57</pose> -->
+      <pose>-2.95 0 -2 0 0 1.57</pose>
       <self_collide>false</self_collide>
     </model>
 
@@ -282,7 +283,8 @@
         <enable_wind>false</enable_wind>
       </link>
       <static>true</static>
-      <pose>-0.39 3 0.3 0 0 1.57</pose>
+      <!-- <pose>-0.39 3 0.3 0 0 1.57</pose> -->
+      <pose>-0.39 3 3 0 0 1.57</pose>
       <self_collide>false</self_collide>
     </model>
 
@@ -346,8 +348,8 @@
       <self_collide>false</self_collide>
     </model>
 
-    <!-- 
-    <model name='iss'>
+     
+    <!--<model name='iss'>
       <static>true</static>
       <pose>4 0 -2 0 0 0</pose>
       <link name='body'>
@@ -381,27 +383,8 @@
         <enable_wind>false</enable_wind>
       </link>
       <self_collide>false</self_collide>
-    </model> -->
+    </model> 
 
-    <light name='pointlight' type='point'>
-      <pose>-1.5147299946996946 0.2190574017921989 2 0 0 0</pose>
-      <cast_shadows>false</cast_shadows>
-      <intensity>1</intensity>
-      <direction>0 0 -1</direction>
-      <diffuse>0.5 0.5 0.5 1</diffuse>
-      <specular>0.5 0.5 0.5 1</specular>
-      <attenuation>
-        <range>4</range>
-        <linear>0.5</linear>
-        <constant>0.20000000000000001</constant>
-        <quadratic>0.01</quadratic>
-      </attenuation>
-      <spot>
-        <inner_angle>0</inner_angle>
-        <outer_angle>0</outer_angle>
-        <falloff>0</falloff>
-      </spot>
-    </light>
     <light name='pointlight_0' type='point'>
       <pose>-4.403322429956825 0.27785183969640648 2 0 0 0</pose>
       <cast_shadows>false</cast_shadows>
@@ -421,6 +404,6 @@
         <falloff>0</falloff>
       </spot>
     </light>
-
+-->
   </world>
 </sdf>

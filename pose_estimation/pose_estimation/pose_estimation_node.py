@@ -36,7 +36,7 @@ class PoseEstimationNode(Node):
         self.voxel_size = 0.005
         # preprocess_model("/home/tafarrel/", voxel_size=self.voxel_size)
 
-        object = "grapple" # or "handrail"
+        self.object = "handrail" # or "handrail"
 
         self.model_pcd = (
             o3d.io.read_point_cloud("/home/tafarrel/o3d_logs/grapple_fixture_down.pcd")
@@ -118,10 +118,10 @@ class PoseEstimationNode(Node):
             if len(scene_pcd.points) == 0:
                 self.get_logger().info("Scene point cloud is empty")
                 return
-            initial_transformation = self.transform_obj_pose(pointcloud_msg, "grapple")
+            initial_transformation = self.transform_obj_pose(pointcloud_msg, self.object)
 
 
-            noisy_transformation = apply_noise_to_transform(initial_transformation, t_std=0.01, r_std=0.1) 
+            noisy_transformation = apply_noise_to_transform(initial_transformation, t_std=0.025, r_std=0.25) 
 
             # result = align_pc(self.model_handrail_pcd, scene_pcd, init_T=initial_transformation)
             result = align_pc_o3d(
@@ -133,6 +133,14 @@ class PoseEstimationNode(Node):
 
             if result is None:
                 # self.get_logger().info("ICP did not converge")
+                # remove icp_result publisher
+                empty_pose = PoseStamped()
+                empty_pose.header.stamp = pointcloud_msg.header.stamp
+                empty_pose.header.frame_id = 'map'
+                t = np.zeros((4, 4))
+                t[0:3, 0:3] = np.eye(3)
+                empty_pose.pose = matrix_to_pose(t)
+                self.icp_result_pub.publish(empty_pose)
                 return
 
             # T_camera_object = np.linalg.inv(result.transformation)
@@ -228,23 +236,22 @@ class PoseEstimationNode(Node):
         #     nb_neighbors=20, std_ratio=2.0
         # )
 
+        if len(o3d_msg.colors) == 0:
+            # self.get_logger().info("No colors in point cloud")
+            color = False
+
         # filter maximum depth by z and x
         points_down = np.asarray(o3d_msg.points)
-        colors_down = np.asarray(o3d_msg.colors)
         mask = (points_down[:, 2] > -0.7) & (points_down[:, 0] < 2)
 
         filtered_points = points_down[mask]
-        filtered_colors = colors_down[mask]
+
+        if color:
+            colors_down = np.asarray(o3d_msg.colors) 
+            filtered_colors = colors_down[mask]
+            o3d_msg.colors = o3d.utility.Vector3dVector(filtered_colors)
 
         o3d_msg.points = o3d.utility.Vector3dVector(filtered_points)
-        o3d_msg.colors = o3d.utility.Vector3dVector(filtered_colors)
-
-        # Estimate normals
-        # scene_pcd_down.estimate_normals(
-        #     search_param=o3d.geometry.KDTreeSearchParamHybrid(
-        #         radius=voxel_size * 2, max_nn=30
-        #     )
-        # )
 
         self.get_logger().info(f"Pointcloud processed: {len(o3d_msg.points)} points")
 
@@ -292,35 +299,38 @@ class PoseEstimationNode(Node):
         #   (possible padding at column 3)
         #   rgb = column 4
         xyz = data[:, 0:3]
-        rgb_floats = data[:, 4]  # float packed color (if offset=16 => col 4)
 
-        # Convert float -> int for bitwise
-        rgb_int = rgb_floats.view(np.int32)
-        r = (rgb_int >> 16) & 0xFF
-        g = (rgb_int >> 8) & 0xFF
-        b = rgb_int & 0xFF
 
-        # Combine & normalize
-        colors = np.column_stack((r, g, b)).astype(np.float32) / 255.0
+        # rgb_floats = data[:, 4]  # float packed color (if offset=16 => col 4)
+
+        # # Convert float -> int for bitwise
+        # rgb_int = rgb_floats.view(np.int32)
+        # r = (rgb_int >> 16) & 0xFF
+        # g = (rgb_int >> 8) & 0xFF
+        # b = rgb_int & 0xFF
+
+        # # Combine & normalize
+        # colors = np.column_stack((r, g, b)).astype(np.float32) / 255.0
+
 
         # Find valid points (not NaN or inf)
         valid_idx = np.all(np.isfinite(xyz), axis=1)
         points = xyz[valid_idx]
-        colors = colors[valid_idx]
+        # colors = colors[valid_idx]
         
 
         # visualize point cloud
         cloud = o3d.geometry.PointCloud()
         cloud.points = o3d.utility.Vector3dVector(points)
-        cloud.colors = o3d.utility.Vector3dVector(colors)
+        # cloud.colors = o3d.utility.Vector3dVector(colors)
         # cloud.paint_uniform_color([0, 1, 0.0])  # Gray for scene
 
         cloud = cloud.voxel_down_sample(voxel_size=self.voxel_size)
 
         # Remove background points
 
-        filtered_cloud = filter_pc_background(cloud)
-        filtered_cloud.paint_uniform_color([0, 0, 1])  # Gray for scene
+        # filtered_cloud = filter_pc_background(cloud)
+        # filtered_cloud.paint_uniform_color([0, 0, 1])  # Gray for scene
 
         # o3d.visualization.draw_geometries(
         #     [filtered_cloud])
