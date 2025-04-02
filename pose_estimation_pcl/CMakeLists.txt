@@ -13,6 +13,10 @@ find_package(geometry_msgs REQUIRED)
 find_package(pcl_conversions REQUIRED)
 find_package(Threads REQUIRED)
 find_package(PCL REQUIRED COMPONENTS common io filters)
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
+find_package(tf2_eigen REQUIRED)
 
 # uncomment the following section in order to fill in
 # further dependencies manually.
@@ -54,6 +58,10 @@ ament_target_dependencies(pose_estimation_pcl
   sensor_msgs
   geometry_msgs
   pcl_conversions
+  tf2
+  tf2_ros
+  tf2_geometry_msgs
+  tf2_eigen
 )
 target_link_libraries(pose_estimation_pcl ${PCL_LIBRARIES})
 

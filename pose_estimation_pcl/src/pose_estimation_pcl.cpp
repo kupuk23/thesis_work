@@ -8,6 +8,9 @@
 #include <pcl/filters/voxel_grid.h>
 #include <chrono>
 #include <cfloat>  // For FLT_MAX
+// include tf2 buffer for lookup transform
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
 
 #include "pose_estimation_pcl/pcl_utils.hpp"  // Our utility header
 
@@ -20,6 +23,12 @@ public:
         voxel_size_ = this->declare_parameter<double>("voxel_size", 0.01);  // Default voxel size
         save_debug_clouds_ = this->declare_parameter<bool>("save_debug_clouds", true);
         debug_path_ = this->declare_parameter<std::string>("debug_path", "/home/tafarrel/debugPCD_cpp");
+        object_frame_ = this->declare_parameter<std::string>("object_frame", "handrail");
+    
+        // Initialize TF2 buffer and listener
+        tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
+        tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+        
         
         // Initialize publishers and subscribers
         pointcloud_subscription_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
@@ -33,9 +42,8 @@ public:
         cloud_debug_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(
             "/debug_pointcloud", 1);
         
-        // TODO: Load model PCD file
         // model_cloud_ = pcl_utils::loadModelPCD("path/to/model.pcd", this->get_logger());
-            
+
         RCLCPP_INFO(this->get_logger(), "PoseEstimationPCL node initialized");
     }
 
@@ -85,7 +93,34 @@ private:
                 // pcl_utils::saveToPCD(preprocessed_cloud, processed_filename, this->get_logger());
             }
             
-            // Here you would implement the ICP process
+            // get the initial transformation from the object pose using TF2 lookup
+            Eigen::Matrix4f initial_transformation = pcl_utils::transform_obj_pose(
+                pointcloud_msg, 
+                *tf_buffer_, 
+                object_frame_,
+                this->get_logger()
+            );
+            
+            // Check if we got a valid transformation
+            if (initial_transformation.isIdentity()) {
+                RCLCPP_WARN(this->get_logger(), "Failed to get initial transformation, using identity");
+                // Maybe you want to return early here
+            }
+
+            // debug the initial transformation to the icp_result_publisher_
+            geometry_msgs::msg::PoseStamped initial_pose;
+            initial_pose.header.stamp = pointcloud_msg->header.stamp;
+            initial_pose.header.frame_id = pointcloud_msg->header.frame_id;
+            initial_pose.pose = pcl_utils::matrix_to_pose(initial_transformation);
+
+            icp_result_publisher_->publish(initial_pose);
+
+            // TODO: implement the ICP process:
+            // 1. load the model cloud depending on the object_frame_ parameter
+            // 2. use PCL to perform ICP on the preprocessed cloud and model_cloud_
+            // 3. publish the result as a PoseStamped message
+
+            
             
             // Create and publish an empty pose message
             geometry_msgs::msg::PoseStamped empty_pose;
@@ -93,9 +128,9 @@ private:
             empty_pose.header.frame_id = "map";
             empty_pose.pose.orientation.w = 1.0;  // Identity orientation
             
-            icp_result_publisher_->publish(empty_pose);
+            // icp_result_publisher_->publish(empty_pose);
             
-            RCLCPP_INFO(this->get_logger(), "Published empty pose (ICP not implemented yet)");
+            // RCLCPP_INFO(this->get_logger(), "Published empty pose (ICP not implemented yet)");
             
         } catch (const std::exception& e) {
             RCLCPP_ERROR(this->get_logger(), "Error processing point cloud: %s", e.what());
@@ -138,6 +173,9 @@ private:
     double voxel_size_;
     bool save_debug_clouds_;
     std::string debug_path_;
+    std::string object_frame_;
+    std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+    std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
     
     // Point clouds
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr model_cloud_;
