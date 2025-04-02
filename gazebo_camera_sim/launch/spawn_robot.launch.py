@@ -239,9 +239,9 @@ def generate_launch_description():
     # launchDescriptionObject.add_action(create_robot_spawner("my_robot", -2, 0.8, 1.4, 0.6, -0.3, -0.4)) # ibvs_sample case1
     # launchDescriptionObject.add_action(create_robot_spawner("my_robot", -2, 0.8, 2, -0.4, 0, -0.5)) # ibvs_sample case2
     # launchDescriptionObject.add_action(create_robot_spawner("my_robot", -1.26, 0, 1.44, 0, -0.04, 0)) # PnP case
-    # launchDescriptionObject.add_action(create_robot_spawner("my_robot", -2, 3, 1, 0.0, 0, 3.14)) # Grapple_fixture case
+    launchDescriptionObject.add_action(create_robot_spawner("my_robot", -2, 3, 1, 0.0, 0, 3.14)) # Grapple_fixture case
 
-    launchDescriptionObject.add_action(create_robot_spawner("my_robot", -2, 3, 1, 0.0, 0, 0)) # handrail case
+    # launchDescriptionObject.add_action(create_robot_spawner("my_robot", -2, 3, 1, 0.0, 0, 0)) # handrail case
 
     # launchDescriptionObject.add_action(
     #     create_robot_spawner("my_robot", -2, 3, 1, 0.0, 0, 0)

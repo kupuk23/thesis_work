@@ -1,4 +1,3 @@
-import small_gicp
 import open3d as o3d
 import numpy as np
 import cv2
@@ -24,6 +23,19 @@ test = 1  # 1 for center, 2 for left, 3 for right
 #     file_name="grapple_fixture_down",
 #     voxel_size=0.005,
 # )
+
+def align_pc_goICP(
+    pcd_source, pcd_target):
+    """
+    Align source point cloud to target point cloud using Go-ICP.
+    Args:
+        pcd_source: Source point cloud (o3d.geometry.PointCloud)
+        pcd_target: Target point cloud (o3d.geometry.PointCloud)
+    Returns:
+
+        result: Registration result containing transformation, fitness and RMSE
+
+    """
 
 
 def align_pc_o3d(pcd_source, pcd_target, init_T=None, voxel_size=0.001):
@@ -72,7 +84,7 @@ def align_pc_o3d(pcd_source, pcd_target, init_T=None, voxel_size=0.001):
 
     # Point-to-plane ICP
     criteria = o3d.pipelines.registration.ICPConvergenceCriteria(
-        relative_fitness=5e-7, relative_rmse=1e-7, max_iteration=50
+        relative_fitness=5e-7, relative_rmse=1e-7, max_iteration=100
     )
 
     # for handrail, it is better to use point-to-point since the normals are not very accurate
@@ -83,18 +95,19 @@ def align_pc_o3d(pcd_source, pcd_target, init_T=None, voxel_size=0.001):
         target,
         0.02,  # Max correspondence distance
         init=current_transformation,
-        estimation_method=o3d.pipelines.registration.TransformationEstimationPointToPoint(), #TransformationEstimationPointToPlane, TransformationEstimationPointToPoint
+        estimation_method=o3d.pipelines.registration.TransformationEstimationForGeneralizedICP(), #TransformationEstimationPointToPlane, TransformationEstimationPointToPoint
         criteria=criteria,
     )
 
-    if result.fitness > 0.4:  # Adjust this threshold based on your application
+    if result.fitness > 0.5:  # Adjust this threshold based on your application
         # print(f"ICP registration successful!")
         print(f"Fitness: {result.fitness}, RMSE: {result.inlier_rmse}")
         # draw_registration_result(source, target, result.transformation)
         return result
-    # else:
+    else:
     # draw_registration_result(source, target, init_T, failed=True)
-    # print(f"ICP registration might not be optimal. Fitness: {result.fitness}")
+        # print(f"ICP registration might not be optimal. Fitness: {result.fitness}")
+        return None
 
 
 def draw_registration_result(source, target, transformation=None, failed=False):
@@ -118,48 +131,6 @@ def draw_registration_result(source, target, transformation=None, failed=False):
     o3d.visualization.draw_geometries(
         [source_temp, target_temp, coordinate_frame], point_show_normal=False
     )
-
-
-def align_pc(pcd_source, pcd_target, init_T=None, voxel_size=None):
-    """
-    Align source point cloud to target point cloud using ICP.
-
-    output:
-    result.T_target_source: transformation matrix from target to source"""
-    source = np.asarray(pcd_source.points)  # Mx3 numpy array
-    target = np.asarray(pcd_target.points)  # Nx3 numpy array
-    # draw_registration_result(pcd_source, pcd_target, init_T)
-
-    # perform inittial alignment to target to visualize
-    pcd_source.points = o3d.utility.Vector3dVector(source)
-    pcd_target.points = o3d.utility.Vector3dVector(target)
-
-    result = (
-        small_gicp.align(
-            target, source, registration_type="VGICP", downsampling_resolution=0.1
-        )
-        if init_T is None
-        else small_gicp.align(
-            target,
-            source,
-            init_T_target_source=init_T,
-            registration_type="ICP",  # VGICP, GICP, ICP, PLANE_ICP
-            downsampling_resolution=0.05,
-            max_iterations=50,
-        )
-    )
-
-    if result.converged:
-        print("Small GICP converged!")
-        # print(f"Final transformation matrix: {result.T_target_source}")
-        # print(f"Number of iterations: {result.iterations}")
-        print(f"error: {result.error}")
-        # visualize_registration(target, source, result.T_target_source)
-        return result
-
-    else:
-        print("Small GICP did not converge.")
-        return None
 
 
 def draw_pose_axes(

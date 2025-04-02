@@ -1,5 +1,9 @@
 {
     "cmake.ignoreCMakeListsMissing": true,
+    "cmake.sourceDirectory": [
+        "/home/tafarrel/ros2_ws/src/pose_estimation_pcl"
+    ],
+    "cmake.buildDirectory": "/home/tafarrel/ros2_ws/build/",
     "python.autoComplete.extraPaths": [
         "/home/tafarrel/discower_ws/install/px4_msgs/lib/python3.12/site-packages",
         "/home/tafarrel/ros2_ws/build/velocity_command",
@@ -15,5 +19,12 @@
         "/home/tafarrel/ros2_ws/build/ibvs_testing",
         "/home/tafarrel/ros2_ws/install/ibvs_testing/lib/python3.12/site-packages",
         "/opt/ros/jazzy/lib/python3.12/site-packages"
-    ]
+    ],
+    "files.associations": {
+        "*.sdf": "xml",
+        "*.world": "xml",
+        ".xacro": "xml",
+        ".gazebo": "xml",
+        "geometry": "cpp"
+    }
 }

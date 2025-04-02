@@ -5,10 +5,14 @@
         "databaseFilename": "${default}",
         "limitSymbolsToIncludedHeaders": false
       },
+      "compileCommands": "/home/tafarrel/ros2_ws/build/compile_commands.json",
       "includePath": [
+        "/home/tafarrel/ros2_ws/install/open3d_conversions/include/**",
         "/home/tafarrel/discower_ws/install/px4_msgs/include/**",
         "/opt/ros/jazzy/include/**",
+        "/home/tafarrel/ros2_ws/src/perception_open3d/open3d_conversions/include/**",
         "/home/tafarrel/ros2_ws/src/thesis_work/gazebo_camera_sim/include/**",
+        "/home/tafarrel/ros2_ws/src/thesis_work/pose_estimation_pcl/include/**",
         "/usr/include/**"
       ],
       "name": "ROS",

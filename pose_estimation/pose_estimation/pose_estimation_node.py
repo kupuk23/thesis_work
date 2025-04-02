@@ -15,7 +15,7 @@ from tf2_ros import Buffer, TransformListener
 import tf2_geometry_msgs
 
 # from icp_testing.icp import align_pc
-from pose_estimation.icp_testing.icp import align_pc, draw_pose_axes, align_pc_o3d
+from pose_estimation.icp_testing.icp import  align_pc_o3d
 from pose_estimation.tools.visualizer import visualize_point_cloud
 from pose_estimation.tools.pose_estimation_tools import preprocess_model, filter_pc_background
 from pose_estimation.tools.tf_utils import (
@@ -36,22 +36,16 @@ class PoseEstimationNode(Node):
         self.voxel_size = 0.005
         # preprocess_model("/home/tafarrel/", voxel_size=self.voxel_size)
 
-        self.object = "handrail" # or "handrail"
+        self.object = "grapple" # or "handrail"
 
         self.model_pcd = (
             o3d.io.read_point_cloud("/home/tafarrel/o3d_logs/grapple_fixture_down.pcd")
-            if object == "grapple"
+            if self.object == "grapple"
             else o3d.io.read_point_cloud(
                 "/home/tafarrel/o3d_logs/handrail_pcd_down.pcd"
             )
         )
-        
-        self.model_handrail_pcd = o3d.io.read_point_cloud(
-            "/home/tafarrel/o3d_logs/handrail_pcd_down.pcd"
-        )
-        self.model_grapple_pcd = o3d.io.read_point_cloud(
-            "/home/tafarrel/o3d_logs/grapple_fixture_down.pcd"
-        )
+
         self.K = np.array(
             [
                 [500.0, 0.0, 320.0],  # fx, 0, cx
@@ -99,37 +93,48 @@ class PoseEstimationNode(Node):
         """
 
         try:
-            # start_time = time.perf_counter()
+            start_time = time.perf_counter()
 
             o3d_cloud = self.pc2_to_o3d_color(pointcloud_msg)
-            # finished_time = time.perf_counter()
+            finished_time = time.perf_counter()
+            
 
-            # self.get_logger().info(
-            #     f"Time taken to convert pointcloud: {finished_time - start_time}"
-            # )
+            self.get_logger().info(
+                f"Pointcloud retrieved from camera.. ({finished_time - start_time}s)"
+            )
 
             # self.get_logger().info("Processing Pointcloud... ")
+
+            start_time = time.perf_counter()
             scene_pcd = self.preprocess_pointcloud(o3d_cloud)
+            finished_time = time.perf_counter()
+            self.get_logger().info(
+                f"Pointcloud processed --> {len(scene_pcd.points)} points ({finished_time - start_time}s)"
+            )
             # self.visualize_point_clouds(target=scene_pcd, target_filename="handrail_offset_right.pcd")
 
             # visualize_point_cloud(scene_pcd)
 
             # if scene_pcd empty, return
-            if len(scene_pcd.points) == 0:
+            if len(scene_pcd.points) < 100:
                 self.get_logger().info("Scene point cloud is empty")
                 return
             initial_transformation = self.transform_obj_pose(pointcloud_msg, self.object)
 
 
-            noisy_transformation = apply_noise_to_transform(initial_transformation, t_std=0.025, r_std=0.25) 
+            noisy_transformation = apply_noise_to_transform(initial_transformation, t_std=0.025, r_std=0.25) #t_std=0.025, r_std=0.25
 
             # result = align_pc(self.model_handrail_pcd, scene_pcd, init_T=initial_transformation)
+            start_time = time.perf_counter()
             result = align_pc_o3d(
                 self.model_pcd,
                 scene_pcd,
                 init_T=noisy_transformation,
                 voxel_size=self.voxel_size,
             )
+            finished_time = time.perf_counter()
+            self.get_logger().info(
+                f"ICP finished --> ({finished_time - start_time}s)")
 
             if result is None:
                 # self.get_logger().info("ICP did not converge")
@@ -252,8 +257,6 @@ class PoseEstimationNode(Node):
             o3d_msg.colors = o3d.utility.Vector3dVector(filtered_colors)
 
         o3d_msg.points = o3d.utility.Vector3dVector(filtered_points)
-
-        self.get_logger().info(f"Pointcloud processed: {len(o3d_msg.points)} points")
 
         # self.visualize_point_clouds(source=self.model_handrail_pcd, target=scene_pcd_down)
         return o3d_msg
