@@ -6,6 +6,7 @@
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/filters/passthrough.h>
 #include <pcl/filters/voxel_grid.h>
+#include <pcl/registration/gicp.h>
 #include <chrono>
 #include <cfloat>  // For FLT_MAX
 // include tf2 buffer for lookup transform
@@ -42,7 +43,11 @@ public:
         cloud_debug_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(
             "/debug_pointcloud", 1);
         
-        // model_cloud_ = pcl_utils::loadModelPCD("path/to/model.pcd", this->get_logger());
+        if (object_frame_ == "grapple") 
+        model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/grapple_fixture_down.pcd", this->get_logger());
+        
+        else
+        model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/handrail_pcd_down.pcd", this->get_logger());
 
         RCLCPP_INFO(this->get_logger(), "PoseEstimationPCL node initialized");
     }
@@ -116,17 +121,52 @@ private:
             icp_result_publisher_->publish(initial_pose);
 
             // TODO: implement the ICP process:
-            // 1. load the model cloud depending on the object_frame_ parameter
+            
             // 2. use PCL to perform ICP on the preprocessed cloud and model_cloud_
-            // 3. publish the result as a PoseStamped message
+            //    (you can use pcl::IterativeClosestPoint)
+            pcl::GeneralizedIterativeClosestPoint<pcl::PointXYZRGB, pcl::PointXYZRGB> icp;
+            
+            icp.setInputSource(model_cloud_);
+            icp.setInputTarget(preprocessed_cloud);
 
+            // Set ICP parameters
+            icp.setMaximumIterations(50);        // Max iterations
+            icp.setTransformationEpsilon(1e-8);  // Transformation epsilon
+            icp.setMaxCorrespondenceDistance(0.05); // 5cm max correspondence distance
+            icp.setEuclideanFitnessEpsilon(1);   // Fitness epsilon
+            icp.setRANSACOutlierRejectionThreshold(0.01); // RANSAC outlier threshold
+
+            pcl::PointCloud<pcl::PointXYZRGB>::Ptr aligned_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+            icp.align(*aligned_cloud, initial_transformation);
+
+            // Check if ICP converged
+        if (icp.hasConverged()) {
+            RCLCPP_INFO(this->get_logger(), "ICP converged with score: %f", icp.getFitnessScore());
+            
+            // Get the final transformation
+            Eigen::Matrix4f final_transformation = icp.getFinalTransformation();
+            
+            // Convert to pose and publish
+            aligned_pose_.header.stamp = pointcloud_msg->header.stamp;
+            aligned_pose_.header.frame_id = pointcloud_msg->header.frame_id;
+            aligned_pose_.pose = pcl_utils::matrix_to_pose(final_transformation);
+            
+            icp_result_publisher_->publish(aligned_pose_);
+            
+            // Optionally save the aligned cloud for debugging
+            // if (save_debug_clouds_) {
+            //     std::string aligned_filename = debug_path_ + "/aligned_cloud.pcd";
+            //     pcl_utils::saveToPCD(aligned_cloud, aligned_filename, this->get_logger());
+            // }
+        } else {
+            RCLCPP_WARN(this->get_logger(), "ICP did not converge, using initial pose");
+            // Publish the initial pose as fallback
+            icp_result_publisher_->publish(empty_pose_);
+        }
+        
             
             
-            // Create and publish an empty pose message
-            geometry_msgs::msg::PoseStamped empty_pose;
-            empty_pose.header.stamp = pointcloud_msg->header.stamp;
-            empty_pose.header.frame_id = "map";
-            empty_pose.pose.orientation.w = 1.0;  // Identity orientation
+            
             
             // icp_result_publisher_->publish(empty_pose);
             
@@ -164,6 +204,8 @@ private:
         return filtered_cloud;
     }
 
+
+
     // Node members
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloud_subscription_;
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr icp_result_publisher_;
@@ -179,6 +221,12 @@ private:
     
     // Point clouds
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr model_cloud_;
+
+    // pose stamped
+    geometry_msgs::msg::PoseStamped aligned_pose_;
+    geometry_msgs::msg::PoseStamped empty_pose_;
+
+    
 };
 
 int main(int argc, char * argv[]) {

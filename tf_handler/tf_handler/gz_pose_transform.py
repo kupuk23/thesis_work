@@ -37,6 +37,7 @@ class GazeboPoseExtractor(Node):
 
         # Store the handrail pose
         self.handrail_pose = None
+        self.timestamp = None
 
         self.get_logger().info("Gazebo Pose Extractor Node has been initialized")
 
@@ -53,6 +54,10 @@ class GazeboPoseExtractor(Node):
         try:
             if len(msg.poses) == 0:
                 self.get_logger().info("No poses received")
+                return
+            
+            if self.timestamp is None:
+                self.get_logger().info("No timestamp received")
                 return
 
             # Extract the pose of the handrail

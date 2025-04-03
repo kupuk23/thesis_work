@@ -7,6 +7,7 @@ import copy
 import cv2
 from cv_bridge import CvBridge
 import time
+import rclpy.time
 from sensor_msgs.msg import PointCloud2, Image, CompressedImage
 import sensor_msgs_py.point_cloud2 as pc2
 from geometry_msgs.msg import PoseArray, PoseStamped
@@ -145,7 +146,7 @@ class PoseEstimationNode(Node):
                 t = np.zeros((4, 4))
                 t[0:3, 0:3] = np.eye(3)
                 empty_pose.pose = matrix_to_pose(t)
-                self.icp_result_pub.publish(empty_pose)
+                # self.icp_result_pub.publish(empty_pose)
                 return
 
             # T_camera_object = np.linalg.inv(result.transformation)
@@ -156,19 +157,7 @@ class PoseEstimationNode(Node):
             pose_msg.header.frame_id = pointcloud_msg.header.frame_id
             pose_msg.pose = matrix_to_pose(result.transformation)
 
-            self.icp_result_pub.publish(pose_msg)
-
-            # # # This is the object's pose in camera coordinates
-            # position = T_camera_object[:3, 3]  # Translation vector
-            # rotation = T_camera_object[:3, :3]  # Rotation matrix
-
-            # predicted_image_pose = draw_pose_axes(
-            #     self.cv_image, rotation, position, self.K
-            # )
-
-            # # Display the image with the pose
-            # cv2.imshow("Pose Estimation", predicted_image_pose)
-            # cv2.waitKey(1)
+            # self.icp_result_pub.publish(pose_msg)
 
         except Exception as e:
             self.get_logger().info(f"Error processing point cloud: {e}")
@@ -187,37 +176,48 @@ class PoseEstimationNode(Node):
             if not (self.tf_buffer.can_transform(pc2_msg.header.frame_id, "map", rclpy.time.Time()) and self.tf_buffer.can_transform("map", obj_frame, rclpy.time.Time())):
                 
                 return None
+            
             # Get the transform from world to camera
             map_T_cam = self.tf_buffer.lookup_transform(
                 pc2_msg.header.frame_id,  # target frame
                 "map",  # source frame (camera frame)
                 rclpy.time.Time(),  # time
-                timeout=rclpy.duration.Duration(seconds=1.0),
+                timeout=rclpy.duration.Duration(seconds=1.0)
             )
 
             obj_T_map = self.tf_buffer.lookup_transform(
                 "map",
                 obj_frame,
                 rclpy.time.Time(),
-                timeout=rclpy.duration.Duration(seconds=1),
+                timeout=rclpy.duration.Duration(seconds=0.5)
             )
 
+            # obj_T_cam = self.tf_buffer.lookup_transform(
+            #     pc2_msg.header.frame_id,
+            #     obj_frame,
+            #     pc2_msg.header.stamp,
+            #     timeout=rclpy.duration.Duration(seconds=0.1),
+            # )
+            # obj_T_cam = transform_to_pose(obj_T_cam.transform)
+            
             obj_T_map = transform_to_pose(obj_T_map.transform)
+
             # Convert transform to matrix
             handrail_pose_in_camera_frame = tf2_geometry_msgs.do_transform_pose(
                 obj_T_map, map_T_cam
             )
+            
             # self.get_logger().info("Transformed handrail pose to camera frame")
 
             result_msg = PoseStamped()
-            result_msg.header.stamp = pc2_msg.header.stamp
+            result_msg.header.stamp = rclpy.time.Time().to_msg()
             result_msg.header.frame_id = pc2_msg.header.frame_id
             result_msg.pose = handrail_pose_in_camera_frame
 
-            # self.icp_result_pub.publish(result_msg)
+            self.icp_result_pub.publish(result_msg)
 
             # Convert pose to matrix
-            handrail_pose_matrix = pose_to_matrix(handrail_pose_in_camera_frame)
+            handrail_pose_matrix = pose_to_matrix(obj_T_map) #pose_to_matrix(handrail_pose_in_camera_frame)
 
             return handrail_pose_matrix
 
