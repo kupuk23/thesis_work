@@ -79,18 +79,19 @@ class PoseEstimationNode(Node):
             PointCloud2,
             "/camera/points",
             self.pc2_callback,
-            qos_profile=20, callback_group=MutuallyExclusiveCallbackGroup() # /camera/points <- CHANGE LATER!
+            qos_profile=20,  # /camera/points <- CHANGE LATER!
+            callback_group=ReentrantCallbackGroup(),
         )
 
         self.tf_broadcaster = TransformBroadcaster(self)
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
+        mutex_group = MutuallyExclusiveCallbackGroup()
         # Create a timer for transform updates that runs at high frequency
-        self.transform_timer = self.create_timer(0.01, self.update_transform, callback_group=ReentrantCallbackGroup())  # 50 Hz
-        # self.process_pose_estimation_timer = self.create_timer(
-        #     0.1, self.perform_pose_estimation, callback_group=self.process_callback_group
-        # )
+        self.process_pose_estimation_timer = self.create_timer(
+            0.1, self.perform_pose_estimation, callback_group=mutex_group
+        )
 
         # Publisher for ICP result
         self.icp_result_pub = self.create_publisher(PoseStamped, "/pose/icp_result", 10)
@@ -156,7 +157,7 @@ class PoseEstimationNode(Node):
                 t = np.zeros((4, 4))
                 t[0:3, 0:3] = np.eye(3)
                 empty_pose.pose = matrix_to_pose(t)
-                # self.icp_result_pub.publish(empty_pose)
+                self.icp_result_pub.publish(empty_pose)
                 return
 
             # T_camera_object = np.linalg.inv(result.transformation)
@@ -167,7 +168,7 @@ class PoseEstimationNode(Node):
             pose_msg.header.frame_id = self.latest_pointcloud.header.frame_id
             pose_msg.pose = matrix_to_pose(result.transformation)
 
-            # self.icp_result_pub.publish(pose_msg)
+            self.icp_result_pub.publish(pose_msg)
 
         except Exception as e:
             self.get_logger().info(f"Error processing point cloud: {e}")
@@ -180,8 +181,8 @@ class PoseEstimationNode(Node):
             pointcloud_msg: PointCloud2 message
         """
         self.latest_pointcloud = pointcloud_msg
-        # matrix = self.transform_obj_pose(pointcloud_msg, obj_frame=self.object)
-        self.get_logger().info(f"Received pointcloud")
+        self.update_transform()
+        # self.get_logger().info(f"Received pointcloud")
 
     def transform_obj_pose(self, pc2_msg: PointCloud2, obj_frame="handrail"):
         """
@@ -423,7 +424,6 @@ class PoseEstimationNode(Node):
 
             # self.icp_result_pub.publish(result_msg)
 
-
             transform = TransformStamped()
             transform.header.stamp = self.latest_pointcloud.header.stamp
             transform.header.frame_id = self.latest_pointcloud.header.frame_id
@@ -438,7 +438,8 @@ class PoseEstimationNode(Node):
 
             # broadcast the transform
             self.tf_broadcaster.sendTransform(transform)
-
+            obj_T_cam = pose_to_matrix(obj_T_cam)
+            self.latest_transform_result = obj_T_cam
             # return handrail_pose_matrix
 
         except Exception as e:
@@ -454,14 +455,13 @@ def main(args=None):
     #     durability=QoSDurabilityPolicy.VOLATILE,
     # )
     node = PoseEstimationNode()
-    executor = MultiThreadedExecutor(num_threads=4)
+    executor = MultiThreadedExecutor()
 
     try:
         rclpy.spin(node, executor=executor)
     except KeyboardInterrupt:
         pass
 
-    rclpy.shutdown()
 
 
 if __name__ == "__main__":

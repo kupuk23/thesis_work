@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.8)
 project(pose_estimation_pcl)
 
+# Add optimization flags
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
+
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
@@ -82,6 +85,7 @@ install(DIRECTORY launch
   DESTINATION share/${PROJECT_NAME}/
   OPTIONAL
 )
+
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

@@ -7,6 +7,7 @@
 #include <tf2_ros/transform_listener.h>
 #include <tf2/convert.h>
 #include <tf2_eigen/tf2_eigen.hpp>
+#include <tf2_ros/transform_broadcaster.h>
 
 namespace pcl_utils {
 
@@ -126,49 +127,35 @@ Eigen::Matrix4f transform_obj_pose(
     
     try {
         // Check if transforms are available
-        if (!tf_buffer.canTransform(pc2_msg->header.frame_id, "map", tf2::TimePointZero) || 
-            !tf_buffer.canTransform("map", obj_frame, tf2::TimePointZero)) {
+        if (!tf_buffer.canTransform(pc2_msg->header.frame_id, obj_frame, tf2::TimePointZero)) {
             RCLCPP_WARN(logger, "Cannot transform between required frames");
             return Eigen::Matrix4f::Identity();
         }
         
         // Get transform from map to camera frame
-        geometry_msgs::msg::TransformStamped map_T_cam = tf_buffer.lookupTransform(
+        geometry_msgs::msg::TransformStamped obj_T_cam = tf_buffer.lookupTransform(
             pc2_msg->header.frame_id,  // target frame
-            "map",                     // source frame
+            obj_frame,                     // source frame
             tf2::TimePointZero,        // time
             tf2::durationFromSec(1.0)  // timeout
         );
         
-        // Get transform from object frame to map
-        geometry_msgs::msg::TransformStamped obj_T_map = tf_buffer.lookupTransform(
-            "map",                     // target frame
-            obj_frame,                 // source frame
-            tf2::TimePointZero,        // time
-            tf2::durationFromSec(1.0)  // timeout
-        );
-        
-        // Convert transform to pose
-        geometry_msgs::msg::PoseStamped obj_pose_map;
-        obj_pose_map.header.stamp = pc2_msg->header.stamp;
-        obj_pose_map.header.frame_id = "map";
-        obj_pose_map.pose.position.x = obj_T_map.transform.translation.x;
-        obj_pose_map.pose.position.y = obj_T_map.transform.translation.y;
-        obj_pose_map.pose.position.z = obj_T_map.transform.translation.z;
-        obj_pose_map.pose.orientation = obj_T_map.transform.rotation;
-        
-        // Transform the pose to camera frame
-        geometry_msgs::msg::PoseStamped obj_pose_camera;
-        tf2::doTransform(obj_pose_map, obj_pose_camera, map_T_cam);
+        // Transform the object to the camera frame transformStamped into Pose
+        geometry_msgs::msg::Pose obj_pose_camera;
+        obj_pose_camera.orientation = obj_T_cam.transform.rotation;
+        obj_pose_camera.position.x = obj_T_cam.transform.translation.x;
+        obj_pose_camera.position.y = obj_T_cam.transform.translation.y;
+        obj_pose_camera.position.z = obj_T_cam.transform.translation.z;
+
         
         // Create result message (not returned but similar to Python function)
         geometry_msgs::msg::PoseStamped result_msg;
         result_msg.header.stamp = pc2_msg->header.stamp;
         result_msg.header.frame_id = pc2_msg->header.frame_id;
-        result_msg.pose = obj_pose_camera.pose;
+        result_msg.pose = obj_pose_camera;
         
         // Convert pose to matrix
-        Eigen::Matrix4f handrail_pose_matrix = pose_to_matrix(obj_pose_camera.pose);
+        Eigen::Matrix4f handrail_pose_matrix = pose_to_matrix(obj_pose_camera);
         return handrail_pose_matrix;
         
     } catch (const tf2::TransformException& e) {
@@ -208,6 +195,46 @@ geometry_msgs::msg::Pose matrixToPose(const Eigen::Matrix4d& matrix) {
     pose.orientation.w = quaternion.w();
     
     return pose;
+}
+
+
+geometry_msgs::msg::TransformStamped create_transform_stamped(
+    const Eigen::Matrix4f& transform,
+    const rclcpp::Time& header_stamp,
+    const std::string& header_frame_id,
+    const std::string& child_frame_id) {
+    
+    geometry_msgs::msg::TransformStamped transform_stamped;
+    transform_stamped.header.stamp = header_stamp;
+    transform_stamped.header.frame_id = header_frame_id;
+    transform_stamped.child_frame_id = child_frame_id;
+    
+    // Set translation
+    transform_stamped.transform.translation.x = transform(0, 3);
+    transform_stamped.transform.translation.y = transform(1, 3);
+    transform_stamped.transform.translation.z = transform(2, 3);
+    
+    // Set rotation (convert matrix to quaternion)
+    Eigen::Quaternionf q(transform.block<3, 3>(0, 0));
+    transform_stamped.transform.rotation.x = q.x();
+    transform_stamped.transform.rotation.y = q.y();
+    transform_stamped.transform.rotation.z = q.z();
+    transform_stamped.transform.rotation.w = q.w();
+    
+    return transform_stamped;
+}
+
+void broadcast_transform(
+    std::shared_ptr<tf2_ros::TransformBroadcaster>& broadcaster,
+    const Eigen::Matrix4f& transform,
+    const rclcpp::Time& header_stamp,
+    const std::string& header_frame_id,
+    const std::string& child_frame_id) {
+    
+    geometry_msgs::msg::TransformStamped transform_stamped = 
+        create_transform_stamped(transform, header_stamp, header_frame_id, child_frame_id);
+    
+    broadcaster->sendTransform(transform_stamped);
 }
 
 } // namespace pcl_utils

@@ -5,10 +5,12 @@
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <geometry_msgs/msg/pose.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
+#include <geometry_msgs/msg/transform_stamped.hpp>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <Eigen/Core>
 #include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_broadcaster.h>
 
 namespace pcl_utils {
 
@@ -68,7 +70,6 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr loadModelPCD(
  */
 geometry_msgs::msg::Pose matrixToPose(const Eigen::Matrix4d& matrix);
 
-
 /**
  * @brief Transform object pose from map frame to camera frame
  * 
@@ -84,7 +85,37 @@ Eigen::Matrix4f transform_obj_pose(
     const std::string& obj_frame,
     const rclcpp::Logger& logger);
 
-} // namespace pcl_utils
+/**
+ * @brief Create a TransformStamped message from a transformation matrix
+ * 
+ * @param transform The 4x4 transformation matrix
+ * @param header_stamp The timestamp for the transform header
+ * @param header_frame_id The frame ID for the transform header
+ * @param child_frame_id The child frame ID for the transform
+ * @return geometry_msgs::msg::TransformStamped The created TransformStamped message
+ */
+geometry_msgs::msg::TransformStamped create_transform_stamped(
+    const Eigen::Matrix4f& transform,
+    const rclcpp::Time& header_stamp,
+    const std::string& header_frame_id,
+    const std::string& child_frame_id);
 
+/**
+ * @brief Broadcast a transformation matrix to the TF tree
+ * 
+ * @param broadcaster The TF broadcaster
+ * @param transform The 4x4 transformation matrix
+ * @param header_stamp The timestamp for the transform header
+ * @param header_frame_id The frame ID for the transform header
+ * @param child_frame_id The child frame ID for the transform
+ */
+void broadcast_transform(
+    std::shared_ptr<tf2_ros::TransformBroadcaster>& broadcaster,
+    const Eigen::Matrix4f& transform,
+    const rclcpp::Time& header_stamp,
+    const std::string& header_frame_id,
+    const std::string& child_frame_id);
+
+} // namespace pcl_utils
 
 #endif // PCL_UTILS_HPP
