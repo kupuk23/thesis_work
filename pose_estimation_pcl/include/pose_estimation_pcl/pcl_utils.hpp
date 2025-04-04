@@ -116,6 +116,22 @@ void broadcast_transform(
     const std::string& header_frame_id,
     const std::string& child_frame_id);
 
+/**
+ * @brief Apply Gaussian noise to a transformation matrix
+ * 
+ * @param transform The original transformation matrix
+ * @param t_std Standard deviation for translation noise
+ * @param r_std Standard deviation for rotation noise
+ * @return Eigen::Matrix4f The noisy transformation matrix
+ */
+Eigen::Matrix4f apply_noise_to_transform(
+    const Eigen::Matrix4f& transform, 
+    float t_std, 
+    float r_std);
+
+
 } // namespace pcl_utils
+
+
 
 #endif // PCL_UTILS_HPP

@@ -8,6 +8,9 @@
 #include <tf2/convert.h>
 #include <tf2_eigen/tf2_eigen.hpp>
 #include <tf2_ros/transform_broadcaster.h>
+#include <random>
+#include <string>
+
 
 namespace pcl_utils {
 
@@ -235,6 +238,54 @@ void broadcast_transform(
         create_transform_stamped(transform, header_stamp, header_frame_id, child_frame_id);
     
     broadcaster->sendTransform(transform_stamped);
+}
+
+
+Eigen::Matrix4f apply_noise_to_transform(
+    const Eigen::Matrix4f& transform, 
+    float t_std, 
+    float r_std) {
+    
+    // Check if transform is valid
+    if (transform.isIdentity()) {
+        return transform;
+    }
+    
+    // Create a copy of the transformation
+    Eigen::Matrix4f noisy_transform = transform;
+    
+    // Create random number generator
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::normal_distribution<float> t_dist(0.0, t_std); // Translation noise distribution
+    std::normal_distribution<float> r_dist(0.0, r_std); // Rotation noise distribution
+    
+    // Add noise to translation
+    for (int i = 0; i < 3; ++i) {
+        noisy_transform(i, 3) += t_dist(gen);
+    }
+    
+    // Extract current rotation matrix
+    Eigen::Matrix3f current_rot = noisy_transform.block<3, 3>(0, 0);
+    
+    // Convert to Euler angles (XYZ order)
+    Eigen::Vector3f euler = current_rot.eulerAngles(0, 1, 2); // x, y, z
+    
+    // Add noise to Euler angles
+    euler[0] += r_dist(gen);
+    euler[1] += r_dist(gen);
+    euler[2] += r_dist(gen);
+    
+    // Convert back to rotation matrix
+    Eigen::Matrix3f noisy_rot;
+    noisy_rot = Eigen::AngleAxisf(euler[0], Eigen::Vector3f::UnitX())
+              * Eigen::AngleAxisf(euler[1], Eigen::Vector3f::UnitY())
+              * Eigen::AngleAxisf(euler[2], Eigen::Vector3f::UnitZ());
+    
+    // Update rotation part of transformation matrix
+    noisy_transform.block<3, 3>(0, 0) = noisy_rot;
+    
+    return noisy_transform;
 }
 
 } // namespace pcl_utils

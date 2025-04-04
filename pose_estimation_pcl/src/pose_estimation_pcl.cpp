@@ -97,7 +97,10 @@ private:
             );
 
             // TODO: add gaussian noise to the initial transform
-            
+            latest_initial_transform_ = pcl_utils::apply_noise_to_transform(
+                latest_initial_transform_, 0.1, 0.5
+            );
+
             // Broadcast the transformation for visualization
             pcl_utils::broadcast_transform(
                 tf_broadcaster_,
@@ -191,15 +194,19 @@ private:
             icp.setInputSource(model_cloud_);
             icp.setInputTarget(preprocessed_cloud);
             icp.setUseReciprocalCorrespondences(true);
+            
             // Set ICP parameters
-            icp.setMaximumIterations(50);
-            icp.setTransformationEpsilon(1e-5);
+            icp.setMaximumIterations(100); // 50
+            icp.setTransformationEpsilon(1e-6);
             icp.setMaxCorrespondenceDistance(0.1);
-            icp.setEuclideanFitnessEpsilon(5e-7);
+            icp.setEuclideanFitnessEpsilon(5e-5); // 5e-7
             icp.setRANSACOutlierRejectionThreshold(0.05);
 
+            // TESTING: Set initial transformation to identity to simulate ICP registration without initial guess
+            initial_transform = Eigen::Matrix4f::Identity();
+
             pcl::PointCloud<pcl::PointXYZRGB>::Ptr aligned_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-            icp.align(*aligned_cloud, initial_transform);
+            icp.align(*aligned_cloud);
 
             // Check if ICP converged
             if (icp.hasConverged()) {
