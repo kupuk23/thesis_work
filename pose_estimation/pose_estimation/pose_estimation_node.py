@@ -131,7 +131,7 @@ class PoseEstimationNode(Node):
 
             # self.visualize_point_clouds(
             #     target=scene_pcd,
-            #     target_filename="grapple_hard_scene.pcd",
+            #     target_filename="handrail_right_side.pcd",
             # )
 
             # if scene_pcd empty, return
@@ -147,7 +147,7 @@ class PoseEstimationNode(Node):
 
             # Perform ICP registration
             result = go_icp(
-                source_points=np.asarray(self.model_pcd.points), target_points=np.asarray(scene_pcd.points)
+                model_points=np.asarray(self.model_pcd.points), data_points=np.asarray(scene_pcd.points)
             )
             # result = align_pc_o3d(
             #     self.model_pcd,

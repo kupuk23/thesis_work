@@ -15,7 +15,7 @@ def normalize_point_cloud(data_points, model_points):
     Returns:
         data_normalized: Open3D point cloud object (o3d.geometry.PointCloud)
         data_centroid: centroid of the source point cloud (3x1 numpy array)
-        target_normalized: Open3D point cloud object (o3d.geometry.PointCloud)
+        model_normalized: Open3D point cloud object (o3d.geometry.PointCloud)
         model_centroid: centroid of the target point cloud (3x1 numpy array)
         max_scale: maximum distance from the origin (float)
     """
@@ -136,14 +136,19 @@ def init_GO_ICP():
     tNode.w = 1.0
 
     # Set parameters
-    goicp.MSEThresh = 0.0005  # Mean Square Error threshold
+    goicp.MSEThresh = 0.0007  # Mean Square Error threshold
     goicp.trimFraction = 0.0  # Trimming fraction (0.0 = no trimming)
 
     if goicp.trimFraction < 0.001:
         goicp.doTrim = False
 
+    # Higher values = more accurate but slower
+    goicp.setDTSizeAndFactor(50, 4.0)
+    goicp.setInitNodeRot(rNode)
+    goicp.setInitNodeTrans(tNode)
 
-    return goicp, rNode, tNode
+
+    return goicp
 
 
 def go_icp(
@@ -188,7 +193,7 @@ def go_icp(
 
     # 2. Normalize both point clouds
     # print("Normalizing point clouds...")
-    (data_normalized, data_centroid, target_normalized, model_centroid, max_scale) = (
+    (data_normalized, data_centroid, model_normalized, model_centroid, max_scale) = (
         normalize_point_cloud(data_points, model_points)
     )
 
@@ -197,37 +202,34 @@ def go_icp(
         print("Normalized point clouds:")
         source_temp = copy.deepcopy(data_normalized)
         source_temp.paint_uniform_color([1, 0, 0])
-        target_normalized.paint_uniform_color([0, 1, 0])
-        o3d.visualization.draw_geometries([source_temp, target_normalized])
+        model_normalized.paint_uniform_color([0, 1, 0])
+        o3d.visualization.draw_geometries([source_temp, model_normalized])
         # print several lines of the point cloud
         # print("Normalized source point cloud sample:")
         # print(np.asarray(data_normalized.points)[:5])
         # print("Normalized target point cloud sample:")
-        # print(np.asarray(target_normalized.points)[:5])
+        # print(np.asarray(model_normalized.points)[:5])
 
     # print(f"Normalization complete. Using scale factor: {max_scale}")
 
     # 3. Convert to POINT3D format for Go-ICP
     data_normalized_points = np.asarray(data_normalized.points)
-    target_normalized_points = np.asarray(target_normalized.points)
+    model_normalized_points = np.asarray(model_normalized.points)
 
     Nd = data_normalized_points.shape[0]
-    Nm = target_normalized_points.shape[0]
+    Nm = model_normalized_points.shape[0]
 
     b_points = convert_to_point3d_list(data_normalized_points)
-    a_points = convert_to_point3d_list(target_normalized_points)
+    a_points = convert_to_point3d_list(model_normalized_points)
 
     # 4. Initialize Go-ICP
-    goicp, rNode, tNode = init_GO_ICP()
+    goicp= init_GO_ICP()
 
     # 5. Register the point clouds using Go-ICP
     goicp.loadModelAndData(Nm, a_points, Nd, b_points)
 
     # Distance transform parameters (trade-off between speed and accuracy)
-    # Higher values = more accurate but slower
-    goicp.setDTSizeAndFactor(50, 2.0)
-    goicp.setInitNodeRot(rNode)
-    goicp.setInitNodeTrans(tNode)
+    
 
     # print("Building Distance Transform...")
     goicp.BuildDT()
@@ -254,7 +256,7 @@ def go_icp(
         print("Normalized transformation matrix:")
         norm_source = copy.deepcopy(data_normalized)
         norm_source.paint_uniform_color([1, 0, 0])
-        norm_target = copy.deepcopy(target_normalized)
+        norm_target = copy.deepcopy(model_normalized)
         norm_target.paint_uniform_color([0, 1, 0])
         norm_source.transform(norm_transform)
         o3d.visualization.draw_geometries([norm_source, norm_target])
@@ -299,15 +301,17 @@ def go_icp(
 
 if __name__ == "__main__":
     # Paths to your PCD files
-    model_file = "/home/tafarrel/o3d_logs/grapple_fixture_down.pcd"
-    scene_file = "/home/tafarrel/o3d_logs/grapple_center.pcd"
+    # model_file = "/home/tafarrel/o3d_logs/grapple_fixture_down.pcd"
+    model_file = "/home/tafarrel/o3d_logs/handrail_pcd_down.pcd"
+    scene_file = "/home/tafarrel/o3d_logs/handrail_origin.pcd"
+    # scene_file = "/home/tafarrel/o3d_logs/grapple_center.pcd"
     # scene_file = "/home/tafarrel/o3d_logs/grapple_right_side.pcd"
-
     # scene_file = "/home/tafarrel/o3d_logs/grapple_hard_scene.pcd"
+    
 
     model_points = np.asarray(loadPointCloud(model_file).points)
     scene_file = np.asarray(
-        loadPointCloud(scene_file, ds=True).points
+        loadPointCloud(scene_file).points
     )
 
     # Run Go-ICP registration

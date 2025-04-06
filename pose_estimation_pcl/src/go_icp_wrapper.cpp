@@ -68,7 +68,7 @@ Eigen::Matrix4f GoICPWrapper::registerPointClouds(
     tNode.w = 1.0;
     
     // Set Go-ICP parameters
-    goicp.MSEThresh = 0.001;  // Mean Square Error threshold
+    goicp.MSEThresh = 0.008;  // Mean Square Error threshold
     goicp.trimFraction = 0.0;  // Trimming fraction (0.0 = no trimming)
     goicp.doTrim = (goicp.trimFraction >= 0.001);
     
@@ -80,7 +80,7 @@ Eigen::Matrix4f GoICPWrapper::registerPointClouds(
     
     // Set DT parameters
     goicp.dt.SIZE = 25;
-    goicp.dt.expandFactor = 2.0;
+    goicp.dt.expandFactor = 3.0;
     
     // Set initial rotation and translation nodes
     goicp.initNodeRot = rNode;

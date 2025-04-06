@@ -24,7 +24,7 @@ class PoseEstimationPCL : public rclcpp::Node {
 public:
     PoseEstimationPCL() : Node("pose_estimation_pcl") {
         // Initialize parameters
-        voxel_size_ = this->declare_parameter<double>("voxel_size", 0.01);  // Default voxel size
+        voxel_size_ = this->declare_parameter<double>("voxel_size", 0.002);  // Default voxel size
         save_debug_clouds_ = this->declare_parameter<bool>("save_debug_clouds", false);
         debug_path_ = this->declare_parameter<std::string>("debug_path", "/home/tafarrel/debugPCD_cpp");
         object_frame_ = this->declare_parameter<std::string>("object_frame", "grapple");
@@ -33,7 +33,7 @@ public:
         goicp_debug_ = this->declare_parameter<bool>("goicp_debug", false);
         
         // Registration error thresholds
-        gicp_fitness_threshold_ = this->declare_parameter<double>("gicp_fitness_threshold", 0.05);
+        gicp_fitness_threshold_ = this->declare_parameter<double>("gicp_fitness_threshold", 0.0000);
         
         // Initialize Go-ICP wrapper
         goicp_wrapper_ = std::make_unique<go_icp::GoICPWrapper>();
@@ -110,12 +110,11 @@ private:
                 this->get_logger()
             );
 
-            /* Comment out the noise addition as suggested
-            // TODO: add gaussian noise to the initial transform
-            latest_initial_transform_ = pcl_utils::apply_noise_to_transform(
-                latest_initial_transform_, 0.1, 0.5
-            );
-            */
+            // apply noise to the initial transform for testing
+            // latest_initial_transform_ = pcl_utils::apply_noise_to_transform(
+            //     latest_initial_transform_, 0.1, 0.5
+            // );
+
 
             // Broadcast the transformation for visualization
             pcl_utils::broadcast_transform(
