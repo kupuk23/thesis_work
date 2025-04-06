@@ -2,7 +2,7 @@ import open3d as o3d
 import numpy as np
 import cv2
 from pose_estimation.tools.pose_estimation_tools import preprocess_model
-from pose_estimation.icp_testing.icp_visualizer import visualize_pose_in_image
+from pose_estimation.tools.pc_utils import visualize_registration
 import copy
 
 
@@ -188,51 +188,6 @@ def draw_pose_axes(
     return image
 
 
-def visualize_registration(target_points, source_points, transformation_matrix):
-    """
-    Visualize point cloud registration results.
-
-    Parameters:
-    - target_points: Original target point cloud (Nx3 numpy array)
-    - source_points: Original source point cloud (Nx3 numpy array)
-    - transformation_matrix: 4x4 transformation matrix
-    """
-    # Create Open3D point cloud objects
-    target_pcd = o3d.geometry.PointCloud()
-    source_pcd = o3d.geometry.PointCloud()
-
-    # Set points
-    target_pcd.points = o3d.utility.Vector3dVector(target_points)
-    source_pcd.points = o3d.utility.Vector3dVector(source_points)
-
-    # Color the point clouds differently
-    target_pcd.paint_uniform_color([1, 0, 0])  # Red for target
-    source_pcd.paint_uniform_color([0, 0, 1])  # Blue for source
-
-    # Transform the source point cloud
-    transformed_source_pcd = source_pcd.transform(transformation_matrix)
-
-    # Create visualization
-    vis = o3d.visualization.Visualizer()
-    vis.create_window()
-
-    # Add point clouds to visualization
-    vis.add_geometry(target_pcd)
-    vis.add_geometry(transformed_source_pcd)
-
-    # Set up the view
-    vis.get_render_option().point_size = 3.0
-    vis.get_render_option().background_color = np.asarray([1, 1, 1])  # White background
-
-    # Adjust the view
-    vis.update_geometry(target_pcd)
-    vis.update_geometry(transformed_source_pcd)
-    vis.poll_events()
-    vis.update_renderer()
-
-    # Wait for window to be closed
-    vis.run()
-    vis.destroy_window()
 
 
 # Example usage:
@@ -272,7 +227,7 @@ if __name__ == "__main__":
         print(translation)
         print(rotation)
 
-        image = visualize_pose_in_image(img_source, T_matrix.T_target_source, K)
+        # image = visualize_pose_in_image(img_source, T_matrix.T_target_source, K)
         # image = draw_pose_axes(img_source, rotation, translation, K, axis_length=0.1)
     # image = draw_pose_axes(img_source, rotation, translation, K, axis_length=0.1)
     elif test == 2:

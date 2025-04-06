@@ -15,7 +15,8 @@
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/transform_broadcaster.h>
 
-#include "pose_estimation_pcl/pcl_utils.hpp"  // Our utility header
+#include "pose_estimation_pcl/pcl_utils.hpp"    // Our utility header
+#include "pose_estimation_pcl/go_icp_wrapper.hpp"  // Our Go-ICP wrapper
 
 using namespace std::chrono_literals;
 
@@ -28,13 +29,20 @@ public:
         debug_path_ = this->declare_parameter<std::string>("debug_path", "/home/tafarrel/debugPCD_cpp");
         object_frame_ = this->declare_parameter<std::string>("object_frame", "grapple");
         processing_period_ms_ = 100;  // 10 Hz default
+        use_goicp_ = this->declare_parameter<bool>("use_goicp", true);
+        goicp_debug_ = this->declare_parameter<bool>("goicp_debug", false);
+        
+        // Registration error thresholds
+        gicp_fitness_threshold_ = this->declare_parameter<double>("gicp_fitness_threshold", 0.05);
+        
+        // Initialize Go-ICP wrapper
+        goicp_wrapper_ = std::make_unique<go_icp::GoICPWrapper>();
     
         // Initialize TF2 buffer and listener
         tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
         tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
         tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(*this);
     
-        
         // Create callback groups for concurrent execution
         callback_group_subscription_ = this->create_callback_group(
             rclcpp::CallbackGroupType::MutuallyExclusive);
@@ -58,6 +66,10 @@ public:
         cloud_debug_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(
             "/debug_pointcloud", 1);
         
+        // Create publishers for Go-ICP results
+        goicp_result_publisher_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(
+            "/pose/goicp_result", 10);
+        
         // Load model cloud
         if (object_frame_ == "grapple") 
             model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/grapple_fixture_down.pcd", this->get_logger());
@@ -75,8 +87,9 @@ public:
         
         // Initialize flags and mutex
         has_new_data_ = false;
+        tracking_initialized_ = false;  // Start with no tracking to force Go-ICP on first frame
         
-        RCLCPP_INFO(this->get_logger(), "PoseEstimationPCL node initialized with separated callback groups");
+        RCLCPP_INFO(this->get_logger(), "PoseEstimationPCL node initialized with Go-ICP integration");
     }
 
 private:
@@ -89,6 +102,7 @@ private:
             latest_cloud_msg_ = pointcloud_msg;
             
             // Get the initial transformation from the object pose using TF2 lookup
+            // Note: We'll keep this for fallback purposes, but it might be ignored if Go-ICP is used
             latest_initial_transform_ = pcl_utils::transform_obj_pose(
                 pointcloud_msg, 
                 *tf_buffer_, 
@@ -96,10 +110,12 @@ private:
                 this->get_logger()
             );
 
+            /* Comment out the noise addition as suggested
             // TODO: add gaussian noise to the initial transform
             latest_initial_transform_ = pcl_utils::apply_noise_to_transform(
                 latest_initial_transform_, 0.1, 0.5
             );
+            */
 
             // Broadcast the transformation for visualization
             pcl_utils::broadcast_transform(
@@ -110,7 +126,6 @@ private:
                 object_frame_ + "_initial"
             );
             
-            
             // Update flag to indicate new data is available
             has_new_data_ = true;
             
@@ -119,6 +134,39 @@ private:
         } catch (const std::exception& e) {
             RCLCPP_ERROR(this->get_logger(), "Error in pointcloud callback: %s", e.what());
         }
+    }
+    
+    // Run GICP registration with a given initial transformation
+    bool runGICP(
+        const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& source_cloud,
+        const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& target_cloud,
+        const Eigen::Matrix4f& initial_transform,
+        Eigen::Matrix4f& result_transform,
+        float& fitness_score) {
+        
+        pcl::GeneralizedIterativeClosestPoint<pcl::PointXYZRGB, pcl::PointXYZRGB> gicp;
+        
+        gicp.setInputSource(source_cloud);
+        gicp.setInputTarget(target_cloud);
+        gicp.setUseReciprocalCorrespondences(true);
+        
+        // Set GICP parameters
+        gicp.setMaximumIterations(100);
+        gicp.setTransformationEpsilon(1e-6);
+        gicp.setMaxCorrespondenceDistance(0.1);
+        gicp.setEuclideanFitnessEpsilon(5e-5);
+        gicp.setRANSACOutlierRejectionThreshold(0.05);
+        
+        // Align using provided initial transform
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr aligned_cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
+        gicp.align(*aligned_cloud, initial_transform);
+        
+        // Get results
+        bool converged = gicp.hasConverged();
+        fitness_score = gicp.getFitnessScore();
+        result_transform = gicp.getFinalTransformation();
+        
+        return converged;
     }
     
     // Separate timer callback for processing data (heavy processing)
@@ -146,36 +194,18 @@ private:
             pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud = pcl_utils::convertPointCloud2ToPCL(cloud_msg);
             
             auto conversion_time = std::chrono::high_resolution_clock::now();
-            // RCLCPP_INFO(this->get_logger(), 
-            //     "Pointcloud converted for processing (%.3f s)",
-            //     std::chrono::duration<double>(conversion_time - start_time).count());
-            
-            // Save the cloud for debugging if requested
-            if (save_debug_clouds_) {
-                std::string original_filename = debug_path_ + "/original_cloud.pcd";
-                // pcl_utils::saveToPCD(cloud, original_filename, this->get_logger());
-                
-                
-            }
             
             // Preprocess the point cloud
             auto preprocessed_cloud = preprocess_pointcloud(cloud);
             
-            // auto processing_time = std::chrono::high_resolution_clock::now();
-            // RCLCPP_INFO(this->get_logger(), 
-            //     "Pointcloud processed --> %ld points (%.3f s)",
-            //     preprocessed_cloud->size(),
-            //     std::chrono::duration<double>(processing_time - conversion_time).count());
-            
             // Check if cloud is empty
             if (preprocessed_cloud->size() < 100) {
-                RCLCPP_INFO(this->get_logger(), "Scene point cloud is empty, skipping ICP");
+                RCLCPP_INFO(this->get_logger(), "Scene point cloud is empty, skipping registration");
                 return;
             }
             
             // Save processed cloud for debugging if requested
             if (save_debug_clouds_) {
-                std::string processed_filename = debug_path_ + "/processed_cloud.pcd";
                 // Also republish the cloud for RViz visualization
                 sensor_msgs::msg::PointCloud2 debug_cloud_msg;
                 pcl::toROSMsg(*preprocessed_cloud, debug_cloud_msg);
@@ -183,68 +213,127 @@ private:
                 cloud_debug_pub_->publish(debug_cloud_msg);
             }
             
-            // Check if we got a valid transformation
-            if (initial_transform.isIdentity()) {
-                RCLCPP_WARN(this->get_logger(), "Using identity as initial transformation");
-            }
-
-            // Perform ICP alignment
-            pcl::GeneralizedIterativeClosestPoint<pcl::PointXYZRGB, pcl::PointXYZRGB> icp;
+            // Prepare for alignment
+            Eigen::Matrix4f alignment_transform;
+            Eigen::Matrix4f final_transformation;
+            float gicp_score = 0.0f;
+            bool gicp_converged = false;
             
-            icp.setInputSource(model_cloud_);
-            icp.setInputTarget(preprocessed_cloud);
-            icp.setUseReciprocalCorrespondences(true);
+            // Determine if we need to use Go-ICP:
+            // 1. First frame (tracking not initialized)
+            // 2. Previous GICP failed or had poor score
+            bool run_goicp = use_goicp_ && (!tracking_initialized_ || previous_gicp_score_ > gicp_fitness_threshold_);
             
-            // Set ICP parameters
-            icp.setMaximumIterations(100); // 50
-            icp.setTransformationEpsilon(1e-6);
-            icp.setMaxCorrespondenceDistance(0.1);
-            icp.setEuclideanFitnessEpsilon(5e-5); // 5e-7
-            icp.setRANSACOutlierRejectionThreshold(0.05);
-
-            // TESTING: Set initial transformation to identity to simulate ICP registration without initial guess
-            initial_transform = Eigen::Matrix4f::Identity();
-
-            pcl::PointCloud<pcl::PointXYZRGB>::Ptr aligned_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-            icp.align(*aligned_cloud);
-
-            // Check if ICP converged
-            if (icp.hasConverged()) {
-                RCLCPP_INFO(this->get_logger(), "ICP converged with score: %f", icp.getFitnessScore());
+            // First try GICP without Go-ICP if we have good tracking
+            if (!run_goicp && tracking_initialized_) {
+                RCLCPP_INFO(this->get_logger(), "Using GICP with previous transformation");
                 
-                // Get the final transformation
-                Eigen::Matrix4f final_transformation = icp.getFinalTransformation();
+                // Run GICP with the previous transformation
+                gicp_converged = runGICP(
+                    model_cloud_, 
+                    preprocessed_cloud, 
+                    previous_transformation_, 
+                    final_transformation, 
+                    gicp_score
+                );
                 
-                // Convert to pose and publish
-                geometry_msgs::msg::PoseStamped aligned_pose;
-                aligned_pose.header.stamp = cloud_msg->header.stamp;
-                aligned_pose.header.frame_id = cloud_msg->header.frame_id;
-                aligned_pose.pose = pcl_utils::matrix_to_pose(final_transformation);
-                
-                icp_result_publisher_->publish(aligned_pose);
-                
-                // Optionally save the aligned cloud for debugging
-                if (save_debug_clouds_) {
-                    std::string aligned_filename = debug_path_ + "/aligned_cloud.pcd";
-                    // pcl_utils::saveToPCD(aligned_cloud, aligned_filename, this->get_logger());
+                if (gicp_converged && gicp_score < gicp_fitness_threshold_) {
+                    RCLCPP_INFO(this->get_logger(), "GICP converged successfully with score: %f", gicp_score);
+                    previous_gicp_score_ = gicp_score;
+                    previous_transformation_ = final_transformation;
+                } else {
+                    RCLCPP_WARN(this->get_logger(), 
+                        "GICP %s with poor score: %f, falling back to Go-ICP", 
+                        gicp_converged ? "converged" : "failed to converge", 
+                        gicp_score);
+                    run_goicp = true;
                 }
-            } else {
-                RCLCPP_WARN(this->get_logger(), "ICP did not converge");
-                // Publish the initial pose as fallback
-                geometry_msgs::msg::PoseStamped initial_pose;
-                initial_pose.header.stamp = cloud_msg->header.stamp;
-                initial_pose.header.frame_id = cloud_msg->header.frame_id;
-                initial_pose.pose = pcl_utils::matrix_to_pose(initial_transform);
-                icp_result_publisher_->publish(initial_pose);
             }
+            
+            // Run Go-ICP if needed (first frame or GICP failed)
+            if (run_goicp) {
+                RCLCPP_INFO(this->get_logger(), "Using Go-ICP for global alignment");
+                
+                // Run Go-ICP registration
+                alignment_transform = goicp_wrapper_->registerPointClouds(
+                    model_cloud_,
+                    preprocessed_cloud,
+                    2000,  // Max target points 
+                    goicp_debug_
+                );
+                
+                // Get Go-ICP statistics
+                float goicp_error = goicp_wrapper_->getLastError();
+                float goicp_time = goicp_wrapper_->getLastRegistrationTime();
+                
+                RCLCPP_INFO(this->get_logger(), 
+                    "Go-ICP completed in %.3f seconds with error: %.5f", 
+                    goicp_time, goicp_error);
+                
+                // Publish Go-ICP result
+                geometry_msgs::msg::PoseStamped goicp_pose;
+                goicp_pose.header.stamp = cloud_msg->header.stamp;
+                goicp_pose.header.frame_id = cloud_msg->header.frame_id;
+                goicp_pose.pose = pcl_utils::matrix_to_pose(alignment_transform);
+                goicp_result_publisher_->publish(goicp_pose);
+                
+                // Broadcast the Go-ICP transformation for visualization
+                pcl_utils::broadcast_transform(
+                    tf_broadcaster_,
+                    alignment_transform,
+                    cloud_msg->header.stamp,
+                    cloud_msg->header.frame_id,
+                    object_frame_ + "_goicp"
+                );
+                
+                // Now refine with GICP using Go-ICP result as initial guess
+                gicp_converged = runGICP(
+                    model_cloud_, 
+                    preprocessed_cloud, 
+                    alignment_transform, 
+                    final_transformation, 
+                    gicp_score
+                );
+                
+                if (gicp_converged) {
+                    RCLCPP_INFO(this->get_logger(), "GICP refinement converged with score: %f", gicp_score);
+                } else {
+                    RCLCPP_WARN(this->get_logger(), "GICP refinement failed, using Go-ICP result directly");
+                    final_transformation = alignment_transform;
+                    gicp_score = goicp_error;  // Use Go-ICP error as score
+                }
+                
+                // Update tracking state
+                tracking_initialized_ = true;
+                previous_gicp_score_ = gicp_score;
+                previous_transformation_ = final_transformation;
+            }
+            
+            // Publish the final transformation
+            geometry_msgs::msg::PoseStamped aligned_pose;
+            aligned_pose.header.stamp = cloud_msg->header.stamp;
+            aligned_pose.header.frame_id = cloud_msg->header.frame_id;
+            aligned_pose.pose = pcl_utils::matrix_to_pose(final_transformation);
+            
+            icp_result_publisher_->publish(aligned_pose);
+            
+            // Broadcast the final transformation
+            pcl_utils::broadcast_transform(
+                tf_broadcaster_,
+                final_transformation,
+                cloud_msg->header.stamp,
+                cloud_msg->header.frame_id,
+                object_frame_
+            );
             
             auto end_time = std::chrono::high_resolution_clock::now();
-            // RCLCPP_INFO(this->get_logger(), 
-            //     "Total processing time: %.3f s",
-            //     std::chrono::duration<double>(end_time - start_time).count());
+            RCLCPP_INFO(this->get_logger(), 
+                "Total processing time: %.3f s",
+                std::chrono::duration<double>(end_time - start_time).count());
             
         } catch (const std::exception& e) {
             RCLCPP_ERROR(this->get_logger(), "Error processing point cloud: %s", e.what());
+            tracking_initialized_ = false;  // Reset tracking on error
         }
     }
     
@@ -278,6 +367,7 @@ private:
     // Node members
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloud_subscription_;
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr icp_result_publisher_;
+    rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr goicp_result_publisher_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_debug_pub_;
     rclcpp::TimerBase::SharedPtr processing_timer_;
     
@@ -291,6 +381,9 @@ private:
     std::string debug_path_;
     std::string object_frame_;
     int processing_period_ms_;
+    bool use_goicp_;
+    bool goicp_debug_;
+    double gicp_fitness_threshold_;
     
     // TF2 buffer and listener
     std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
@@ -300,11 +393,19 @@ private:
     // Point clouds
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr model_cloud_;
     
+    // Go-ICP wrapper
+    std::unique_ptr<go_icp::GoICPWrapper> goicp_wrapper_;
+    
     // Data storage with thread synchronization
     std::mutex data_mutex_;
     sensor_msgs::msg::PointCloud2::SharedPtr latest_cloud_msg_;
     Eigen::Matrix4f latest_initial_transform_;
     bool has_new_data_;
+    
+    // Tracking state
+    bool tracking_initialized_;
+    float previous_gicp_score_ = std::numeric_limits<float>::max();
+    Eigen::Matrix4f previous_transformation_ = Eigen::Matrix4f::Identity();
     
     // Pose stamped
     geometry_msgs::msg::PoseStamped empty_pose_;

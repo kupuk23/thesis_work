@@ -21,11 +21,11 @@ from rclpy.qos import (
     QoSReliabilityPolicy,
     QoSDurabilityPolicy,
 )
+from pose_estimation.icp_testing.go_icp import go_icp
 
 
 # from icp_testing.icp import align_pc
 from pose_estimation.icp_testing.icp import align_pc_o3d
-from pose_estimation.tools.visualizer import visualize_point_cloud
 from pose_estimation.tools.pose_estimation_tools import (
     preprocess_model,
     filter_pc_background,
@@ -43,9 +43,9 @@ class PoseEstimationNode(Node):
         super().__init__("pose_estimation_node")
 
         # Initialize CV bridge for image conversion
-        self.cv_bridge = CvBridge()
+        self.cv_bridge  = CvBridge()
 
-        self.voxel_size = 0.005
+        self.voxel_size = 0.02
         # preprocess_model("/home/tafarrel/", voxel_size=self.voxel_size)
 
         self.object = "grapple"  # or "handrail"
@@ -107,9 +107,9 @@ class PoseEstimationNode(Node):
 
     def perform_pose_estimation(self):
 
-        if self.latest_transform_result is None:
-            self.get_logger().info("No transform available")
-            return
+        # if self.latest_transform_result is None:
+        #     self.get_logger().info("No transform available")
+        #     return
         try:
             start_time = time.perf_counter()
 
@@ -129,22 +129,32 @@ class PoseEstimationNode(Node):
                 f"Pointcloud processed --> {len(scene_pcd.points)} points ({finished_time - start_time}s)"
             )
 
+            # self.visualize_point_clouds(
+            #     target=scene_pcd,
+            #     target_filename="grapple_hard_scene.pcd",
+            # )
+
             # if scene_pcd empty, return
             if len(scene_pcd.points) < 100:
                 self.get_logger().info("Scene point cloud is empty")
                 return
 
-            noisy_transformation = apply_noise_to_transform(
-                self.latest_transform_result, t_std=0.025, r_std=0.25
-            )  # t_std=0.025, r_std=0.25
+            # noisy_transformation = apply_noise_to_transform(
+            #     self.latest_transform_result, t_std=0.025, r_std=0.25
+            # )  # t_std=0.025, r_std=0.25
 
             start_time = time.perf_counter()
-            result = align_pc_o3d(
-                self.model_pcd,
-                scene_pcd,
-                init_T=noisy_transformation,
-                voxel_size=self.voxel_size,
+
+            # Perform ICP registration
+            result = go_icp(
+                source_points=np.asarray(self.model_pcd.points), target_points=np.asarray(scene_pcd.points)
             )
+            # result = align_pc_o3d(
+            #     self.model_pcd,
+            #     scene_pcd,
+            #     init_T=noisy_transformation,
+            #     voxel_size=self.voxel_size,
+            # )
             finished_time = time.perf_counter()
             self.get_logger().info(f"ICP finished --> ({finished_time - start_time}s)")
 
@@ -161,12 +171,13 @@ class PoseEstimationNode(Node):
                 return
 
             # T_camera_object = np.linalg.inv(result.transformation)
-
             # make a pose stamp and publish it
             pose_msg = PoseStamped()
             pose_msg.header.stamp = self.latest_pointcloud.header.stamp
             pose_msg.header.frame_id = self.latest_pointcloud.header.frame_id
-            pose_msg.pose = matrix_to_pose(result.transformation)
+            pose_msg.pose = matrix_to_pose(
+                result
+            )  # result.transformation for normal ICP
 
             self.icp_result_pub.publish(pose_msg)
 
@@ -181,59 +192,8 @@ class PoseEstimationNode(Node):
             pointcloud_msg: PointCloud2 message
         """
         self.latest_pointcloud = pointcloud_msg
-        self.update_transform()
+        # self.update_transform()
         # self.get_logger().info(f"Received pointcloud")
-
-    def transform_obj_pose(self, pc2_msg: PointCloud2, obj_frame="handrail"):
-        """
-        Transform the obj_pose stamped (parent frame : map) to camera frame
-        Args:
-            obj_pose_stamped: PoseStamped message with object pose in map frame
-            frame_id: Camera frame id
-        Returns:
-            handrail_pose_matrix: Object pose in camera frame as matrix
-        """
-        try:
-            # wait for transform
-            if not self.tf_buffer.can_transform(
-                pc2_msg.header.frame_id, obj_frame, rclpy.time.Time()
-            ):
-                return None
-
-            # Get the transform from obj to camera
-
-            # map_T_cam = self.tf_buffer.lookup_transform(
-            #     pc2_msg.header.frame_id,  # target frame
-            #     "map",  # source frame (camera frame)
-            #     rclpy.time.Time(),  # latest available transform
-            #     timeout=rclpy.duration.Duration(seconds=2),
-            # )
-            obj_T_cam = self.tf_buffer.lookup_transform(
-                pc2_msg.header.frame_id,
-                obj_frame,
-                rclpy.time.Time(),
-                timeout=rclpy.duration.Duration(seconds=0.5),
-            )
-            obj_T_cam = transform_to_pose(obj_T_cam.transform)
-
-            # self.get_logger().info("Transformed handrail pose to camera frame")
-
-            result_msg = PoseStamped()
-            result_msg.header.stamp = pc2_msg.header.stamp
-            result_msg.header.frame_id = pc2_msg.header.frame_id
-            result_msg.pose = obj_T_cam
-
-            self.icp_result_pub.publish(result_msg)
-
-            # Convert pose to matrix
-            handrail_pose_matrix = pose_to_matrix(
-                obj_T_cam
-            )  # pose_to_matrix(handrail_pose_in_camera_frame)
-
-            return handrail_pose_matrix
-
-        except Exception as e:
-            self.get_logger().info(f"Error transforming handrail pose : {e}")
 
     def preprocess_pointcloud(self, o3d_msg):
         """
@@ -251,6 +211,7 @@ class PoseEstimationNode(Node):
         # o3d_msg, _ = o3d_msg.remove_statistical_outlier(
         #     nb_neighbors=20, std_ratio=2.0
         # )
+
 
         if len(o3d_msg.colors) == 0:
             # self.get_logger().info("No colors in point cloud")
@@ -461,7 +422,6 @@ def main(args=None):
         rclpy.spin(node, executor=executor)
     except KeyboardInterrupt:
         pass
-
 
 
 if __name__ == "__main__":

@@ -1,8 +1,9 @@
 cmake_minimum_required(VERSION 3.8)
 project(pose_estimation_pcl)
 
+
 # Add optimization flags
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -ffast-math")
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -20,6 +21,7 @@ find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(tf2_eigen REQUIRED)
+find_package(go_icp REQUIRED)
 
 # uncomment the following section in order to fill in
 # further dependencies manually.
@@ -29,6 +31,7 @@ find_package(tf2_eigen REQUIRED)
 include_directories(
   include
   ${PCL_INCLUDE_DIRS}
+  ${EIGEN3_INCLUDE_DIRS}
 )
 
 # Add link directories
@@ -46,12 +49,15 @@ add_definitions(
 add_executable(pose_estimation_pcl 
   src/pose_estimation_pcl.cpp
   src/pcl_utils.cpp
+  src/go_icp_wrapper.cpp
+  # src/go_icp_registration.cpp
 )
 
 # Add include directories
 target_include_directories(pose_estimation_pcl PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
+  ${GoICP_INCLUDE_DIRS}
 )
 
 
@@ -66,8 +72,9 @@ ament_target_dependencies(pose_estimation_pcl
   tf2_geometry_msgs
   tf2_eigen
 )
-target_link_libraries(pose_estimation_pcl ${PCL_LIBRARIES})
 
+
+target_link_libraries(pose_estimation_pcl ${PCL_LIBRARIES} go_icp) 
 
 
 # Install executables
