@@ -68,7 +68,7 @@ Eigen::Matrix4f GoICPWrapper::registerPointClouds(
     tNode.w = 1.0;
     
     // Set Go-ICP parameters
-    goicp.MSEThresh = 0.008;  // Mean Square Error threshold
+    goicp.MSEThresh = 0.0009;  // Mean Square Error threshold
     goicp.trimFraction = 0.0;  // Trimming fraction (0.0 = no trimming)
     goicp.doTrim = (goicp.trimFraction >= 0.001);
     
@@ -80,18 +80,31 @@ Eigen::Matrix4f GoICPWrapper::registerPointClouds(
     
     // Set DT parameters
     goicp.dt.SIZE = 25;
-    goicp.dt.expandFactor = 3.0;
+    goicp.dt.expandFactor = 4.0;
     
     // Set initial rotation and translation nodes
     goicp.initNodeRot = rNode;
     goicp.initNodeTrans = tNode;
     
+    
+    
+    // Start the timer
+    auto start_time = std::chrono::high_resolution_clock::now();
+
+    goicp.BuildDT();
+
+
+    // Calculate the time taken to build the distance transform
+    
     // 6. Run Go-ICP
     if (debug) {
-        std::cout << "Building Distance Transform..." << std::endl;
-    }
-    goicp.BuildDT();
+        auto end_time = std::chrono::high_resolution_clock::now();
+
+        auto dt_time = std::chrono::duration<float>(end_time - start_time).count();
     
+        std::cout << "Building Distance Transform... (took "<< dt_time << " ms"  << std::endl;
+    }
+
     if (debug) {
         std::cout << "Starting Go-ICP registration..." << std::endl;
     }

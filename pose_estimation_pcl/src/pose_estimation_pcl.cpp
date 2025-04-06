@@ -24,7 +24,7 @@ class PoseEstimationPCL : public rclcpp::Node {
 public:
     PoseEstimationPCL() : Node("pose_estimation_pcl") {
         // Initialize parameters
-        voxel_size_ = this->declare_parameter<double>("voxel_size", 0.002);  // Default voxel size
+        voxel_size_ = this->declare_parameter<double>("voxel_size", 0.01);  // Default voxel size
         save_debug_clouds_ = this->declare_parameter<bool>("save_debug_clouds", false);
         debug_path_ = this->declare_parameter<std::string>("debug_path", "/home/tafarrel/debugPCD_cpp");
         object_frame_ = this->declare_parameter<std::string>("object_frame", "grapple");
@@ -33,7 +33,7 @@ public:
         goicp_debug_ = this->declare_parameter<bool>("goicp_debug", false);
         
         // Registration error thresholds
-        gicp_fitness_threshold_ = this->declare_parameter<double>("gicp_fitness_threshold", 0.0000);
+        gicp_fitness_threshold_ = this->declare_parameter<double>("gicp_fitness_threshold", 0.05);
         
         // Initialize Go-ICP wrapper
         goicp_wrapper_ = std::make_unique<go_icp::GoICPWrapper>();
@@ -83,7 +83,7 @@ public:
             callback_group_processing_);
             
         // Initialize empty pose
-        empty_pose_.header.frame_id = "camera_depth_optical_frame";  // Default frame
+        empty_pose_.header.frame_id = "map";  // Default frame
         
         // Initialize flags and mutex
         has_new_data_ = false;
@@ -200,6 +200,15 @@ private:
             // Check if cloud is empty
             if (preprocessed_cloud->size() < 100) {
                 RCLCPP_INFO(this->get_logger(), "Scene point cloud is empty, skipping registration");
+
+                // publish pose_stamped with empty pose
+                empty_pose_.header.stamp = cloud_msg->header.stamp;
+                empty_pose_.header.frame_id = "map";
+                empty_pose_.pose = pcl_utils::matrix_to_pose(Eigen::Matrix4f::Identity());
+                icp_result_publisher_->publish(empty_pose_);
+                goicp_result_publisher_->publish(empty_pose_);
+                tracking_initialized_ = false;
+
                 return;
             }
             

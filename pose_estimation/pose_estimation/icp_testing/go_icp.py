@@ -136,7 +136,7 @@ def init_GO_ICP():
     tNode.w = 1.0
 
     # Set parameters
-    goicp.MSEThresh = 0.0007  # Mean Square Error threshold
+    goicp.MSEThresh = 0.0007   # Mean Square Error threshold
     goicp.trimFraction = 0.0  # Trimming fraction (0.0 = no trimming)
 
     if goicp.trimFraction < 0.001:
@@ -301,11 +301,11 @@ def go_icp(
 
 if __name__ == "__main__":
     # Paths to your PCD files
-    # model_file = "/home/tafarrel/o3d_logs/grapple_fixture_down.pcd"
-    model_file = "/home/tafarrel/o3d_logs/handrail_pcd_down.pcd"
-    scene_file = "/home/tafarrel/o3d_logs/handrail_origin.pcd"
+    model_file = "/home/tafarrel/o3d_logs/grapple_fixture_down.pcd"
+    # model_file = "/home/tafarrel/o3d_logs/handrail_pcd_down.pcd"
+    # scene_file = "/home/tafarrel/o3d_logs/handrail_origin.pcd"
     # scene_file = "/home/tafarrel/o3d_logs/grapple_center.pcd"
-    # scene_file = "/home/tafarrel/o3d_logs/grapple_right_side.pcd"
+    scene_file = "/home/tafarrel/o3d_logs/grapple_right_side.pcd"
     # scene_file = "/home/tafarrel/o3d_logs/grapple_hard_scene.pcd"
     
 
