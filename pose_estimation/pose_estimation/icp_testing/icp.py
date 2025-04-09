@@ -18,11 +18,12 @@ K = np.array(
 )
 
 test = 1  # 1 for center, 2 for left, 3 for right
-# preprocess_model(
-#     "/home/tafarrel/blender_files/grapple_fixture/grapple_fixture.obj",
-#     file_name="grapple_fixture_down",
-#     voxel_size=0.005,
-# )
+preprocess_model(
+    # "/home/tafarrel/blender_files/grapple_fixture/grapple_fixture.obj",
+    "/home/tafarrel/blender_files/astrobee_dock/astrobee_dock.obj",
+    file_name="astrobee_dock_ds.pcd",
+    voxel_size=0.005,
+)
 
 def align_pc_goICP(
     pcd_source, pcd_target):

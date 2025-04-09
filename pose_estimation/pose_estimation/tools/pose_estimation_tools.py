@@ -36,7 +36,7 @@ def preprocess_model(model_path, file_name="pcd_down.pcd", voxel_size=0.01):
     model_pcd_down = model_pcd.voxel_down_sample(voxel_size)
 
     # save the preprocessed model
-    # o3d.io.write_point_cloud(f"/home/tafarrel/o3d_logs/{file_name}.pcd", model_pcd_down)
+    o3d.io.write_point_cloud(f"/home/tafarrel/o3d_logs/{file_name}.pcd", model_pcd_down)
 
     print(f"Model preprocessed: {len(model_pcd_down.points)} points")
     return model_pcd_down

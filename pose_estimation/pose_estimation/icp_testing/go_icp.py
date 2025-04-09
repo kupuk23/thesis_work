@@ -27,7 +27,7 @@ def normalize_point_cloud(data_points, model_points):
     # Center the point cloud
     data_centered = data_points - data_centroid
     model_centered = model_points - model_centroid
-    
+    _
     # Find the maximum distance from the origin
     source_max_dist = np.max(np.linalg.norm(data_centered, axis=1))
     target_max_dist = np.max(np.linalg.norm(model_centered, axis=1))
@@ -43,12 +43,14 @@ def normalize_point_cloud(data_points, model_points):
         model_centered / max_scale
     )
 
+    scale = 1 / max_scale
+
     return (
         data_normalized,
         data_centroid,
         model_normalized,
         model_centroid,
-        max_scale,
+        scale,
     )
 
 
@@ -57,11 +59,11 @@ def denormalize_transformation(transform, data_centroid, model_centroid, scale):
     Convert transformation from normalized space back to original space
     """
     # Create matrices for each step
-    T_s = np.eye(4)  # Translation to data centroid / source
-    T_s[:3, 3] = data_centroid
+    T_data = np.eye(4)  # Translation to data centroid / source
+    T_data[:3, 3] = data_centroid
 
-    T_t = np.eye(4)  # Translation from model centroid
-    T_t[:3, 3] = -model_centroid
+    T_model = np.eye(4)  # Translation from model centroid
+    T_model[:3, 3] = -model_centroid
 
     S = np.eye(4)  # Scaling
     S[0, 0] = S[1, 1] = S[2, 2] = scale
@@ -69,8 +71,8 @@ def denormalize_transformation(transform, data_centroid, model_centroid, scale):
     S_inv = np.eye(4)  # Inverse scaling
     S_inv[0, 0] = S_inv[1, 1] = S_inv[2, 2] = 1.0 / scale
 
-    # Combine transformations: T_s * S_inv * transform * S * T_t
-    denorm_transform = T_s @ S_inv @ transform @ S @ T_t
+    # Combine transformations: T_data * S_inv * transform * S * T_t
+    denorm_transform =  T_data @ S_inv @ transform @ S @ T_model
 
     return denorm_transform
 
@@ -137,7 +139,7 @@ def init_GO_ICP():
 
     # Set parameters
     goicp.MSEThresh = 0.0007   # Mean Square Error threshold
-    goicp.trimFraction = 0.0  # Trimming fraction (0.0 = no trimming)
+    goicp.trimFraction = 0.05  # Trimming fraction (0.0 = no trimming)
 
     if goicp.trimFraction < 0.001:
         goicp.doTrim = False
@@ -301,12 +303,17 @@ def go_icp(
 
 if __name__ == "__main__":
     # Paths to your PCD files
-    model_file = "/home/tafarrel/o3d_logs/grapple_fixture_down.pcd"
+    # model_file = "/home/tafarrel/o3d_logs/grapple_fixture_down.pcd"
     # model_file = "/home/tafarrel/o3d_logs/handrail_pcd_down.pcd"
-    # scene_file = "/home/tafarrel/o3d_logs/handrail_origin.pcd"
+    model_file = "/home/tafarrel/o3d_logs/astrobee_dock_ds.pcd"
+    scene_file = "/home/tafarrel/o3d_logs/handrail_origin.pcd"
     # scene_file = "/home/tafarrel/o3d_logs/grapple_center.pcd"
-    scene_file = "/home/tafarrel/o3d_logs/grapple_right_side.pcd"
-    # scene_file = "/home/tafarrel/o3d_logs/grapple_hard_scene.pcd"
+    # scene_file = "/home/tafarrel/o3d_logs/grapple_right_side.pcd"
+    # scene_file = "/home/tafarrel/o3d_logs/grapple_with_handrail.pcd"
+
+    # scene_file = "/home/tafarrel/o3d_logs/handrail_right_2.pcd"
+
+    scene_file = "/home/tafarrel/o3d_logs/handrail_left.pcd"
     
 
     model_points = np.asarray(loadPointCloud(model_file).points)

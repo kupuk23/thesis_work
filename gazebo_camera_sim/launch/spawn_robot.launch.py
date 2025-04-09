@@ -12,6 +12,69 @@ from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 
 
+def launch_setup(context):
+
+    def create_robot_spawner(name, x, y, z, R, P, Y, namespace=None):
+        """Create a node for spawning a robot"""
+        args = [
+            "-name",
+            name,
+            "-topic",
+            "robot_description",
+            "-x",
+            str(x),
+            "-y",
+            str(y),
+            "-z",
+            str(z),
+            "-R",
+            str(R),
+            "-P",
+            str(P),
+            "-Y",
+            str(Y),
+        ]
+
+        if namespace:
+            args.extend(["-namespace", namespace])
+
+        return Node(
+            package="ros_gz_sim",
+            executable="create",
+            arguments=args,
+            output="screen",
+            parameters=[{"use_sim_time": True}],
+        )
+
+    # Get the spawn_robot argument value
+    spawn_location = LaunchConfiguration("spawn_robot").perform(context)
+
+    # Define different location presets
+    locations = {
+        "ibvs": {"x": -2.0, "y": 0.8, "z": 1.4, "R": 0.6, "P": -0.3, "Y": -0.4},
+        "docking": {"x": -2.0, "y": 3.0, "z": 1.0, "R": 0.0, "P": 0.0, "Y": -1.57},
+        "grapple": {"x": -2.0, "y": 3.0, "z": 1.0, "R": 0.0, "P": 0.0, "Y": 3.14},
+        "default": {"x": -2.0, "y": 0.0, "z": 1.25, "R": 0.0, "P": 0.0, "Y": 0.0},
+    }
+
+
+    # Use the provided location or default if not found
+    loc = locations.get(spawn_location, locations["default"])
+
+    # Create the spawner node with the selected location
+    robot_spawner = create_robot_spawner(
+        name="my_robot",
+        x=loc["x"],
+        y=loc["y"],
+        z=loc["z"],
+        R=loc["R"],
+        P=loc["P"],
+        Y=loc["Y"],
+    )
+
+    return [robot_spawner]
+
+
 def generate_launch_description():
 
     pkg_urdf_path = get_package_share_directory("camera_description")
@@ -89,52 +152,6 @@ def generate_launch_description():
         ],
     )
 
-
-    def create_robot_spawner(name, x, y, z, R, P, Y, namespace=None):
-        """Create a node for spawning a robot"""
-        args = [
-            "-name",
-            name,
-            "-topic",
-            "robot_description",
-            "-x",
-            str(x),
-            "-y",
-            str(y),
-            "-z",
-            str(z),
-            "-R",
-            str(R),
-            "-P",
-            str(P),
-            "-Y",
-            str(Y),
-        ]
-
-        if namespace:
-            args.extend(["-namespace", namespace])
-
-        return Node(
-            package="ros_gz_sim",
-            executable="create",
-            arguments=args,
-            output="screen",
-            parameters=[{"use_sim_time": True}],
-        )
-
-    # def spawn_robot_pose(scenario : LaunchConfiguration):
-    #     if scenario == "default":
-    #         return create_robot_spawner("my_robot", -2, 0, 1.25, 0.0, 0, 0)
-    #     elif scenario == "ibvs_sample":
-    #         return create_robot_spawner("my_robot", -2, 0.8, 1.4, 0.6, -0.3, -0.4)
-    #     elif scenario == "handrail":
-    #         return create_robot_spawner("my_robot", -2, 0, 1.25, 0.0, 0, 0)
-    #     else:
-    #         print(f"Unknown scenario: {scenario}")
-    #         return create_robot_spawner("my_robot", 0, 0, 1.25, 0.0, 0, 0)
-
-    # Spawn the URDF model using the `/world/<world_name>/create` service
-
     robot_state_publisher_node = Node(
         package="robot_state_publisher",
         executable="robot_state_publisher",
@@ -201,7 +218,6 @@ def generate_launch_description():
         name="gz_pose_transform",
         output="screen",
     )
-        
 
     # Relay node to republish /camera/camera_info to /camera/image/camera_info
     relay_camera_info_node = Node(
@@ -210,17 +226,6 @@ def generate_launch_description():
         name="relay_camera_info",
         output="screen",
         arguments=["camera/camera_info", "camera/image/camera_info"],
-        parameters=[
-            {"use_sim_time": LaunchConfiguration("use_sim_time")},
-        ],
-    )
-
-    relay_cmd_vel = Node(
-        package="topic_tools",
-        executable="relay",
-        name="relay_cmd_vel",
-        output="screen",
-        arguments=["/cmd_vel", "model/my_robot/cmd_vel"],
         parameters=[
             {"use_sim_time": LaunchConfiguration("use_sim_time")},
         ],
@@ -235,17 +240,6 @@ def generate_launch_description():
     launchDescriptionObject.add_action(spawn_robot_arg)
     launchDescriptionObject.add_action(world_launch)
     launchDescriptionObject.add_action(rviz_node)
-    # launchDescriptionObject.add_action(create_robot_spawner("my_robot", -2, 0, 1.25, 0.0, 0, 0)) # default case
-    # launchDescriptionObject.add_action(create_robot_spawner("my_robot", -2, 0.8, 1.4, 0.6, -0.3, -0.4)) # ibvs_sample case1
-    # launchDescriptionObject.add_action(create_robot_spawner("my_robot", -2, 0.8, 2, -0.4, 0, -0.5)) # ibvs_sample case2
-    # launchDescriptionObject.add_action(create_robot_spawner("my_robot", -1.26, 0, 1.44, 0, -0.04, 0)) # PnP case
-    launchDescriptionObject.add_action(create_robot_spawner("my_robot", -2, 3, 1, 0.0, 0, 3.14)) # Grapple_fixture case
-
-    # launchDescriptionObject.add_action(create_robot_spawner("my_robot", -2, 3, 1, 0.0, 0, 0)) # handrail case
-
-    # launchDescriptionObject.add_action(
-    #     create_robot_spawner("my_robot", -2, 3, 1, 0.0, 0, 0)
-    # )  # handrail case
     launchDescriptionObject.add_action(tf_broadcaster)
     launchDescriptionObject.add_action(robot_state_publisher_node)
     launchDescriptionObject.add_action(gz_bridge_node)
@@ -253,7 +247,6 @@ def generate_launch_description():
     launchDescriptionObject.add_action(relay_camera_info_node)
     launchDescriptionObject.add_action(tf_world_publisher)
     # launchDescriptionObject.add_action(ibvs_node)
-    # launchDescriptionObject.add_action(depth_image_proc_node)
-    # launchDescriptionObject.add_action(relay_cmd_vel)
+    launchDescriptionObject.add_action(OpaqueFunction(function=launch_setup))
 
     return launchDescriptionObject

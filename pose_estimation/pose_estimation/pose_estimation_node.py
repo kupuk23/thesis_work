@@ -129,10 +129,10 @@ class PoseEstimationNode(Node):
                 f"Pointcloud processed --> {len(scene_pcd.points)} points ({finished_time - start_time}s)"
             )
 
-            # self.visualize_point_clouds(
-            #     target=scene_pcd,
-            #     target_filename="handrail_right_side.pcd",
-            # )
+            self.visualize_point_clouds(
+                target=scene_pcd,
+                target_filename="handrail_left.pcd",
+            )
 
             # if scene_pcd empty, return
             if len(scene_pcd.points) < 100:

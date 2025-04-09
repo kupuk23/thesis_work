@@ -110,11 +110,6 @@ private:
                 this->get_logger()
             );
 
-            // apply noise to the initial transform for testing
-            // latest_initial_transform_ = pcl_utils::apply_noise_to_transform(
-            //     latest_initial_transform_, 0.1, 0.5
-            // );
-
 
             // Broadcast the transformation for visualization
             pcl_utils::broadcast_transform(
