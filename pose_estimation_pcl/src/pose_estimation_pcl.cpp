@@ -73,8 +73,11 @@ public:
         // Load model cloud
         if (object_frame_ == "grapple") 
             model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/grapple_fixture_down.pcd", this->get_logger());
-        else
+        else if (object_frame_ == "handrail")
             model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/handrail_pcd_down.pcd", this->get_logger());
+        else if (object_frame_ == "docking_st")
+            model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/astrobee_dock_ds.pcd", this->get_logger());
+        
 
         // Initialize processing timer in separate callback group
         processing_timer_ = this->create_wall_timer(

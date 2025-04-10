@@ -131,7 +131,7 @@ class PoseEstimationNode(Node):
 
             self.visualize_point_clouds(
                 target=scene_pcd,
-                target_filename="handrail_left.pcd",
+                target_filename="docking_left.pcd",
             )
 
             # if scene_pcd empty, return

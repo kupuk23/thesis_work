@@ -289,31 +289,20 @@
       <self_collide>false</self_collide>
     </model>
 
-    <model name = 'coke'>
-      <static >true</static>
-      <link name = 'coke_body'>
-        <collision name = 'coke_collision'>
-          <geometry>
-            <mesh>
-              <scale>1 1 1</scale>
-              <uri>file:////coke_can/meshes/coke_can.dae</uri>
-            </mesh>
-          </geometry>
-        </collision>
-        <visual name = 'coke_visual'>
-          <geometry>
-            <mesh>
-              <scale>1 1 1</scale>
-              <uri>file:////coke_can/meshes/coke_can.dae</uri>
-            </mesh>
-          </geometry>
-        </visual>
-        <pose>-2.3 2.05 0.8 0 0 0</pose>
+    <!-- <include>
+      <uri>file:///home/tafarrel/gazebo_models/Coke</uri>
+      <name>Coke</name>
+      <pose>-2.3 2.05 0.8 0 0 0</pose>
+      <static>true</static>
+    </include>
+    
+    <include>
+      <uri>file:///home/tafarrel/gazebo_models/Small Blue Box</uri>
+      <name>small_box_blue</name>
+      <pose>-1.65 2.3 1 0 0 -0.57</pose>
+      <static>true</static>
+    </include> -->
 
-        <enable_wind>false</enable_wind>
-
-      </link>
-    </model>
 
     <model name='fire_extinguisher'>
       <static>true</static>

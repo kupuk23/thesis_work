@@ -27,7 +27,7 @@ def normalize_point_cloud(data_points, model_points):
     # Center the point cloud
     data_centered = data_points - data_centroid
     model_centered = model_points - model_centroid
-    _
+
     # Find the maximum distance from the origin
     source_max_dist = np.max(np.linalg.norm(data_centered, axis=1))
     target_max_dist = np.max(np.linalg.norm(model_centered, axis=1))
@@ -58,6 +58,7 @@ def denormalize_transformation(transform, data_centroid, model_centroid, scale):
     """
     Convert transformation from normalized space back to original space
     """
+
     # Create matrices for each step
     T_data = np.eye(4)  # Translation to data centroid / source
     T_data[:3, 3] = data_centroid
@@ -303,17 +304,23 @@ def go_icp(
 
 if __name__ == "__main__":
     # Paths to your PCD files
-    # model_file = "/home/tafarrel/o3d_logs/grapple_fixture_down.pcd"
-    # model_file = "/home/tafarrel/o3d_logs/handrail_pcd_down.pcd"
-    model_file = "/home/tafarrel/o3d_logs/astrobee_dock_ds.pcd"
-    scene_file = "/home/tafarrel/o3d_logs/handrail_origin.pcd"
-    # scene_file = "/home/tafarrel/o3d_logs/grapple_center.pcd"
-    # scene_file = "/home/tafarrel/o3d_logs/grapple_right_side.pcd"
-    # scene_file = "/home/tafarrel/o3d_logs/grapple_with_handrail.pcd"
+    model = "docking_st"
+    
+    if model == "grapple":
 
-    # scene_file = "/home/tafarrel/o3d_logs/handrail_right_2.pcd"
-
-    scene_file = "/home/tafarrel/o3d_logs/handrail_left.pcd"
+        model_file = "/home/tafarrel/o3d_logs/grapple_fixture_down.pcd"
+        scene_file = "/home/tafarrel/o3d_logs/grapple_center.pcd"
+        # scene_file = "/home/tafarrel/o3d_logs/grapple_right_side.pcd"
+        # scene_file = "/home/tafarrel/o3d_logs/grapple_with_handrail.pcd"
+    elif model == "docking_st":
+        model_file = "/home/tafarrel/o3d_logs/astrobee_dock_ds.pcd"
+        scene_file = "/home/tafarrel/o3d_logs/docking_front.pcd"
+        scene_file = "/home/tafarrel/o3d_logs/docking_left.pcd"
+    else:
+        model_file = "/home/tafarrel/o3d_logs/handrail_pcd_down.pcd"
+        scene_file = "/home/tafarrel/o3d_logs/handrail_origin.pcd"
+        # scene_file = "/home/tafarrel/o3d_logs/handrail_right_2.pcd"
+        # scene_file = "/home/tafarrel/o3d_logs/handrail_left.pcd"
     
 
     model_points = np.asarray(loadPointCloud(model_file).points)
@@ -324,6 +331,8 @@ if __name__ == "__main__":
     # Run Go-ICP registration
     # MODEL == TARGET
     # DATA == SOURCE
+    # TRANSFORMATION MATRIX = DATA -> MODEL
+    
     transform = go_icp(
         data_points=scene_file,
         model_points=model_points,
