@@ -3,12 +3,18 @@
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
+#include <pcl/common/centroid.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/filters/passthrough.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/registration/gicp.h>
+#include <pcl/segmentation/sac_segmentation.h>
+#include <pcl/ModelCoefficients.h>
+#include <pcl/visualization/pcl_visualizer.h>
+#include <pcl/filters/extract_indices.h>
 #include <chrono>
 #include <cfloat>  // For FLT_MAX
+#include <thread> 
 
 // include tf2 buffer for lookup transform
 #include <tf2_ros/buffer.h>
@@ -29,7 +35,7 @@ public:
         debug_path_ = this->declare_parameter<std::string>("debug_path", "/home/tafarrel/debugPCD_cpp");
         object_frame_ = this->declare_parameter<std::string>("object_frame", "grapple");
         processing_period_ms_ = 100;  // 10 Hz default
-        use_goicp_ = this->declare_parameter<bool>("use_goicp", true);
+        use_goicp_ = this->declare_parameter<bool>("use_goicp", false);
         goicp_debug_ = this->declare_parameter<bool>("goicp_debug", false);
         
         // Registration error thresholds
@@ -69,6 +75,9 @@ public:
         // Create publishers for Go-ICP results
         goicp_result_publisher_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(
             "/pose/goicp_result", 10);
+
+        // Create a publisher for plane debug point clouds
+        plane_debug_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/debug_plane_pointcloud", 1);
         
         // Load model cloud
         if (object_frame_ == "grapple") 
@@ -106,12 +115,12 @@ private:
             
             // Get the initial transformation from the object pose using TF2 lookup
             // Note: We'll keep this for fallback purposes, but it will be ignored if Go-ICP is used
-            latest_initial_transform_ = pcl_utils::transform_obj_pose(
-                pointcloud_msg, 
-                *tf_buffer_, 
-                object_frame_,
-                this->get_logger()
-            );
+            // latest_initial_transform_ = pcl_utils::transform_obj_pose(
+            //     pointcloud_msg, 
+            //     *tf_buffer_, 
+            //     object_frame_,
+            //     this->get_logger()
+            // );
             
             // Update flag to indicate new data is available
             has_new_data_ = true;
@@ -170,7 +179,7 @@ private:
             
             // Copy the data we need for processing
             cloud_msg = latest_cloud_msg_;
-            initial_transform = latest_initial_transform_;
+            // initial_transform = latest_initial_transform_;
             has_new_data_ = false;  // Reset flag
         }
         
@@ -183,7 +192,7 @@ private:
             auto conversion_time = std::chrono::high_resolution_clock::now();
             
             // Preprocess the point cloud
-            auto preprocessed_cloud = preprocess_pointcloud(cloud);
+            auto preprocessed_cloud = preprocess_pointcloud(cloud, cloud_msg);
             
             // Check if cloud is empty
             if (preprocessed_cloud->size() < 100) {
@@ -213,7 +222,7 @@ private:
             Eigen::Matrix4f alignment_transform;
             Eigen::Matrix4f final_transformation;
             float gicp_score = 0.0f;
-            bool gicp_converged = false;
+            bool gen_icp_converged = false;
             
             // Determine if we need to use Go-ICP:
             // 1. First frame (tracking not initialized)
@@ -225,7 +234,7 @@ private:
                 RCLCPP_INFO(this->get_logger(), "Using GICP with previous transformation");
                 
                 // Run GICP with the previous transformation
-                gicp_converged = runGICP(
+                gen_icp_converged = runGICP(
                     model_cloud_, 
                     preprocessed_cloud, 
                     previous_transformation_, 
@@ -233,14 +242,14 @@ private:
                     gicp_score
                 );
                 
-                if (gicp_converged && gicp_score < gicp_fitness_threshold_) {
+                if (gen_icp_converged && gicp_score < gicp_fitness_threshold_) {
                     RCLCPP_INFO(this->get_logger(), "GICP converged successfully with score: %f", gicp_score);
                     previous_gicp_score_ = gicp_score;
                     previous_transformation_ = final_transformation;
                 } else {
                     RCLCPP_WARN(this->get_logger(), 
                         "GICP %s with poor score: %f, falling back to Go-ICP", 
-                        gicp_converged ? "converged" : "failed to converge", 
+                        gen_icp_converged ? "converged" : "failed to converge", 
                         gicp_score);
                     run_goicp = true;
                 }
@@ -283,7 +292,7 @@ private:
                 );
                 
                 // Now refine with GICP using Go-ICP result as initial guess
-                gicp_converged = runGICP(
+                gen_icp_converged = runGICP(
                     model_cloud_, 
                     preprocessed_cloud, 
                     alignment_transform, 
@@ -291,7 +300,7 @@ private:
                     gicp_score
                 );
                 
-                if (gicp_converged) {
+                if (gen_icp_converged) {
                     RCLCPP_INFO(this->get_logger(), "GICP refinement converged with score: %f", gicp_score);
                 } else {
                     RCLCPP_WARN(this->get_logger(), "GICP refinement failed, using Go-ICP result directly");
@@ -334,7 +343,8 @@ private:
     }
     
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr preprocess_pointcloud(
-        const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud) {
+        const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud, 
+        const sensor_msgs::msg::PointCloud2::SharedPtr& cloud_msg) {
         
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
         
@@ -350,7 +360,9 @@ private:
         pass_x.setFilterFieldName("x");
         pass_x.setFilterLimits(-FLT_MAX, 2.0);  // X < 2
         pass_x.filter(*filtered_cloud);
-        
+
+        filtered_cloud = detect_and_remove_planes(filtered_cloud, this->get_logger(), false);
+
         // Downsample using voxel grid
         pcl::VoxelGrid<pcl::PointXYZRGB> voxel_grid;
         voxel_grid.setInputCloud(filtered_cloud);
@@ -360,12 +372,162 @@ private:
         return filtered_cloud;
     }
 
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr detect_and_remove_planes(
+        const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,
+        const rclcpp::Logger& logger,
+        bool visualize_planes = false) {
+        
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr working_cloud(new pcl::PointCloud<pcl::PointXYZRGB>(*input_cloud));
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr remaining_cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
+        
+        // Create PCL visualizer if visualization is enabled
+        pcl::visualization::PCLVisualizer::Ptr viewer;
+        if (visualize_planes) {
+            viewer.reset(new pcl::visualization::PCLVisualizer("Plane Segmentation"));
+            viewer->setBackgroundColor(0, 0, 0);
+            viewer->addCoordinateSystem(1.0);
+            viewer->initCameraParameters();
+            
+            // Add original point cloud
+            pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(input_cloud);
+            viewer->addPointCloud<pcl::PointXYZRGB>(input_cloud, rgb, "original_cloud");
+            viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "original_cloud");
+            viewer->spinOnce(1000);  // Show for 1 second
+        }
+        
+        // Plane segmentation setup
+        pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients());
+        pcl::PointIndices::Ptr inliers(new pcl::PointIndices());
+        pcl::SACSegmentation<pcl::PointXYZRGB> seg;
+        
+        seg.setOptimizeCoefficients(true);
+        seg.setModelType(pcl::SACMODEL_PLANE);
+        seg.setMethodType(pcl::SAC_RANSAC);
+        seg.setDistanceThreshold(0.02);  // 2cm threshold
+        seg.setMaxIterations(100);
+        
+        int plane_count = 0;
+        int remaining_points = working_cloud->size();
+        const int min_plane_points = 1000;  // Minimum points to consider a plane
+        const float min_remaining_percent = 0.4;  // Stop if only 30% of points remain
+        const int max_planes = 1;  // Maximum number of planes to extract
+        
+        RCLCPP_INFO(logger, "Starting plane detection on cloud with %d points", remaining_points);
+        
+        while (plane_count < max_planes && 
+               working_cloud->size() > (min_remaining_percent * input_cloud->size()) &&
+               working_cloud->size() > min_plane_points) {
+            
+            // Segment the largest planar component
+            seg.setInputCloud(working_cloud);
+            seg.segment(*inliers, *coefficients);
+            
+            if (inliers->indices.size() < min_plane_points) {
+                RCLCPP_INFO(logger, "No more significant planes found");
+                break;
+            }
+            
+            // Extract the plane inliers
+            pcl::ExtractIndices<pcl::PointXYZRGB> extract;
+            extract.setInputCloud(working_cloud);
+            extract.setIndices(inliers);
+            
+            // Get the points in the plane
+            pcl::PointCloud<pcl::PointXYZRGB>::Ptr plane_cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
+            extract.setNegative(false);
+            extract.filter(*plane_cloud);
+            
+            // Get remaining points by removing the plane
+            extract.setNegative(true);
+            extract.filter(*remaining_cloud);
+            
+            plane_count++;
+            
+            // Colorize the plane (optional - for visualization)
+            if (visualize_planes) {
+                // Generate a unique color for this plane
+                uint8_t r = static_cast<uint8_t>(255 * (plane_count % 3 == 0));
+                uint8_t g = static_cast<uint8_t>(255 * (plane_count % 3 == 1));
+                uint8_t b = static_cast<uint8_t>(255 * (plane_count % 3 == 2));
+                
+                for (auto& point : plane_cloud->points) {
+                    // Pack RGB into the PCL point format
+                    uint32_t rgb = ((uint32_t)r << 16 | (uint32_t)g << 8 | (uint32_t)b);
+                    point.rgb = *reinterpret_cast<float*>(&rgb);
+                }
+                
+                // Remove previous working cloud
+                if (plane_count > 1) {
+                    viewer->removePointCloud("working_cloud");
+                } else {
+                    viewer->removePointCloud("original_cloud");
+                }
+                
+                // Add the plane with a unique ID
+                std::string plane_id = "plane_" + std::to_string(plane_count);
+                pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> plane_color(plane_cloud);
+                viewer->addPointCloud<pcl::PointXYZRGB>(plane_cloud, plane_color, plane_id);
+                viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 2, plane_id);
+                
+                // Add the updated working cloud
+                pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> working_color(remaining_cloud);
+                viewer->addPointCloud<pcl::PointXYZRGB>(remaining_cloud, working_color, "working_cloud");
+                
+                // Update the viewer
+                viewer->spinOnce(1500);  // Show for 1.5 seconds
+                
+                // Wait for keypress (optional, can be removed)
+                if (plane_count < max_planes) {
+                    RCLCPP_INFO(logger, "Press any key in the viewer window to continue...");
+                    viewer->spin();  // Spin until keypress
+                }
+            }
+            
+            RCLCPP_INFO(logger, "Plane %d: extracted %lu points (%.1f%% of original)",
+                       plane_count, inliers->indices.size(),
+                       100.0f * inliers->indices.size() / input_cloud->size());
+            
+            // Print plane equation: ax + by + cz + d = 0
+            RCLCPP_INFO(logger, "Plane equation: %.2fx + %.2fy + %.2fz + %.2f = 0",
+                       coefficients->values[0], coefficients->values[1],
+                       coefficients->values[2], coefficients->values[3]);
+            
+            // Update the working cloud for the next iteration
+            *working_cloud = *remaining_cloud;
+        }
+        
+        // Show final result if visualizing
+        if (visualize_planes) {
+            viewer->removeAllPointClouds();
+            viewer->removeAllShapes();
+            
+            // Add the final remaining cloud
+            pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGB> rgb(remaining_cloud);
+            viewer->addPointCloud<pcl::PointXYZRGB>(remaining_cloud, rgb, "remaining_cloud");
+            viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 1, "remaining_cloud");
+            
+            RCLCPP_INFO(logger, "Showing final result. Close the viewer window to continue...");
+            
+            // Keep visualizer open until user closes it
+            while (!viewer->wasStopped()) {
+                viewer->spinOnce(100);
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
+        }
+        
+        RCLCPP_INFO(logger, "Plane detection complete. Removed %d planes, %lu points remaining",
+                   plane_count, remaining_cloud->size());
+        
+        return remaining_cloud;
+    }
+
     // Node members
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloud_subscription_;
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr icp_result_publisher_;
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr goicp_result_publisher_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_debug_pub_;
     rclcpp::TimerBase::SharedPtr processing_timer_;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr plane_debug_pub_;
     
     // Callback groups for concurrent execution
     rclcpp::CallbackGroup::SharedPtr callback_group_subscription_;
@@ -395,7 +557,7 @@ private:
     // Data storage with thread synchronization
     std::mutex data_mutex_;
     sensor_msgs::msg::PointCloud2::SharedPtr latest_cloud_msg_;
-    Eigen::Matrix4f latest_initial_transform_;
+    // Eigen::Matrix4f latest_initial_transform_;
     bool has_new_data_;
     
     // Tracking state
