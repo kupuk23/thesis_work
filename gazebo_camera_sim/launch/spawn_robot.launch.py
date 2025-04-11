@@ -52,7 +52,7 @@ def launch_setup(context):
     # Define different location presets
     locations = {
         "ibvs": {"x": -2.0, "y": 0.8, "z": 1.4, "R": 0.6, "P": -0.3, "Y": -0.4},
-        "docking_st": {"x": -2.0, "y": 3.0, "z": 1.0, "R": 0.0, "P": 0.0, "Y": -1.57},
+        "docking_st": {"x": -2.0, "y": 1.0, "z": 1.0, "R": 0.0, "P": 0.0, "Y": -1.57},
         "grapple": {"x": -2.0, "y": 3.0, "z": 1.0, "R": 0.0, "P": 0.0, "Y": 3.14},
         "default": {"x": -2.0, "y": 0.0, "z": 1.25, "R": 0.0, "P": 0.0, "Y": 0.0},
     }

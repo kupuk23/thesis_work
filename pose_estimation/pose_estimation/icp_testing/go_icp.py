@@ -3,6 +3,15 @@ import open3d as o3d
 from py_goicp import GoICP, POINT3D, ROTNODE, TRANSNODE
 import time
 import copy
+from pose_estimation.tools.pose_estimation_tools import preprocess_model
+
+# preprocess_model(
+#     # "/home/tafarrel/blender_files/grapple_fixture/grapple_fixture.obj",
+#     # "/home/tafarrel/blender_files/grapple_fixture/grapple_fixture_v2.obj",
+#     "/home/tafarrel/blender_files/astrobee_dock/astrobee_dock.obj",
+#     file_name="astrobee_dock_ds",
+#     voxel_size=0.005,
+# )
 
 
 def normalize_point_cloud(data_points, model_points):
@@ -35,13 +44,9 @@ def normalize_point_cloud(data_points, model_points):
 
     # Scale the point cloud
     data_normalized = o3d.geometry.PointCloud()
-    data_normalized.points = o3d.utility.Vector3dVector(
-        data_centered / max_scale
-    )
+    data_normalized.points = o3d.utility.Vector3dVector(data_centered / max_scale)
     model_normalized = o3d.geometry.PointCloud()
-    model_normalized.points = o3d.utility.Vector3dVector(
-        model_centered / max_scale
-    )
+    model_normalized.points = o3d.utility.Vector3dVector(model_centered / max_scale)
 
     scale = 1 / max_scale
 
@@ -73,7 +78,7 @@ def denormalize_transformation(transform, data_centroid, model_centroid, scale):
     S_inv[0, 0] = S_inv[1, 1] = S_inv[2, 2] = 1.0 / scale
 
     # Combine transformations: T_data * S_inv * transform * S * T_t
-    denorm_transform =  T_data @ S_inv @ transform @ S @ T_model
+    denorm_transform = T_data @ S_inv @ transform @ S @ T_model
 
     return denorm_transform
 
@@ -116,6 +121,7 @@ def loadPointCloud(filename, ds=False, visualize=False, voxel_size=0.02):
 
     return pcd
 
+
 def init_GO_ICP():
     """
     Initialize Go-ICP
@@ -139,32 +145,31 @@ def init_GO_ICP():
     tNode.w = 1.0
 
     # Set parameters
-    goicp.MSEThresh = 0.0007   # Mean Square Error threshold
-    goicp.trimFraction = 0.05  # Trimming fraction (0.0 = no trimming)
+    goicp.MSEThresh = 0.0005  # Mean Square Error threshold
+    goicp.trimFraction = 0.0  # Trimming fraction (0.0 = no trimming)
 
     if goicp.trimFraction < 0.001:
         goicp.doTrim = False
 
     # Higher values = more accurate but slower
-    goicp.setDTSizeAndFactor(50, 4.0)
+    goicp.setDTSizeAndFactor(100, 3.0)
     goicp.setInitNodeRot(rNode)
     goicp.setInitNodeTrans(tNode)
-
 
     return goicp
 
 
 def go_icp(
-    data_points,
-    model_points,
+    data_pcd,
+    model_pcd,
     visualize_before=False,
     visualize_after=False,
 ):
     """
     Align source point cloud to target point cloud using Go-ICP.
     Args:
-        data_points: points of source point cloud
-        model_points: points of target point cloud
+        data_pcd:  source point cloud
+        model_pcd: target point cloud
         ds_source: Whether to downsample the source point cloud
         ds_target: Whether to downsample the target point cloud
         voxel_size: Voxel size for downsampling
@@ -174,7 +179,14 @@ def go_icp(
         transform: 4x4 transformation matrix aligning source to target
     """
     # 1. Load point clouds
-    print(f"Loading point clouds... {len(data_points)} points in data, {len(model_points)} points in model")
+
+    # 2. COnvert PCD to numpy array
+    data_points = np.asarray(data_pcd.points)
+    model_points = np.asarray(model_pcd.points)
+
+    print(
+        f"Loading point clouds... {len(data_points)} points in data, {len(model_points)} points in model"
+    )
 
     # random downsample if necessary
     if len(data_points) >= 3000:
@@ -192,7 +204,9 @@ def go_icp(
         source_pcd.paint_uniform_color([1, 0, 0])  # Red
         target_pcd.paint_uniform_color([0, 1, 0])  # Green
 
-        o3d.visualization.draw_geometries([source_pcd, target_pcd])
+
+        source_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.1)
+        o3d.visualization.draw_geometries([source_pcd, target_pcd, source_frame])
 
     # 2. Normalize both point clouds
     # print("Normalizing point clouds...")
@@ -226,13 +240,12 @@ def go_icp(
     a_points = convert_to_point3d_list(model_normalized_points)
 
     # 4. Initialize Go-ICP
-    goicp= init_GO_ICP()
+    goicp = init_GO_ICP()
 
     # 5. Register the point clouds using Go-ICP
     goicp.loadModelAndData(Nm, a_points, Nd, b_points)
 
     # Distance transform parameters (trade-off between speed and accuracy)
-    
 
     # print("Building Distance Transform...")
     goicp.BuildDT()
@@ -277,40 +290,35 @@ def go_icp(
 
     # 8. Apply the transformation and visualize if requested
     if visualize_after:
-        # print several lines of the point cloud
-        # print("Source point cloud sample:")
-        # print(data_points[:5])
-        # print("Target point cloud sample:")
-        # print(model_points[:5])
+        source_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.1)
+
         source_transformed = o3d.geometry.PointCloud()
-        source_transformed.points = o3d.utility.Vector3dVector(data_points)
-        source_transformed.transform(transform)
-        target_pcd = o3d.geometry.PointCloud()
-        target_pcd.points = o3d.utility.Vector3dVector(model_points)
+        source_transformed.points = o3d.utility.Vector3dVector(data_pcd.points)
 
         source_transformed.paint_uniform_color([1, 0, 0])  # Red
-        target_pcd.paint_uniform_color([0, 1, 0])  # Green
+        model_pcd.paint_uniform_color([0, 1, 0])  # Green
+
+        source_transformed.transform(transform)
+
 
         # print transformed point cloud
-        print("Transformed source point cloud sample:")
-        print(np.asarray(source_transformed.points)[:5])
-        print("Transformed point cloud:")
-        print(model_points[:5])
-        print("Registration result:")
-        o3d.visualization.draw_geometries([source_transformed, target_pcd])
+
+        o3d.visualization.draw_geometries(
+            [source_transformed, model_pcd, source_frame]
+        )
 
     return transform
 
-
 if __name__ == "__main__":
-    # Paths to your PCD files
     model = "docking_st"
-    
+
     if model == "grapple":
 
-        model_file = "/home/tafarrel/o3d_logs/grapple_fixture_down.pcd"
+        model_file = "/home/tafarrel/o3d_logs/grapple_fixture_v2.pcd"
         scene_file = "/home/tafarrel/o3d_logs/grapple_center.pcd"
-        # scene_file = "/home/tafarrel/o3d_logs/grapple_right_side.pcd"
+        # scene_file = "/home/tafarrel/o3d_logs/grapple_trans_left.pcd"
+        scene_file = "/home/tafarrel/o3d_logs/grapple_trans_right.pcd"
+        scene_file = "/home/tafarrel/o3d_logs/grapple_right_side.pcd"
         # scene_file = "/home/tafarrel/o3d_logs/grapple_with_handrail.pcd"
     elif model == "docking_st":
         model_file = "/home/tafarrel/o3d_logs/astrobee_dock_ds.pcd"
@@ -321,21 +329,19 @@ if __name__ == "__main__":
         scene_file = "/home/tafarrel/o3d_logs/handrail_origin.pcd"
         # scene_file = "/home/tafarrel/o3d_logs/handrail_right_2.pcd"
         # scene_file = "/home/tafarrel/o3d_logs/handrail_left.pcd"
-    
 
-    model_points = np.asarray(loadPointCloud(model_file).points)
-    scene_file = np.asarray(
-        loadPointCloud(scene_file).points
-    )
+    # Load point clouds
+    model_pcd = loadPointCloud(model_file, ds=False, visualize=False)
+    scene_pcd = loadPointCloud(scene_file, ds=True, visualize=False)
 
     # Run Go-ICP registration
     # MODEL == TARGET
     # DATA == SOURCE
     # TRANSFORMATION MATRIX = DATA -> MODEL
-    
+
     transform = go_icp(
-        data_points=scene_file,
-        model_points=model_points,
+        model_pcd=model_pcd,
+        data_pcd=scene_pcd,
         visualize_before=True,
         visualize_after=True,
     )

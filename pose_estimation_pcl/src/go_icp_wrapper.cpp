@@ -79,8 +79,8 @@ Eigen::Matrix4f GoICPWrapper::registerPointClouds(
     goicp.Nd = scene_points.size();
     
     // Set DT parameters
-    goicp.dt.SIZE = 25;
-    goicp.dt.expandFactor = 4.0;
+    goicp.dt.SIZE = 50;
+    goicp.dt.expandFactor = 3.0;
     
     // Set initial rotation and translation nodes
     goicp.initNodeRot = rNode;

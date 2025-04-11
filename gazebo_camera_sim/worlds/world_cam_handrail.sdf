@@ -255,7 +255,7 @@
         <enable_wind>false</enable_wind>
       </link>
       <!-- <pose>-3.2 3.5 1 0 0 0</pose> -->
-      <pose>-2 2 1.1 0 0 1.57</pose>
+      <pose>-2 0 1.1 0 0 1.57</pose>
       <self_collide>false</self_collide>
     </model>
 
@@ -289,19 +289,19 @@
       <self_collide>false</self_collide>
     </model>
 
-    <!-- <include>
+    <include>
       <uri>file:///home/tafarrel/gazebo_models/Coke</uri>
       <name>Coke</name>
-      <pose>-2.3 2.05 0.8 0 0 0</pose>
+      <pose>-2.3 0.05 0.8 0 0 0</pose>
       <static>true</static>
     </include>
     
     <include>
       <uri>file:///home/tafarrel/gazebo_models/Small Blue Box</uri>
       <name>small_box_blue</name>
-      <pose>-1.65 2.3 1 0 0 -0.57</pose>
+      <pose>-1.7 0.3 1 0 0 -0.57</pose>
       <static>true</static>
-    </include> -->
+    </include>
 
 
     <model name='fire_extinguisher'>

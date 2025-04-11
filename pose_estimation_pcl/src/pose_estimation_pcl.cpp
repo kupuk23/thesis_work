@@ -72,7 +72,7 @@ public:
         
         // Load model cloud
         if (object_frame_ == "grapple") 
-            model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/grapple_fixture_down.pcd", this->get_logger());
+            model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/grapple_fixture_v2.pcd", this->get_logger());
         else if (object_frame_ == "handrail")
             model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/handrail_pcd_down.pcd", this->get_logger());
         else if (object_frame_ == "docking_st")
@@ -105,22 +105,12 @@ private:
             latest_cloud_msg_ = pointcloud_msg;
             
             // Get the initial transformation from the object pose using TF2 lookup
-            // Note: We'll keep this for fallback purposes, but it might be ignored if Go-ICP is used
+            // Note: We'll keep this for fallback purposes, but it will be ignored if Go-ICP is used
             latest_initial_transform_ = pcl_utils::transform_obj_pose(
                 pointcloud_msg, 
                 *tf_buffer_, 
                 object_frame_,
                 this->get_logger()
-            );
-
-
-            // Broadcast the transformation for visualization
-            pcl_utils::broadcast_transform(
-                tf_broadcaster_,
-                latest_initial_transform_,
-                pointcloud_msg->header.stamp,
-                pointcloud_msg->header.frame_id,
-                object_frame_ + "_initial"
             );
             
             // Update flag to indicate new data is available
