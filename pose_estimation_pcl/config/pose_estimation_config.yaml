@@ -20,7 +20,7 @@ pose_estimation_pcl:
     # Clustering Parameters
     cluster_tolerance: 0.03 #in meters, default is 0.03
     min_cluster_size: 250 #250
-    max_cluster_size: 50000 #50000
+    max_cluster_size: 75000 #50000
     
     # Plane Segmentation Parameters
     plane_distance_threshold: 0.01
