@@ -1,21 +1,13 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-        
         {
-            "name": "ROS: Launch",
+            "name": "C++ Debugger",
             "request": "launch",
-            "target": "/home/tafarrel/ros2_ws/install/gazebo_camera_sim/share/gazebo_camera_sim/launch/spawn_robot.launch.py",
-            "launch": [
-                "rviz",
-                "gz",
-                "gzclient",
-                "gzserver"
-            ],
-            "type": "ros"
+            "type": "cppdbg",
+            "miDebuggerServerAddress": "localhost:3000",
+            "cwd": "/",
+            "program": "/home/tafarrel/ros2_ws/install/pose_estimation_pcl/lib/pose_estimation_pcl/pose_estimation_pcl"
         }
     ]
 }

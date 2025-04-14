@@ -6,9 +6,8 @@ Panels:
       Expanded:
         - /Global Options1
         - /TF1/Frames1
-        - /Pose1
         - /Pose1/Topic1
-        - /Pose2
+        - /PointCloud22
       Splitter Ratio: 0.5
     Tree Height: 368
   - Class: rviz_common/Views
@@ -273,7 +272,7 @@ Visualization Manager:
       Channel Name: intensity
       Class: rviz_default_plugins/PointCloud2
       Color: 255; 255; 255
-      Color Transformer: ""
+      Color Transformer: RGB8
       Decay Time: 0
       Enabled: true
       Invert Rainbow: false
@@ -282,7 +281,7 @@ Visualization Manager:
       Min Color: 0; 0; 0
       Min Intensity: 0
       Name: PointCloud2
-      Position Transformer: ""
+      Position Transformer: XYZ
       Selectable: true
       Size (Pixels): 3
       Size (m): 0.009999999776482582
@@ -292,7 +291,7 @@ Visualization Manager:
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /debug_plane_pointcloud
+        Value: /debug_pointcloud
       Use Fixed Frame: true
       Use rainbow: true
       Value: true
