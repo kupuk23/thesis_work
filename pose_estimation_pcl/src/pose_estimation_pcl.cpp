@@ -12,6 +12,8 @@
 #include <pcl/ModelCoefficients.h>
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/filters/extract_indices.h>
+#include <pcl/search/kdtree.h>
+#include <pcl/segmentation/extract_clusters.h>
 #include <chrono>
 #include <cfloat>  // For FLT_MAX
 #include <thread> 
@@ -34,12 +36,16 @@ struct PlaneInfo {
 };
 
 static const std::vector<std::array<uint8_t, 3>> DEFAULT_COLORS = {
-    {255, 0, 0},   // Red
-    {0, 255, 0},   // Green
-    {0, 0, 255},   // Blue
-    {255, 255, 0}, // Yellow
-    {255, 0, 255}, // Magenta
-    {0, 255, 255}  // Cyan
+    {255, 0, 0},      // Red
+    {0, 255, 0},      // Green
+    {0, 0, 255},      // Blue
+    {255, 255, 0},    // Yellow
+    {255, 0, 255},    // Magenta
+    {0, 255, 255},    // Cyan
+    {255, 128, 0},    // Orange
+    {128, 0, 255},    // Purple
+    {0, 128, 255},    // Light Blue
+    {255, 0, 128}     // Pink
 };
 
 class PoseEstimationPCL : public rclcpp::Node {
@@ -95,6 +101,8 @@ public:
         // Create a publisher for plane debug point clouds
         plane_debug_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/debug_plane_pointcloud", 1);
         filtered_plane_debug_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/debug_filtered_plane_pointcloud", 1);
+        clustered_plane_debug_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/debug_clustered_plane_pointcloud", 1);
+
         
         // Load model cloud
         if (object_frame_ == "grapple") 
@@ -443,18 +451,29 @@ void publishRegistrationResults(
         pass_x.setFilterLimits(-FLT_MAX, 2.0);  // X < 2
         pass_x.filter(*filtered_cloud);
 
+        // remove largest plane (wall)
         PlaneSegmentationResult segmentation_result = detect_and_remove_planes(filtered_cloud, this->get_logger(), true);
+
+        // cluster the pointclouds
+        //TODO: add a config.yaml file to set the parameters for the clustering
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr clustered_cloud = cluster_point_cloud(segmentation_result.remaining_cloud, this->get_logger());
         
+
+
         // If you want to publish the planes cloud:
         if (save_debug_clouds_ && segmentation_result.planes_cloud->size() > 0) {
-            sensor_msgs::msg::PointCloud2 planes_msg;
-            pcl::toROSMsg(*segmentation_result.remaining_cloud, planes_msg);
-            planes_msg.header = cloud_msg->header;
-            plane_debug_pub_->publish(planes_msg);
+            sensor_msgs::msg::PointCloud2 pointcloud_msg;
+            pcl::toROSMsg(*segmentation_result.remaining_cloud, pointcloud_msg);
+            pointcloud_msg.header = cloud_msg->header;
+            plane_debug_pub_->publish(pointcloud_msg);
 
-            pcl::toROSMsg(*segmentation_result.planes_cloud, planes_msg);
-            planes_msg.header = cloud_msg->header;
-            filtered_plane_debug_pub_->publish(planes_msg);
+            pcl::toROSMsg(*segmentation_result.planes_cloud, pointcloud_msg);
+            pointcloud_msg.header = cloud_msg->header;
+            filtered_plane_debug_pub_->publish(pointcloud_msg);
+
+            pcl::toROSMsg(*clustered_cloud, pointcloud_msg);
+            pointcloud_msg.header = cloud_msg->header;
+            clustered_plane_debug_pub_->publish(pointcloud_msg);
 
 
         }
@@ -462,6 +481,90 @@ void publishRegistrationResults(
         
         return filtered_cloud;
     }
+
+    // Function to cluster a point cloud and color each cluster
+// Returns the clustered point cloud with each cluster colored differently
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr cluster_point_cloud(
+    const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,
+    const rclcpp::Logger& logger,
+    double cluster_tolerance = 0.04,  // 2cm cluster tolerance
+    int min_cluster_size = 25,      // Minimum points per cluster
+    int max_cluster_size = 20000     // Maximum points per cluster
+) {
+    // Start timing
+    auto start_time = std::chrono::high_resolution_clock::now();
+    
+    // Create output cloud for visualization
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
+    
+    // Create KdTree for searching
+    pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZRGB>);
+    tree->setInputCloud(input_cloud);
+    
+    // Setup clustering
+    std::vector<pcl::PointIndices> cluster_indices;
+    pcl::EuclideanClusterExtraction<pcl::PointXYZRGB> ec;
+    ec.setClusterTolerance(cluster_tolerance);
+    ec.setMinClusterSize(min_cluster_size);
+    ec.setMaxClusterSize(max_cluster_size);
+    ec.setSearchMethod(tree);
+    ec.setInputCloud(input_cloud);
+    
+    // Perform clustering
+    RCLCPP_INFO(logger, "Starting clustering with tolerance=%.3f, min_size=%d, max_size=%d",
+              cluster_tolerance, min_cluster_size, max_cluster_size);
+    
+    ec.extract(cluster_indices);
+    
+    // Check if we found any clusters
+    if (cluster_indices.empty()) {
+        RCLCPP_WARN(logger, "No clusters found in the point cloud");
+        return input_cloud;  // Return original cloud if no clusters found
+    }
+    
+    RCLCPP_INFO(logger, "Found %ld clusters", cluster_indices.size());
+    
+    // Extract and color each cluster
+    for (size_t i = 0; i < cluster_indices.size(); ++i) {
+        // Get a color for this cluster
+        const std::array<uint8_t, 3>& color = DEFAULT_COLORS[i % DEFAULT_COLORS.size()];
+        
+        // Create a cloud for this cluster
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr cluster_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+        
+        // Extract points for this cluster and color them
+        for (const auto& idx : cluster_indices[i].indices) {
+            pcl::PointXYZRGB colored_point = input_cloud->points[idx];
+            
+            // Set the RGB color
+            colored_point.r = color[0];
+            colored_point.g = color[1];
+            colored_point.b = color[2];
+            
+            cluster_cloud->push_back(colored_point);
+        }
+        
+        cluster_cloud->width = cluster_cloud->size();
+        cluster_cloud->height = 1;
+        cluster_cloud->is_dense = true;
+        
+        RCLCPP_INFO(logger, "Cluster %ld: %ld points, color RGB(%d,%d,%d)",
+                  i, cluster_cloud->size(), color[0], color[1], color[2]);
+        
+        // Add this cluster to the output cloud
+        *colored_cloud += *cluster_cloud;
+    }
+    
+    // Measure and report execution time
+    auto end_time = std::chrono::high_resolution_clock::now();
+    double execution_time = std::chrono::duration<double>(end_time - start_time).count();
+    
+    RCLCPP_INFO(logger, "Clustering completed in %.3f seconds", execution_time);
+    RCLCPP_INFO(logger, "Output cloud has %ld points across %ld clusters", 
+              colored_cloud->size(), cluster_indices.size());
+    
+    return colored_cloud;
+}
 
    
     PlaneSegmentationResult detect_and_remove_planes(
@@ -554,7 +657,7 @@ void publishRegistrationResults(
                 uint8_t g = color[1];
                 uint8_t b = color[2];
                 
-                RCLCPP_INFO(logger, "Coloring plane %d with RGB(%d,%d,%d)", plane_count, r, g, b);
+                // RCLCPP_INFO(logger, "Coloring plane %d with RGB(%d,%d,%d)", plane_count, r, g, b);
                 
                 // Create a copy of the plane cloud with the selected color
                 pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_plane(new pcl::PointCloud<pcl::PointXYZRGB>());
@@ -580,14 +683,14 @@ void publishRegistrationResults(
                 *result.planes_cloud += *colored_plane;
             }
             
-            RCLCPP_INFO(logger, "Plane %d: extracted %lu points (%.1f%% of original)",
-                       plane_count, inliers->indices.size(),
-                       100.0f * inliers->indices.size() / input_cloud->size());
+            // RCLCPP_INFO(logger, "Plane %d: extracted %lu points (%.1f%% of original)",
+            //            plane_count, inliers->indices.size(),
+            //            100.0f * inliers->indices.size() / input_cloud->size());
             
             // Print plane equation: ax + by + cz + d = 0
-            RCLCPP_INFO(logger, "Plane equation: %.2fx + %.2fy + %.2fz + %.2f = 0",
-                       coefficients->values[0], coefficients->values[1],
-                       coefficients->values[2], coefficients->values[3]);
+            // RCLCPP_INFO(logger, "Plane equation: %.2fx + %.2fy + %.2fz + %.2f = 0",
+            //            coefficients->values[0], coefficients->values[1],
+            //            coefficients->values[2], coefficients->values[3]);
             
             // Update the working cloud for next iteration
             working_cloud = remaining_cloud;
@@ -598,8 +701,8 @@ void publishRegistrationResults(
         if (largest_plane_size > 0) {
             *result.largest_plane_cloud = *largest_plane;
             *result.remaining_cloud = *with_largest_plane_removed;
-            RCLCPP_INFO(logger, "Removed largest plane with %lu points. Remaining cloud has %lu points.",
-                       largest_plane_size, result.remaining_cloud->size());
+            // RCLCPP_INFO(logger, "Removed largest plane with %lu points. Remaining cloud has %lu points.",
+            //            largest_plane_size, result.remaining_cloud->size());
         } else {
             // No planes found, return the original cloud
             *result.remaining_cloud = *input_cloud;
@@ -620,6 +723,7 @@ void publishRegistrationResults(
     rclcpp::TimerBase::SharedPtr processing_timer_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr plane_debug_pub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr filtered_plane_debug_pub_;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr clustered_plane_debug_pub_;
     
     // Callback groups for concurrent execution
     rclcpp::CallbackGroup::SharedPtr callback_group_subscription_;

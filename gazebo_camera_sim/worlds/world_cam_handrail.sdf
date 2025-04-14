@@ -289,7 +289,7 @@
       <self_collide>false</self_collide>
     </model>
 
-    <!--<include>
+    <include>
       <uri>file:///home/tafarrel/gazebo_models/Coke</uri>
       <name>Coke</name>
       <pose>-2.3 0.05 0.8 0 0 0</pose>
@@ -303,7 +303,7 @@
       <static>true</static>
     </include>
 
-    <!~~ spawn cardboard box ~~>
+    <!-- spawn cardboard box -->
     <model name='cardboard_box'>
       <static>true</static>
       <link name='cardboard_box_body'>
@@ -328,7 +328,7 @@
       <static>true</static>
       <pose>-2.4 0 1.3 0.5 0 -1.57</pose>
       <self_collide>false</self_collide>
-    </model>-->
+    </model>
 
     <model name='wall_2'>
       <static>true</static>
