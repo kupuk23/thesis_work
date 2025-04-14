@@ -52,13 +52,24 @@ class PoseEstimationPCL : public rclcpp::Node {
 public:
     PoseEstimationPCL() : Node("pose_estimation_pcl") {
         // Initialize parameters
+        // General parameters
         voxel_size_ = this->declare_parameter<double>("voxel_size", 0.05);  // Default voxel size
         save_debug_clouds_ = this->declare_parameter<bool>("save_debug_clouds", false);
-        debug_path_ = this->declare_parameter<std::string>("debug_path", "/home/tafarrel/debugPCD_cpp");
         object_frame_ = this->declare_parameter<std::string>("object_frame", "grapple");
-        processing_period_ms_ = 100;  // 10 Hz default
+        processing_period_ms_ = this->declare_parameter<int>("processing_period_ms", 100);  // 10 Hz default
         use_goicp_ = this->declare_parameter<bool>("use_goicp", false);
         goicp_debug_ = this->declare_parameter<bool>("goicp_debug", false);
+
+
+        // Clustering parameters
+        cluster_tolerance_ = this->declare_parameter<double>("cluster_tolerance", 0.02);
+        min_cluster_size_ = this->declare_parameter<int>("min_cluster_size", 100);
+        max_cluster_size_ = this->declare_parameter<int>("max_cluster_size", 25000);
+        // Plane segmentation parameters
+        plane_distance_threshold_ = this->declare_parameter<double>("plane_distance_threshold", 0.01);
+        max_plane_iterations_ = this->declare_parameter<int>("max_plane_iterations", 100);
+        min_plane_points_ = this->declare_parameter<int>("min_plane_points", 800);
+        max_planes_ = this->declare_parameter<int>("max_planes", 3);
         
         // Registration error thresholds
         gicp_fitness_threshold_ = this->declare_parameter<double>("gicp_fitness_threshold", 0.05);
@@ -221,7 +232,6 @@ void process_data() {
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud = pcl_utils::convertPointCloud2ToPCL(cloud_msg);
         auto preprocessed_cloud = preprocess_pointcloud(cloud, cloud_msg);
         
-        // TODO: add segmentation to the preprocessed cloud
         // TODO: apply FPFH features to the segments and model pcd.
         // TODO: use the features to find the best match for the segments and choose the best one.
         
@@ -455,8 +465,7 @@ void publishRegistrationResults(
         PlaneSegmentationResult segmentation_result = detect_and_remove_planes(filtered_cloud, this->get_logger(), true);
 
         // cluster the pointclouds
-        //TODO: add a config.yaml file to set the parameters for the clustering
-        pcl::PointCloud<pcl::PointXYZRGB>::Ptr clustered_cloud = cluster_point_cloud(segmentation_result.remaining_cloud, this->get_logger());
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr clustered_cloud = cluster_point_cloud(segmentation_result.remaining_cloud, this->get_logger(), cluster_tolerance_, min_cluster_size_, max_cluster_size_);
         
 
 
@@ -732,12 +741,23 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr cluster_point_cloud(
     // Parameters
     double voxel_size_;
     bool save_debug_clouds_;
-    std::string debug_path_;
     std::string object_frame_;
     int processing_period_ms_;
     bool use_goicp_;
     bool goicp_debug_;
     double gicp_fitness_threshold_;
+    
+    // New clustering parameters
+    double cluster_tolerance_;
+    int min_cluster_size_;
+    int max_cluster_size_;
+
+    // Plane segmentation parameters 
+    double plane_distance_threshold_;
+    int max_plane_iterations_;
+    int min_plane_points_;
+    int max_planes_;
+    bool remove_planes_;
     
     // TF2 buffer and listener
     std::shared_ptr<tf2_ros::Buffer> tf_buffer_;

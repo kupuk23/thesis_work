@@ -82,6 +82,11 @@ install(TARGETS pose_estimation_pcl
   DESTINATION lib/${PROJECT_NAME}
 )
 
+install(DIRECTORY
+  config
+  DESTINATION share/${PROJECT_NAME}
+)
+
 # Install include directory
 install(DIRECTORY include/
   DESTINATION include
@@ -90,7 +95,6 @@ install(DIRECTORY include/
 # Install launch files if you have any
 install(DIRECTORY launch
   DESTINATION share/${PROJECT_NAME}/
-  OPTIONAL
 )
 
 

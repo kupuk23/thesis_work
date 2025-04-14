@@ -292,7 +292,7 @@
     <include>
       <uri>file:///home/tafarrel/gazebo_models/Coke</uri>
       <name>Coke</name>
-      <pose>-2.3 0.05 0.8 0 0 0</pose>
+      <pose>-2.3 0.15 0.8 0 0 0</pose>
       <static>true</static>
     </include>
 
