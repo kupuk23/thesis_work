@@ -3,13 +3,19 @@
 #include <pcl/io/pcd_io.h>
 #include <Eigen/Geometry>
 #include <sensor_msgs/point_cloud2_iterator.hpp>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
-#include <tf2_ros/transform_listener.h>
-#include <tf2/convert.h>
-#include <tf2_eigen/tf2_eigen.hpp>
-#include <tf2_ros/transform_broadcaster.h>
 #include <random>
 #include <string>
+#include <chrono>
+
+#include <pcl/search/kdtree.h>
+#include <pcl/segmentation/extract_clusters.h>
+#include <pcl/segmentation/sac_segmentation.h>
+#include <pcl/ModelCoefficients.h>
+
+#include <pcl/filters/extract_indices.h>
+#include <pcl/features/normal_3d.h>
+#include <pcl/features/fpfh.h>
+
 
 
 namespace pcl_utils {
@@ -71,41 +77,6 @@ void saveToPCD(
     }
 }
 
-geometry_msgs::msg::Pose matrix_to_pose(const Eigen::Matrix4f& transform) {
-    // Manual conversion from Eigen matrix to ROS pose
-    Eigen::Quaternionf q(transform.block<3,3>(0,0));
-    
-    geometry_msgs::msg::Pose pose_msg;
-    pose_msg.position.x = transform(0,3);
-    pose_msg.position.y = transform(1,3);
-    pose_msg.position.z = transform(2,3);
-    pose_msg.orientation.x = q.x();
-    pose_msg.orientation.y = q.y();
-    pose_msg.orientation.z = q.z();
-    pose_msg.orientation.w = q.w();
-    
-    return pose_msg;
-}
-
-Eigen::Matrix4f pose_to_matrix(const geometry_msgs::msg::Pose& pose) {
-    Eigen::Matrix4f mat = Eigen::Matrix4f::Identity();
-    
-    // Convert position
-    mat(0, 3) = pose.position.x;
-    mat(1, 3) = pose.position.y;
-    mat(2, 3) = pose.position.z;
-    
-    // Convert orientation (quaternion to rotation matrix)
-    Eigen::Quaternionf q(
-        pose.orientation.w,
-        pose.orientation.x,
-        pose.orientation.y,
-        pose.orientation.z
-    );
-    mat.block<3, 3>(0, 0) = q.toRotationMatrix();
-    
-    return mat;
-}
 
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr loadModelPCD(
     const std::string& filename,
@@ -121,171 +92,236 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr loadModelPCD(
 }
 
 
+// Function to cluster a point cloud and color each cluster
+ClusteringResult cluster_point_cloud(
+    const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,
+    const rclcpp::Logger& logger,
+    double cluster_tolerance,
+    int min_cluster_size,
+    int max_cluster_size
+) {
+    // Start timing
+    auto start_time = std::chrono::high_resolution_clock::now();
 
-Eigen::Matrix4f transform_obj_pose(
-    const sensor_msgs::msg::PointCloud2::SharedPtr& pc2_msg,
-    tf2_ros::Buffer& tf_buffer,
-    const std::string& obj_frame,
-    const rclcpp::Logger& logger) {
+    // Create result struct
+ClusteringResult result;
+std::vector<pcl::PointIndices> cluster_indices;
+
+// Create KdTree for searching
+pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZRGB>);
+tree->setInputCloud(input_cloud);
+
+// Setup clustering
+pcl::EuclideanClusterExtraction<pcl::PointXYZRGB> ec;
+ec.setClusterTolerance(cluster_tolerance);
+ec.setMinClusterSize(min_cluster_size);
+ec.setMaxClusterSize(max_cluster_size);
+ec.setSearchMethod(tree);
+ec.setInputCloud(input_cloud);
+
+// Perform clustering
+RCLCPP_INFO(logger, "Starting clustering with tolerance=%.3f, min_size=%d, max_size=%d",
+        cluster_tolerance, min_cluster_size, max_cluster_size);
+
+ec.extract(cluster_indices);
+
+// Check if we found any clusters
+if (cluster_indices.empty()) {
+    RCLCPP_WARN(logger, "No clusters found in the point cloud");
+    result.colored_cloud = input_cloud;  // Return original cloud if no clusters found
+    return result;
+}
+RCLCPP_INFO(logger, "Found %ld clusters", cluster_indices.size());
+
+// Reserve space for individual clusters
+result.individual_clusters.resize(cluster_indices.size());
+
+// Extract and color each cluster
+for (size_t i = 0; i < cluster_indices.size(); ++i) {
+    // Get a color for this cluster
+    const std::array<uint8_t,3>& color = DEFAULT_COLORS[i % DEFAULT_COLORS.size()];
     
-    try {
-        // Check if transforms are available
-        if (!tf_buffer.canTransform(pc2_msg->header.frame_id, obj_frame, tf2::TimePointZero)) {
-            RCLCPP_WARN(logger, "Cannot transform between required frames");
-            return Eigen::Matrix4f::Identity();
+    // Create a cloud for this cluster
+    result.individual_clusters[i].reset(new pcl::PointCloud<pcl::PointXYZRGB>);
+    
+    // Extract points for this cluster and color them
+    for (const auto& idx : cluster_indices[i].indices) {
+        pcl::PointXYZRGB colored_point = input_cloud->points[idx];
+        
+        // Set the RGB color
+        colored_point.r = color[0];
+        colored_point.g = color[1];
+        colored_point.b = color[2];
+        
+        result.individual_clusters[i]->push_back(colored_point);
+    }
+    
+    result.individual_clusters[i]->width = result.individual_clusters[i]->size();
+    result.individual_clusters[i]->height = 1;
+    result.individual_clusters[i]->is_dense = true;
+    
+    RCLCPP_INFO(logger, "Cluster %ld: %ld points, color RGB(%d,%d,%d)",
+            i, result.individual_clusters[i]->size(), color[0], color[1], color[2]);
+    
+    // Add this cluster to the output cloud
+    *result.colored_cloud += *result.individual_clusters[i];
+}
+
+// Measure and report execution time
+auto end_time = std::chrono::high_resolution_clock::now();
+double execution_time = std::chrono::duration<double>(end_time - start_time).count();
+
+RCLCPP_INFO(logger, "Clustering completed in %.3f seconds", execution_time);
+RCLCPP_INFO(logger, "Output cloud has %ld points across %ld clusters", 
+        result.colored_cloud->size(), cluster_indices.size());
+
+return result;
+}
+
+
+PlaneSegmentationResult detect_and_remove_planes(
+    const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,
+    const rclcpp::Logger& logger,
+    bool colorize_planes, size_t min_plane_points,float min_remaining_percent ,int max_planes) {
+    
+    PlaneSegmentationResult result;
+    result.remaining_cloud.reset(new pcl::PointCloud<pcl::PointXYZRGB>());
+    result.planes_cloud.reset(new pcl::PointCloud<pcl::PointXYZRGB>());
+    result.largest_plane_cloud.reset(new pcl::PointCloud<pcl::PointXYZRGB>());
+    
+    // Initialize working cloud as a copy of input
+    size_t largest_plane_size = 0;
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr largest_plane(new pcl::PointCloud<pcl::PointXYZRGB>());
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr working_cloud(new pcl::PointCloud<pcl::PointXYZRGB>(*input_cloud));
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr with_largest_plane_removed(new pcl::PointCloud<pcl::PointXYZRGB>());
+    
+    // Plane segmentation setup
+    pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients());
+    pcl::PointIndices::Ptr inliers(new pcl::PointIndices());
+    pcl::SACSegmentation<pcl::PointXYZRGB> seg;
+    
+    seg.setOptimizeCoefficients(true);
+    seg.setModelType(pcl::SACMODEL_PLANE);
+    seg.setMethodType(pcl::SAC_RANSAC);
+    seg.setDistanceThreshold(0.02);  // 2cm threshold
+    seg.setMaxIterations(100);
+    
+    int plane_count = 0;
+    size_t remaining_points = working_cloud->size();
+    
+    
+
+    
+    RCLCPP_INFO(logger, "Starting plane detection on cloud with %zu points", remaining_points);
+    
+    // Detect all planes but only update the working cloud at the end
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr temp_cloud(new pcl::PointCloud<pcl::PointXYZRGB>(*working_cloud));
+    
+    while (plane_count < max_planes && 
+        remaining_points > (min_remaining_percent * input_cloud->size()) &&
+        remaining_points > min_plane_points) {
+ 
+        
+        // Segment the next planar component
+        seg.setInputCloud(working_cloud);
+        seg.segment(*inliers, *coefficients);
+        
+        if (inliers->indices.size() < min_plane_points) {
+            RCLCPP_INFO(logger, "No more significant planes found");
+            break;
         }
         
-        // Get transform from map to camera frame
-        geometry_msgs::msg::TransformStamped obj_T_cam = tf_buffer.lookupTransform(
-            pc2_msg->header.frame_id,  // target frame
-            obj_frame,                     // source frame
-            tf2::TimePointZero,        // time
-            tf2::durationFromSec(1.0)  // timeout
-        );
+        // Extract the plane
+        pcl::ExtractIndices<pcl::PointXYZRGB> extract;
+        extract.setInputCloud(working_cloud);
+        extract.setIndices(inliers);
         
-        // Transform the object to the camera frame transformStamped into Pose
-        geometry_msgs::msg::Pose obj_pose_camera;
-        obj_pose_camera.orientation = obj_T_cam.transform.rotation;
-        obj_pose_camera.position.x = obj_T_cam.transform.translation.x;
-        obj_pose_camera.position.y = obj_T_cam.transform.translation.y;
-        obj_pose_camera.position.z = obj_T_cam.transform.translation.z;
-
+        // Get the points in the plane
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr plane_cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
+        extract.setNegative(false);
+        extract.filter(*plane_cloud);
         
-        // Create result message (not returned but similar to Python function)
-        geometry_msgs::msg::PoseStamped result_msg;
-        result_msg.header.stamp = pc2_msg->header.stamp;
-        result_msg.header.frame_id = pc2_msg->header.frame_id;
-        result_msg.pose = obj_pose_camera;
+        // Get remaining points (for next iteration)
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr remaining_cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
+        extract.setNegative(true);
+        extract.filter(*remaining_cloud);
         
-        // Convert pose to matrix
-        Eigen::Matrix4f handrail_pose_matrix = pose_to_matrix(obj_pose_camera);
-        return handrail_pose_matrix;
+        plane_count++;
         
-    } catch (const tf2::TransformException& e) {
-        RCLCPP_ERROR(logger, "Error transforming object pose: %s", e.what());
-        return Eigen::Matrix4f::Identity();
-    } catch (const std::exception& e) {
-        RCLCPP_ERROR(logger, "General error transforming object pose: %s", e.what());
-        return Eigen::Matrix4f::Identity();
+        // If this is the largest plane so far, save it and the result of removing it
+    if (inliers->indices.size() > largest_plane_size) {
+        largest_plane_size = inliers->indices.size();
+        *largest_plane = *plane_cloud;
+        
+        // Save the cloud with this plane removed
+        extract.setNegative(true);
+        extract.filter(*with_largest_plane_removed);
     }
-}
 
-geometry_msgs::msg::Pose matrixToPose(const Eigen::Matrix4d& matrix) {
-    geometry_msgs::msg::Pose pose;
-    
-    // Extract translation
-    pose.position.x = matrix(0, 3);
-    pose.position.y = matrix(1, 3);
-    pose.position.z = matrix(2, 3);
-    
-    // Extract rotation matrix
-    Eigen::Matrix3d rotation_matrix = matrix.block<3, 3>(0, 0);
-    
-    // Convert rotation matrix to quaternion
-    tf2::Matrix3x3 tf_rotation_matrix(
-        rotation_matrix(0, 0), rotation_matrix(0, 1), rotation_matrix(0, 2),
-        rotation_matrix(1, 0), rotation_matrix(1, 1), rotation_matrix(1, 2),
-        rotation_matrix(2, 0), rotation_matrix(2, 1), rotation_matrix(2, 2)
-    );
-    
-    tf2::Quaternion quaternion;
-    tf_rotation_matrix.getRotation(quaternion);
-    
-    // Set quaternion in pose
-    pose.orientation.x = quaternion.x();
-    pose.orientation.y = quaternion.y();
-    pose.orientation.z = quaternion.z();
-    pose.orientation.w = quaternion.w();
-    
-    return pose;
-}
-
-
-geometry_msgs::msg::TransformStamped create_transform_stamped(
-    const Eigen::Matrix4f& transform,
-    const rclcpp::Time& header_stamp,
-    const std::string& header_frame_id,
-    const std::string& child_frame_id) {
-    
-    geometry_msgs::msg::TransformStamped transform_stamped;
-    transform_stamped.header.stamp = header_stamp;
-    transform_stamped.header.frame_id = header_frame_id;
-    transform_stamped.child_frame_id = child_frame_id;
-    
-    // Set translation
-    transform_stamped.transform.translation.x = transform(0, 3);
-    transform_stamped.transform.translation.y = transform(1, 3);
-    transform_stamped.transform.translation.z = transform(2, 3);
-    
-    // Set rotation (convert matrix to quaternion)
-    Eigen::Quaternionf q(transform.block<3, 3>(0, 0));
-    transform_stamped.transform.rotation.x = q.x();
-    transform_stamped.transform.rotation.y = q.y();
-    transform_stamped.transform.rotation.z = q.z();
-    transform_stamped.transform.rotation.w = q.w();
-    
-    return transform_stamped;
-}
-
-void broadcast_transform(
-    std::shared_ptr<tf2_ros::TransformBroadcaster>& broadcaster,
-    const Eigen::Matrix4f& transform,
-    const rclcpp::Time& header_stamp,
-    const std::string& header_frame_id,
-    const std::string& child_frame_id) {
-    
-    geometry_msgs::msg::TransformStamped transform_stamped = 
-        create_transform_stamped(transform, header_stamp, header_frame_id, child_frame_id);
-    
-    broadcaster->sendTransform(transform_stamped);
-}
-
-
-Eigen::Matrix4f apply_noise_to_transform(
-    const Eigen::Matrix4f& transform, 
-    float t_std, 
-    float r_std) {
-    
-    // Check if transform is valid
-    if (transform.isIdentity()) {
-        return transform;
+        
+        if (colorize_planes) {
+            // Get color from our fixed set
+            const std::array<uint8_t, 3>& color = DEFAULT_COLORS[(plane_count - 1) % DEFAULT_COLORS.size()];
+            uint8_t r = color[0];
+            uint8_t g = color[1];
+            uint8_t b = color[2];
+            
+            // RCLCPP_INFO(logger, "Coloring plane %d with RGB(%d,%d,%d)", plane_count, r, g, b);
+            
+            // Create a copy of the plane cloud with the selected color
+            pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_plane(new pcl::PointCloud<pcl::PointXYZRGB>());
+            colored_plane->points.resize(plane_cloud->points.size());
+            colored_plane->width = plane_cloud->width;
+            colored_plane->height = plane_cloud->height;
+            colored_plane->is_dense = plane_cloud->is_dense;
+            
+            // Explicitly set each point's RGB value
+            for (size_t i = 0; i < plane_cloud->points.size(); ++i) {
+                // Copy the xyz coordinates
+                colored_plane->points[i].x = plane_cloud->points[i].x;
+                colored_plane->points[i].y = plane_cloud->points[i].y;
+                colored_plane->points[i].z = plane_cloud->points[i].z;
+                
+                // Set the RGB color
+                colored_plane->points[i].r = r;
+                colored_plane->points[i].g = g;
+                colored_plane->points[i].b = b;
+            }
+            
+            // Add this colored plane to our composite cloud
+            *result.planes_cloud += *colored_plane;
+        }
+        
+        // RCLCPP_INFO(logger, "Plane %d: extracted %lu points (%.1f%% of original)",
+        //            plane_count, inliers->indices.size(),
+        //            100.0f * inliers->indices.size() / input_cloud->size());
+        
+        // Print plane equation: ax + by + cz + d = 0
+        // RCLCPP_INFO(logger, "Plane equation: %.2fx + %.2fy + %.2fz + %.2f = 0",
+        //            coefficients->values[0], coefficients->values[1],
+        //            coefficients->values[2], coefficients->values[3]);
+        
+        // Update the working cloud for next iteration
+        working_cloud = remaining_cloud;
     }
     
-    // Create a copy of the transformation
-    Eigen::Matrix4f noisy_transform = transform;
-    
-    // Create random number generator
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::normal_distribution<float> t_dist(0.0, t_std); // Translation noise distribution
-    std::normal_distribution<float> r_dist(0.0, r_std); // Rotation noise distribution
-    
-    // Add noise to translation
-    for (int i = 0; i < 3; ++i) {
-        noisy_transform(i, 3) += t_dist(gen);
+    // Now that we've found all planes and identified the largest one,
+    // remove only the largest plane from the input cloud
+    if (largest_plane_size > 0) {
+        *result.largest_plane_cloud = *largest_plane;
+        *result.remaining_cloud = *with_largest_plane_removed;
+        // RCLCPP_INFO(logger, "Removed largest plane with %lu points. Remaining cloud has %lu points.",
+        //            largest_plane_size, result.remaining_cloud->size());
+    } else {
+        // No planes found, return the original cloud
+        *result.remaining_cloud = *input_cloud;
+        RCLCPP_INFO(logger, "No planes found to remove");
     }
     
-    // Extract current rotation matrix
-    Eigen::Matrix3f current_rot = noisy_transform.block<3, 3>(0, 0);
+    RCLCPP_INFO(logger, "Plane detection complete. Found %d planes, visualizing %lu points in planes cloud.",
+               plane_count, result.planes_cloud->size());
     
-    // Convert to Euler angles (XYZ order)
-    Eigen::Vector3f euler = current_rot.eulerAngles(0, 1, 2); // x, y, z
-    
-    // Add noise to Euler angles
-    euler[0] += r_dist(gen);
-    euler[1] += r_dist(gen);
-    euler[2] += r_dist(gen);
-    
-    // Convert back to rotation matrix
-    Eigen::Matrix3f noisy_rot;
-    noisy_rot = Eigen::AngleAxisf(euler[0], Eigen::Vector3f::UnitX())
-              * Eigen::AngleAxisf(euler[1], Eigen::Vector3f::UnitY())
-              * Eigen::AngleAxisf(euler[2], Eigen::Vector3f::UnitZ());
-    
-    // Update rotation part of transformation matrix
-    noisy_transform.block<3, 3>(0, 0) = noisy_rot;
-    
-    return noisy_transform;
+    return result;
 }
 
 } // namespace pcl_utils

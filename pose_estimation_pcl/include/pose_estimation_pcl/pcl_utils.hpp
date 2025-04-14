@@ -12,7 +12,110 @@
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_broadcaster.h>
 
+// Add to pcl_utils.hpp
 namespace pcl_utils {
+
+// Define color constants
+const std::vector<std::array<uint8_t, 3>> DEFAULT_COLORS = {
+    {255, 0, 0},    // Red
+    {0, 255, 0},    // Green
+    {0, 0, 255},    // Blue
+    {255, 255, 0},  // Yellow
+    {255, 0, 255},  // Magenta
+    {0, 255, 255},  // Cyan
+    {255, 128, 0},  // Orange
+    {128, 0, 255},  // Purple
+    {0, 128, 255},  // Light Blue
+    {255, 0, 128}   // Pink
+};
+
+struct ClusteringResult {
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_cloud;
+    std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr> individual_clusters;
+    
+    ClusteringResult() 
+        : colored_cloud(new pcl::PointCloud<pcl::PointXYZRGB>()) 
+    {}
+};
+
+struct PlaneSegmentationResult {
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr remaining_cloud;
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr planes_cloud;
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr largest_plane_cloud;
+    
+    PlaneSegmentationResult()
+        : remaining_cloud(new pcl::PointCloud<pcl::PointXYZRGB>()),
+          planes_cloud(new pcl::PointCloud<pcl::PointXYZRGB>()),
+          largest_plane_cloud(new pcl::PointCloud<pcl::PointXYZRGB>())
+    {}
+};
+
+/**
+ * @brief Preprocess a point cloud by downsampling and filtering
+ * 
+ * @param input_cloud Input point cloud
+ * @param voxel_size Voxel size for downsampling
+ * @param logger ROS logger for output messages
+ * @return pcl::PointCloud<pcl::PointXYZRGB>::Ptr Preprocessed cloud
+ */
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr preprocess_pointcloud(
+    const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,
+    double voxel_size,
+    const rclcpp::Logger& logger);
+
+/**
+ * @brief Detect and remove planes from point cloud
+ * 
+ * @param input_cloud Input point cloud
+ * @param logger ROS logger for output
+ * @param colorize_planes Whether to color the planes
+ * @param min_plane_points Minimum points to consider a plane
+ * @param min_remaining_percent Minimum percentage of points to remain
+ * @param max_planes Maximum number of planes to extract
+ * @return PlaneSegmentationResult Segmentation result with planes and remaining points
+ */
+PlaneSegmentationResult detect_and_remove_planes(
+    const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,
+    const rclcpp::Logger& logger,
+    bool colorize_planes = true,
+    size_t min_plane_points = 800,
+    float min_remaining_percent = 0.2,
+    int max_planes = 3);
+
+/**
+ * @brief Cluster a point cloud into separate objects
+ * 
+ * @param input_cloud Input point cloud
+ * @param logger ROS logger for output
+ * @param cluster_tolerance Distance tolerance for clustering
+ * @param min_cluster_size Minimum points per cluster
+ * @param max_cluster_size Maximum points per cluster
+ * @return ClusteringResult Clustered point cloud
+ */
+ClusteringResult cluster_point_cloud(
+    const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,
+    const rclcpp::Logger& logger,
+    double cluster_tolerance = 0.02,
+    int min_cluster_size = 100,
+    int max_cluster_size = 25000);
+
+/**
+ * @brief Run GICP registration
+ * 
+ * @param source_cloud Source point cloud
+ * @param target_cloud Target point cloud
+ * @param initial_transform Initial transformation
+ * @param result_transform Output transformation
+ * @param fitness_score Output fitness score
+ * @return bool True if registration converged
+ */
+bool runGICP(
+    const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& source_cloud,
+    const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& target_cloud,
+    const Eigen::Matrix4f& initial_transform,
+    Eigen::Matrix4f& result_transform,
+    float& fitness_score);
+
 
 /**
  * @brief Convert ROS PointCloud2 message to PCL cloud with RGB data
@@ -36,22 +139,6 @@ void saveToPCD(
     const rclcpp::Logger& logger);
 
 /**
- * @brief Convert Eigen transformation matrix to ROS Pose message
- * 
- * @param transform 4x4 transformation matrix 
- * @return geometry_msgs::msg::Pose Converted pose message
- */
-geometry_msgs::msg::Pose matrix_to_pose(const Eigen::Matrix4f& transform);
-
-/**
- * @brief Convert ROS Pose message to Eigen transformation matrix
- * 
- * @param pose ROS Pose message
- * @return Eigen::Matrix4f 4x4 transformation matrix
- */
-Eigen::Matrix4f pose_to_matrix(const geometry_msgs::msg::Pose& pose);
-
-/**
  * @brief Load a model PCD file
  * 
  * @param filename PCD file path
@@ -62,72 +149,8 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr loadModelPCD(
     const std::string& filename,
     const rclcpp::Logger& logger);
 
-/**
- * Convert a 4x4 transformation matrix to a ROS Pose.
- * 
- * @param matrix 4x4 transformation matrix (Eigen::Matrix4d)
- * @return ROS Pose message
- */
-geometry_msgs::msg::Pose matrixToPose(const Eigen::Matrix4d& matrix);
 
-/**
- * @brief Transform object pose from map frame to camera frame
- * 
- * @param pc2_msg PointCloud2 message (used for header info)
- * @param tf_buffer TF2 buffer for transformation lookups
- * @param obj_frame Object frame name (default: "handrail")
- * @param logger Logger for output messages
- * @return Eigen::Matrix4f Transformed object pose as matrix, or identity if transform failed
- */
-Eigen::Matrix4f transform_obj_pose(
-    const sensor_msgs::msg::PointCloud2::SharedPtr& pc2_msg,
-    tf2_ros::Buffer& tf_buffer,
-    const std::string& obj_frame,
-    const rclcpp::Logger& logger);
 
-/**
- * @brief Create a TransformStamped message from a transformation matrix
- * 
- * @param transform The 4x4 transformation matrix
- * @param header_stamp The timestamp for the transform header
- * @param header_frame_id The frame ID for the transform header
- * @param child_frame_id The child frame ID for the transform
- * @return geometry_msgs::msg::TransformStamped The created TransformStamped message
- */
-geometry_msgs::msg::TransformStamped create_transform_stamped(
-    const Eigen::Matrix4f& transform,
-    const rclcpp::Time& header_stamp,
-    const std::string& header_frame_id,
-    const std::string& child_frame_id);
-
-/**
- * @brief Broadcast a transformation matrix to the TF tree
- * 
- * @param broadcaster The TF broadcaster
- * @param transform The 4x4 transformation matrix
- * @param header_stamp The timestamp for the transform header
- * @param header_frame_id The frame ID for the transform header
- * @param child_frame_id The child frame ID for the transform
- */
-void broadcast_transform(
-    std::shared_ptr<tf2_ros::TransformBroadcaster>& broadcaster,
-    const Eigen::Matrix4f& transform,
-    const rclcpp::Time& header_stamp,
-    const std::string& header_frame_id,
-    const std::string& child_frame_id);
-
-/**
- * @brief Apply Gaussian noise to a transformation matrix
- * 
- * @param transform The original transformation matrix
- * @param t_std Standard deviation for translation noise
- * @param r_std Standard deviation for rotation noise
- * @return Eigen::Matrix4f The noisy transformation matrix
- */
-Eigen::Matrix4f apply_noise_to_transform(
-    const Eigen::Matrix4f& transform, 
-    float t_std, 
-    float r_std);
 
 
 } // namespace pcl_utils

@@ -49,6 +49,7 @@ add_definitions(
 add_executable(pose_estimation_pcl 
   src/pose_estimation_pcl.cpp
   src/pcl_utils.cpp
+  src/ros_utils.cpp
   src/go_icp_wrapper.cpp
   # src/go_icp_registration.cpp
 )
