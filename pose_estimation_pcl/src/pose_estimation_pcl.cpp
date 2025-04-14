@@ -520,8 +520,8 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr cluster_point_cloud(
     ec.setInputCloud(input_cloud);
     
     // Perform clustering
-    RCLCPP_INFO(logger, "Starting clustering with tolerance=%.3f, min_size=%d, max_size=%d",
-              cluster_tolerance, min_cluster_size, max_cluster_size);
+    // RCLCPP_INFO(logger, "Starting clustering with tolerance=%.3f, min_size=%d, max_size=%d",
+    //           cluster_tolerance, min_cluster_size, max_cluster_size);
     
     ec.extract(cluster_indices);
     
@@ -531,7 +531,7 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr cluster_point_cloud(
         return input_cloud;  // Return original cloud if no clusters found
     }
     
-    RCLCPP_INFO(logger, "Found %ld clusters", cluster_indices.size());
+    // RCLCPP_INFO(logger, "Found %ld clusters", cluster_indices.size());
     
     // Extract and color each cluster
     for (size_t i = 0; i < cluster_indices.size(); ++i) {
@@ -557,8 +557,8 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr cluster_point_cloud(
         cluster_cloud->height = 1;
         cluster_cloud->is_dense = true;
         
-        RCLCPP_INFO(logger, "Cluster %ld: %ld points, color RGB(%d,%d,%d)",
-                  i, cluster_cloud->size(), color[0], color[1], color[2]);
+        // RCLCPP_INFO(logger, "Cluster %ld: %ld points, color RGB(%d,%d,%d)",
+        //           i, cluster_cloud->size(), color[0], color[1], color[2]);
         
         // Add this cluster to the output cloud
         *colored_cloud += *cluster_cloud;
@@ -569,8 +569,9 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr cluster_point_cloud(
     double execution_time = std::chrono::duration<double>(end_time - start_time).count();
     
     RCLCPP_INFO(logger, "Clustering completed in %.3f seconds", execution_time);
-    RCLCPP_INFO(logger, "Output cloud has %ld points across %ld clusters", 
-              colored_cloud->size(), cluster_indices.size());
+    // RCLCPP_INFO(logger, "Output cloud has %ld points across %ld clusters", 
+    //           colored_cloud->size(), cluster_indices.size());
+    
     
     return colored_cloud;
 }

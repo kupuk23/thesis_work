@@ -16,7 +16,7 @@ def generate_launch_description():
         executable='pose_estimation_pcl',
         name='pose_estimation_pcl',
         parameters=[config_file],
-        prefix='gdbserver localhost:3000',
+        # prefix='gdbserver localhost:3000',
         output='screen',
     )
     

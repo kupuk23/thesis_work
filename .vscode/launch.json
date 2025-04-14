@@ -2,6 +2,15 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "(gdb) Launch",
+            "type": "cppdbg",
+            "request": "launch",
+            "miDebuggerServerAddress": "localhost:3000",
+            "cwd": "/",
+            "externalConsole": true,
+            "program": "/home/tafarrel/ros2_ws/install/pose_estimation_pcl/lib/pose_estimation_pcl/pose_estimation_pcl"
+        },
+        {
             "name": "C++ Debugger",
             "request": "launch",
             "type": "cppdbg",
