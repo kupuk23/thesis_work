@@ -136,10 +136,10 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr loadModelPCD(
 // Function to cluster a point cloud and color each cluster
 ClusteringResult cluster_point_cloud(
     const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,
-    const rclcpp::Logger& logger,
     double cluster_tolerance,
     int min_cluster_size,
-    int max_cluster_size
+    int max_cluster_size,
+    const rclcpp::Logger& logger
 ) {
     // Start timing
     auto start_time = std::chrono::high_resolution_clock::now();
@@ -161,8 +161,8 @@ ec.setSearchMethod(tree);
 ec.setInputCloud(input_cloud);
 
 // Perform clustering
-RCLCPP_INFO(logger, "Starting clustering with tolerance=%.3f, min_size=%d, max_size=%d",
-        cluster_tolerance, min_cluster_size, max_cluster_size);
+// RCLCPP_INFO(logger, "Starting clustering with tolerance=%.3f, min_size=%d, max_size=%d",
+//         cluster_tolerance, min_cluster_size, max_cluster_size);
 
 ec.extract(cluster_indices);
 
@@ -172,7 +172,7 @@ if (cluster_indices.empty()) {
     result.colored_cloud = input_cloud;  // Return original cloud if no clusters found
     return result;
 }
-RCLCPP_INFO(logger, "Found %ld clusters", cluster_indices.size());
+// RCLCPP_INFO(logger, "Found %ld clusters", cluster_indices.size());
 
 // Reserve space for individual clusters
 result.individual_clusters.resize(cluster_indices.size());
@@ -201,8 +201,8 @@ for (size_t i = 0; i < cluster_indices.size(); ++i) {
     result.individual_clusters[i]->height = 1;
     result.individual_clusters[i]->is_dense = true;
     
-    RCLCPP_INFO(logger, "Cluster %ld: %ld points, color RGB(%d,%d,%d)",
-            i, result.individual_clusters[i]->size(), color[0], color[1], color[2]);
+    // RCLCPP_INFO(logger, "Cluster %ld: %ld points, color RGB(%d,%d,%d)",
+    //         i, result.individual_clusters[i]->size(), color[0], color[1], color[2]);
     
     // Add this cluster to the output cloud
     *result.colored_cloud += *result.individual_clusters[i];
@@ -434,7 +434,7 @@ std::vector<ClusterFeatures> computeFPFHFeatures(
             
             // Visualize normals if requested
             if (visualize_normals) {
-                RCLCPP_INFO(logger, "Visualizing normals for cluster %ld", i);
+                // RCLCPP_INFO(logger, "Visualizing normals for cluster %ld", i);
                 std::string window_name = "Normals for Cluster " + std::to_string(i);
                 visualizeNormals(xyz_cloud, normals, 0.02, 3, window_name);
             }
@@ -488,8 +488,8 @@ std::vector<ClusterFeatures> computeFPFHFeatures(
             auto end_time = std::chrono::high_resolution_clock::now();
             double execution_time = std::chrono::duration<double>(end_time - start_time).count();
             
-            RCLCPP_INFO(logger, "Cluster %ld: Computed %ld normalized FPFH features in %.3f seconds",
-                      i, num_features, execution_time);
+            // RCLCPP_INFO(logger, "Cluster %ld: Computed %ld normalized FPFH features in %.3f seconds",
+            //           i, num_features, execution_time);
             
             results.push_back(cluster_result);
             

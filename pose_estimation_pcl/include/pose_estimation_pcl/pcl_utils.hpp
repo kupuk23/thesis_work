@@ -123,10 +123,10 @@ PlaneSegmentationResult detect_and_remove_planes(
  */
 ClusteringResult cluster_point_cloud(
     const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,
-    const rclcpp::Logger& logger,
     double cluster_tolerance = 0.02,
     int min_cluster_size = 100,
-    int max_cluster_size = 25000);
+    int max_cluster_size = 25000,
+    const rclcpp::Logger& logger = rclcpp::get_logger("cluster_point_cloud"));
 
 /**
  * @brief Run GICP registration

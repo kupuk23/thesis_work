@@ -1,4 +1,7 @@
 #include <rclcpp/rclcpp.hpp>
+#include <rclcpp/parameter_events_filter.hpp>
+#include <std_msgs/msg/float32_multi_array.hpp>
+
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <pcl/point_cloud.h>
@@ -67,6 +70,7 @@ public:
         visualize_normals_ = this->declare_parameter<bool>("visualize_normals", false);
         normal_radius_ = this->declare_parameter<double>("normal_radius", 0.03);
         fpfh_radius_ = this->declare_parameter<double>("fpfh_radius", 0.05);
+        similarity_threshold_ = this->declare_parameter<double>("similarity_threshold", 0.6);
 
 
         // Plane segmentation parameters
@@ -74,6 +78,9 @@ public:
         max_plane_iterations_ = this->declare_parameter<int>("max_plane_iterations", 100);
         min_plane_points_ = this->declare_parameter<int>("min_plane_points", 800);
         max_planes_ = this->declare_parameter<int>("max_planes", 3);
+
+        array_publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>("array_topic", 10);
+
         
         // Registration error thresholds
         gicp_fitness_threshold_ = this->declare_parameter<double>("gicp_fitness_threshold", 0.05);
@@ -91,6 +98,11 @@ public:
             rclcpp::CallbackGroupType::MutuallyExclusive);
         callback_group_processing_ = this->create_callback_group(
             rclcpp::CallbackGroupType::MutuallyExclusive);
+        
+        // Set up the parameter callback
+        parameter_callback_handle_ = this->add_on_set_parameters_callback(
+            std::bind(&PoseEstimationPCL::parametersCallback, this, std::placeholders::_1));
+        
             
         // Configure subscription options with callback group
         auto subscription_options = rclcpp::SubscriptionOptions();
@@ -117,6 +129,12 @@ public:
         plane_debug_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/debug_plane_pointcloud", 1);
         filtered_plane_debug_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/debug_filtered_plane_pointcloud", 1);
         clustered_plane_debug_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/debug_clustered_plane_pointcloud", 1);
+
+        array_publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>(
+            "/pose_estimation/array_data", 10);
+        
+        // TODO: publish similarity result to array topic,
+        // TODO: Check the dynamic reconfigure for the params 
 
         
         // Load model cloud
@@ -465,18 +483,17 @@ void publishRegistrationResults(
 
         // cluster the pointclouds
         // TODO: COMMENT UNUSED LOGGER
-        auto clustering_result = pcl_utils::cluster_point_cloud(segmentation_result.remaining_cloud, this->get_logger(), cluster_tolerance_, min_cluster_size_, max_cluster_size_);
+        auto clustering_result = pcl_utils::cluster_point_cloud(segmentation_result.remaining_cloud, cluster_tolerance_, min_cluster_size_, max_cluster_size_);
         
         
         auto cluster_features = pcl_utils::computeFPFHFeatures(clustering_result.individual_clusters,
             normal_radius_,  // normal radius - adjust based on your point cloud density
             fpfh_radius_,  // feature radius - adjust based on your point cloud density
             0,     // auto-detect thread count
-            visualize_normals_,
-            this->get_logger()
+            visualize_normals_
         );        
 
-        auto model_features_vector = pcl_utils::computeFPFHFeatures(model_vector, normal_radius_, fpfh_radius_, 0, visualize_normals_, this->get_logger());
+        auto model_features_vector = pcl_utils::computeFPFHFeatures(model_vector, normal_radius_, fpfh_radius_, 0, visualize_normals_);
         
         if (!model_features_vector.empty()) {
             model_features = model_features_vector[0];
@@ -489,7 +506,7 @@ void publishRegistrationResults(
         auto cluster_idx = pcl_utils::findBestClusterByHistogram(
             model_features,
             cluster_features,
-            0.7,
+            similarity_threshold_,
             this->get_logger()
         );
 
@@ -515,6 +532,85 @@ void publishRegistrationResults(
         return filtered_cloud;
     }
 
+    // Parameter callback function to handle dynamic updates
+    rcl_interfaces::msg::SetParametersResult parametersCallback(
+        const std::vector<rclcpp::Parameter>& parameters) {
+        
+        rcl_interfaces::msg::SetParametersResult result;
+        result.successful = true;
+        result.reason = "success";
+        
+        for (const auto& param : parameters) {
+            if (param.get_name() == "voxel_size") {
+                voxel_size_ = param.as_double();
+                RCLCPP_INFO(this->get_logger(), "Updated voxel_size: %.3f", voxel_size_);
+            } else if (param.get_name() == "save_debug_clouds") {
+                save_debug_clouds_ = param.as_bool();
+                RCLCPP_INFO(this->get_logger(), "Updated save_debug_clouds: %s", save_debug_clouds_ ? "true" : "false");
+            } else if (param.get_name() == "object_frame") {
+                object_frame_ = param.as_string();
+                RCLCPP_INFO(this->get_logger(), "Updated object_frame: %s", object_frame_.c_str());
+                
+                // Reload model cloud if object_frame changes
+                if (object_frame_ == "grapple") 
+                    model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/grapple_fixture_v2.pcd", this->get_logger());
+                else if (object_frame_ == "handrail")
+                    model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/handrail_pcd_down.pcd", this->get_logger());
+                else if (object_frame_ == "docking_st")
+                    model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/astrobee_dock_ds.pcd", this->get_logger());
+                
+                // Reset tracking when object changes
+                tracking_initialized_ = false;
+            } else if (param.get_name() == "processing_period_ms") {
+                processing_period_ms_ = param.as_int();
+                RCLCPP_INFO(this->get_logger(), "Updated processing_period_ms: %d", processing_period_ms_);
+                
+                // Update the timer period
+                processing_timer_->cancel();
+                processing_timer_ = this->create_wall_timer(
+                    std::chrono::milliseconds(processing_period_ms_),
+                    std::bind(&PoseEstimationPCL::process_data, this),
+                    callback_group_processing_);
+            } else if (param.get_name() == "use_goicp") {
+                use_goicp_ = param.as_bool();
+                RCLCPP_INFO(this->get_logger(), "Updated use_goicp: %s", use_goicp_ ? "true" : "false");
+                
+                // Reset tracking when switching registration method
+                tracking_initialized_ = false;
+            } else if (param.get_name() == "goicp_debug") {
+                goicp_debug_ = param.as_bool();
+                RCLCPP_INFO(this->get_logger(), "Updated goicp_debug: %s", goicp_debug_ ? "true" : "false");
+            } else if (param.get_name() == "cluster_tolerance") {
+                cluster_tolerance_ = param.as_double();
+                RCLCPP_INFO(this->get_logger(), "Updated cluster_tolerance: %.3f", cluster_tolerance_);
+            } else if (param.get_name() == "min_cluster_size") {
+                min_cluster_size_ = param.as_int();
+                RCLCPP_INFO(this->get_logger(), "Updated min_cluster_size: %d", min_cluster_size_);
+            } else if (param.get_name() == "max_cluster_size") {
+                max_cluster_size_ = param.as_int();
+                RCLCPP_INFO(this->get_logger(), "Updated max_cluster_size: %d", max_cluster_size_);
+            } else if (param.get_name() == "plane_distance_threshold") {
+                plane_distance_threshold_ = param.as_double();
+                RCLCPP_INFO(this->get_logger(), "Updated plane_distance_threshold: %.3f", plane_distance_threshold_);
+            } else if (param.get_name() == "max_plane_iterations") {
+                max_plane_iterations_ = param.as_int();
+                RCLCPP_INFO(this->get_logger(), "Updated max_plane_iterations: %d", max_plane_iterations_);
+            } else if (param.get_name() == "min_plane_points") {
+                min_plane_points_ = param.as_int();
+                RCLCPP_INFO(this->get_logger(), "Updated min_plane_points: %d", min_plane_points_);
+            } else if (param.get_name() == "max_planes") {
+                max_planes_ = param.as_int();
+                RCLCPP_INFO(this->get_logger(), "Updated max_planes: %d", max_planes_);
+            } else if (param.get_name() == "gicp_fitness_threshold") {
+                gicp_fitness_threshold_ = param.as_double();
+                RCLCPP_INFO(this->get_logger(), "Updated gicp_fitness_threshold: %.3f", gicp_fitness_threshold_);
+            } else {
+                RCLCPP_WARN(this->get_logger(), "Unknown parameter: %s", param.get_name().c_str());
+            }
+        }
+        
+        return result;
+    }
 
     // Node members
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloud_subscription_;
@@ -525,11 +621,14 @@ void publishRegistrationResults(
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr plane_debug_pub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr filtered_plane_debug_pub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr clustered_plane_debug_pub_;
+    rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr array_publisher_;
     
     
     // Callback groups for concurrent execution
     rclcpp::CallbackGroup::SharedPtr callback_group_subscription_;
     rclcpp::CallbackGroup::SharedPtr callback_group_processing_;
+    OnSetParametersCallbackHandle::SharedPtr parameter_callback_handle_;
+
     
     // General Parameters
     double voxel_size_;
@@ -539,9 +638,13 @@ void publishRegistrationResults(
     bool use_goicp_;
     bool goicp_debug_;
     double gicp_fitness_threshold_;
+    
+    
 
-    // 3D descriptor parameters
+    // 3D descriptor parameters 
     pcl_utils::ClusterFeatures model_features;
+    std::array<float, 4> clusters_similarity = {0.0f, 0.0f, 0.0f, 0.0f};
+
     
     //clustering parameters
     double cluster_tolerance_;
@@ -550,7 +653,7 @@ void publishRegistrationResults(
     bool visualize_normals_;
     float normal_radius_;
     float fpfh_radius_;
-
+    double similarity_threshold_;
 
     // Plane segmentation parameters 
     double plane_distance_threshold_;
