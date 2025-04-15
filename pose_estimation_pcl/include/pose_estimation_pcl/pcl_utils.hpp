@@ -29,6 +29,7 @@ const std::vector<std::array<uint8_t, 3>> DEFAULT_COLORS = {
     {255, 0, 128}   // Pink
 };
 
+// Structure to hold clustering results
 struct ClusteringResult {
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_cloud;
     std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr> individual_clusters;
@@ -38,6 +39,7 @@ struct ClusteringResult {
     {}
 };
 
+// Structure to hold plane segmentation results
 struct PlaneSegmentationResult {
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr remaining_cloud;
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr planes_cloud;
@@ -49,6 +51,33 @@ struct PlaneSegmentationResult {
           largest_plane_cloud(new pcl::PointCloud<pcl::PointXYZRGB>())
     {}
 };
+
+// Structure to hold FPFH features and their average
+struct ClusterFeatures {
+    pcl::PointCloud<pcl::FPFHSignature33>::Ptr fpfh_features;
+    pcl::FPFHSignature33 average_fpfh;
+    
+    ClusterFeatures() : fpfh_features(new pcl::PointCloud<pcl::FPFHSignature33>()) {}
+};
+
+/**
+ * @brief Visualize point cloud with normals for debugging
+ * 
+ * @param cloud Input point cloud
+ * @param normals Computed surface normals
+ * @param normal_length Display length of normal vectors (default: 0.02)
+ * @param point_size Size of points in visualization (default: 3)
+ * @param window_name Name of the visualization window (default: "Cloud with Normals")
+ * @param blocking If true, blocks until window is closed (default: true)
+ */
+void visualizeNormals(
+    const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
+    const pcl::PointCloud<pcl::Normal>::Ptr& normals,
+    float normal_length = 0.02,
+    int point_size = 3,
+    const std::string& window_name = "Cloud with Normals",
+    bool blocking = true);
+
 
 /**
  * @brief Preprocess a point cloud by downsampling and filtering
@@ -149,7 +178,24 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr loadModelPCD(
     const std::string& filename,
     const rclcpp::Logger& logger);
 
-
+/**
+ * @brief Compute FPFH features for each cluster
+ * 
+ * @param clusters Vector of point clouds, one for each cluster
+ * @param normal_radius Radius for normal estimation
+ * @param feature_radius Radius for FPFH feature computation
+ * @param num_threads Number of threads to use (0 = auto-detect)
+ * @param visualize_normals Whether to visualize normals
+ * @param logger Logger for output messages
+ * @return std::vector<ClusterFeatures> Vector of features for each cluster
+ */
+std::vector<ClusterFeatures> computeFPFHFeatures(
+    const std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr>& clusters,
+    float normal_radius = 0.03,
+    float feature_radius = 0.5,
+    int num_threads = 0,
+    bool visualize_normals = false,
+    const rclcpp::Logger& logger = rclcpp::get_logger("fpfh_computation"));
 
 
 

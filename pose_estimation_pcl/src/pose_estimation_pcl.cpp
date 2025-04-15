@@ -62,6 +62,13 @@ public:
         cluster_tolerance_ = this->declare_parameter<double>("cluster_tolerance", 0.02);
         min_cluster_size_ = this->declare_parameter<int>("min_cluster_size", 100);
         max_cluster_size_ = this->declare_parameter<int>("max_cluster_size", 25000);
+
+        // 3D Descriptor parameters
+        visualize_normals_ = this->declare_parameter<bool>("visualize_normals", false);
+        normal_radius_ = this->declare_parameter<double>("normal_radius", 0.03);
+        fpfh_radius_ = this->declare_parameter<double>("fpfh_radius", 0.05);
+
+
         // Plane segmentation parameters
         plane_distance_threshold_ = this->declare_parameter<double>("plane_distance_threshold", 0.01);
         max_plane_iterations_ = this->declare_parameter<int>("max_plane_iterations", 100);
@@ -458,9 +465,16 @@ void publishRegistrationResults(
         // cluster the pointclouds
         auto clustering_result = pcl_utils::cluster_point_cloud(segmentation_result.remaining_cloud, this->get_logger(), cluster_tolerance_, min_cluster_size_, max_cluster_size_);
         
-        
         // TODO: apply FPFH features to the segments and model pcd. Use the clustering_result.individual_clusters to find the normals and 3D descriptor, then compare with model descriptor.
 
+        auto cluster_features = pcl_utils::computeFPFHFeatures(clustering_result.individual_clusters,
+            normal_radius_,  // normal radius - adjust based on your point cloud density
+            fpfh_radius_,  // feature radius - adjust based on your point cloud density
+            0,     // auto-detect thread count
+            visualize_normals_,
+            this->get_logger()
+        );        
+        
 
         // If you want to publish the planes cloud:
         if (save_debug_clouds_ && segmentation_result.planes_cloud->size() > 0) {
@@ -514,6 +528,9 @@ void publishRegistrationResults(
     double cluster_tolerance_;
     int min_cluster_size_;
     int max_cluster_size_;
+    bool visualize_normals_;
+    float normal_radius_;
+    float fpfh_radius_;
 
     // Plane segmentation parameters 
     double plane_distance_threshold_;

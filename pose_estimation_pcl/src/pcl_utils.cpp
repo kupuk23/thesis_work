@@ -1,5 +1,5 @@
 #include "pose_estimation_pcl/pcl_utils.hpp"
-#include <pcl_conversions/pcl_conversions.h>
+// #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/io/pcd_io.h>
 #include <Eigen/Geometry>
 #include <sensor_msgs/point_cloud2_iterator.hpp>
@@ -13,12 +13,53 @@
 #include <pcl/ModelCoefficients.h>
 
 #include <pcl/filters/extract_indices.h>
-#include <pcl/features/normal_3d.h>
-#include <pcl/features/fpfh.h>
+#include <pcl/features/normal_3d_omp.h>
+#include <pcl/features/fpfh_omp.h>
+#include <pcl/visualization/pcl_visualizer.h>
 
 
 
 namespace pcl_utils {
+
+
+void visualizeNormals(
+    const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
+    const pcl::PointCloud<pcl::Normal>::Ptr& normals,
+    float normal_length,
+    int point_size,
+    const std::string& window_name,
+    bool blocking) {
+    
+    // Create visualizer
+    pcl::visualization::PCLVisualizer::Ptr viewer(new pcl::visualization::PCLVisualizer(window_name));
+    viewer->setBackgroundColor(0, 0, 0);
+    
+    // Add point cloud
+    pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZ> cloud_color_handler(cloud, 255, 255, 255);
+    viewer->addPointCloud<pcl::PointXYZ>(cloud, cloud_color_handler, "cloud");
+    viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, point_size, "cloud");
+    
+    // Add normals
+    viewer->addPointCloudNormals<pcl::PointXYZ, pcl::Normal>(cloud, normals, 10, normal_length, "normals");
+    viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 1.0, 0.0, 0.0, "normals");
+    viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_LINE_WIDTH, 2, "normals");
+    
+    // Add coordinate system
+    viewer->addCoordinateSystem(0.1);
+    
+    // Set camera position
+    viewer->initCameraParameters();
+    
+    // Display the visualizer
+    std::cout << "Press 'q' to close the visualizer window when done viewing." << std::endl;
+    
+    if (blocking) {
+        viewer->spin();
+    } else {
+        // Just display and return immediately
+        viewer->spinOnce(100);
+    }
+}
 
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr convertPointCloud2ToPCL(
     const sensor_msgs::msg::PointCloud2::SharedPtr& cloud_msg) {
@@ -322,6 +363,113 @@ PlaneSegmentationResult detect_and_remove_planes(
                plane_count, result.planes_cloud->size());
     
     return result;
+}
+
+std::vector<ClusterFeatures> computeFPFHFeatures(
+    const std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr>& clusters,
+    float normal_radius,
+    float feature_radius,
+    int num_threads,
+    bool visualize_normals,
+    const rclcpp::Logger& logger) {
+    
+    std::vector<ClusterFeatures> results;
+    results.reserve(clusters.size());
+    
+    RCLCPP_INFO(logger, "Computing FPFH features for %ld clusters", clusters.size());
+    
+    // Process each cluster
+    for (size_t i = 0; i < clusters.size(); ++i) {
+        auto start_time = std::chrono::high_resolution_clock::now();
+        
+        // Convert RGB to XYZ (FPFH works with XYZ points)
+        pcl::PointCloud<pcl::PointXYZ>::Ptr xyz_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+        xyz_cloud->points.resize(clusters[i]->size());
+        xyz_cloud->width = clusters[i]->width;
+        xyz_cloud->height = clusters[i]->height;
+        xyz_cloud->is_dense = clusters[i]->is_dense;
+        
+        for (size_t j = 0; j < clusters[i]->size(); ++j) {
+            xyz_cloud->points[j].x = clusters[i]->points[j].x;
+            xyz_cloud->points[j].y = clusters[i]->points[j].y;
+            xyz_cloud->points[j].z = clusters[i]->points[j].z;
+        }
+        
+        // Skip if cluster has too few points
+        if (xyz_cloud->size() < 10) {
+            RCLCPP_WARN(logger, "Cluster %ld has only %ld points, skipping feature computation", 
+                        i, xyz_cloud->size());
+            continue;
+        }
+        
+        // Create a new result for this cluster
+        ClusterFeatures cluster_result;
+        
+        try {
+            // Create search method
+            pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>());
+            
+            // Estimate normals using OMP version for parallel processing
+            pcl::NormalEstimationOMP<pcl::PointXYZ, pcl::Normal> normal_estimator;
+            if (num_threads > 0) normal_estimator.setNumberOfThreads(num_threads);
+            
+            pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>());
+            
+            normal_estimator.setInputCloud(xyz_cloud);
+            normal_estimator.setSearchMethod(tree);
+            normal_estimator.setRadiusSearch(normal_radius);
+            normal_estimator.compute(*normals);
+
+            // Visualize normals if requested
+            if (visualize_normals) {
+                RCLCPP_INFO(logger, "Visualizing normals for cluster %ld", i);
+                std::string window_name = "Normals for Cluster " + std::to_string(i);
+                visualizeNormals(xyz_cloud, normals, 0.02, 3, window_name);
+            }
+            
+            // Compute FPFH features using OMP version
+            pcl::FPFHEstimationOMP<pcl::PointXYZ, pcl::Normal, pcl::FPFHSignature33> fpfh;
+            if (num_threads > 0) fpfh.setNumberOfThreads(num_threads);
+            
+            fpfh.setInputCloud(xyz_cloud);
+            fpfh.setInputNormals(normals);
+            fpfh.setSearchMethod(tree);
+            fpfh.setRadiusSearch(feature_radius);
+            fpfh.compute(*(cluster_result.fpfh_features));
+            
+            // Compute average FPFH descriptor
+            for (int j = 0; j < 33; ++j) {
+                cluster_result.average_fpfh.histogram[j] = 0;
+            }
+            
+            for (size_t j = 0; j < cluster_result.fpfh_features->size(); ++j) {
+                for (int k = 0; k < 33; ++k) {
+                    cluster_result.average_fpfh.histogram[k] += 
+                        cluster_result.fpfh_features->points[j].histogram[k];
+                }
+            }
+            
+            for (int j = 0; j < 33; ++j) {
+                cluster_result.average_fpfh.histogram[j] /= cluster_result.fpfh_features->size();
+            }
+            
+            auto end_time = std::chrono::high_resolution_clock::now();
+            double execution_time = std::chrono::duration<double>(end_time - start_time).count();
+            
+            RCLCPP_INFO(logger, "Cluster %ld: Computed %ld FPFH features in %.3f seconds",
+                      i, cluster_result.fpfh_features->size(), execution_time);
+            
+            results.push_back(cluster_result);
+            
+        } catch (const std::exception& e) {
+            RCLCPP_ERROR(logger, "Error computing features for cluster %ld: %s", i, e.what());
+        }
+    }
+    
+    RCLCPP_INFO(logger, "FPFH computation complete for %ld of %ld clusters", 
+               results.size(), clusters.size());
+    
+    return results;
 }
 
 } // namespace pcl_utils

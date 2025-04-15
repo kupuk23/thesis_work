@@ -21,6 +21,11 @@ pose_estimation_pcl:
     cluster_tolerance: 0.03 #in meters, default is 0.03
     min_cluster_size: 250 #250
     max_cluster_size: 75000 #50000
+
+    # 3D Descriptor Parameters
+    visualize_normals: false
+    normal_radius: 0.03
+    fpfh_radius: 0.5
     
     # Plane Segmentation Parameters
     plane_distance_threshold: 0.01
