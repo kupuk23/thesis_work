@@ -54,8 +54,8 @@ struct PlaneSegmentationResult {
 
 // Structure to hold FPFH features and their average
 struct ClusterFeatures {
-    pcl::PointCloud<pcl::FPFHSignature33>::Ptr fpfh_features;
-    pcl::FPFHSignature33 average_fpfh;
+    pcl::PointCloud<pcl::FPFHSignature33>::Ptr fpfh_features; // local features
+    pcl::FPFHSignature33 average_fpfh; // global average features
     
     ClusterFeatures() : fpfh_features(new pcl::PointCloud<pcl::FPFHSignature33>()) {}
 };
@@ -197,6 +197,23 @@ std::vector<ClusterFeatures> computeFPFHFeatures(
     bool visualize_normals = false,
     const rclcpp::Logger& logger = rclcpp::get_logger("fpfh_computation"));
 
+/**
+ * @brief Find the best matching cluster to the model using histogram matching
+ * 
+ * This function compares the average FPFH histograms between the model and scene clusters
+ * to identify which cluster most likely contains the target object.
+ * 
+ * @param model_features FPFH features of the model
+ * @param cluster_features Vector of FPFH features for each cluster
+ * @param similarity_threshold Minimum similarity score to consider a match valid
+ * @param logger ROS logger for output messages
+ * @return int Index of the best matching cluster or -1 if no match found
+ */
+int findBestClusterByHistogram(
+    const ClusterFeatures& model_features,
+    const std::vector<ClusterFeatures>& cluster_features,
+    float similarity_threshold = 0.7,
+    const rclcpp::Logger& logger = rclcpp::get_logger("histogram_matcher"));
 
 
 } // namespace pcl_utils

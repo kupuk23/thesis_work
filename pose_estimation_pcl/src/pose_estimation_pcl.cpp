@@ -127,6 +127,7 @@ public:
         else if (object_frame_ == "docking_st")
             model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/astrobee_dock_ds.pcd", this->get_logger());
         
+        model_vector = {model_cloud_};
 
         // Initialize processing timer in separate callback group
         processing_timer_ = this->create_wall_timer(
@@ -448,7 +449,7 @@ void publishRegistrationResults(
         
         // Filter by Z and X (matching the Python implementation)
         pcl::PassThrough<pcl::PointXYZRGB> pass_z;
-        pass_z.setInputCloud(input_cloud);
+        pass_z.setInputCloud(filtered_cloud);
         pass_z.setFilterFieldName("z");
         pass_z.setFilterLimits(-0.7, FLT_MAX);  // Z > -0.7
         pass_z.filter(*filtered_cloud);
@@ -463,10 +464,10 @@ void publishRegistrationResults(
         auto segmentation_result = pcl_utils::detect_and_remove_planes(filtered_cloud, this->get_logger(), true);
 
         // cluster the pointclouds
+        // TODO: COMMENT UNUSED LOGGER
         auto clustering_result = pcl_utils::cluster_point_cloud(segmentation_result.remaining_cloud, this->get_logger(), cluster_tolerance_, min_cluster_size_, max_cluster_size_);
         
-        // TODO: apply FPFH features to the segments and model pcd. Use the clustering_result.individual_clusters to find the normals and 3D descriptor, then compare with model descriptor.
-
+        
         auto cluster_features = pcl_utils::computeFPFHFeatures(clustering_result.individual_clusters,
             normal_radius_,  // normal radius - adjust based on your point cloud density
             fpfh_radius_,  // feature radius - adjust based on your point cloud density
@@ -474,7 +475,23 @@ void publishRegistrationResults(
             visualize_normals_,
             this->get_logger()
         );        
+
+        auto model_features_vector = pcl_utils::computeFPFHFeatures(model_vector, normal_radius_, fpfh_radius_, 0, visualize_normals_, this->get_logger());
         
+        if (!model_features_vector.empty()) {
+            model_features = model_features_vector[0];
+            RCLCPP_INFO(this->get_logger(), "Model FPFH features computed successfully");
+        } else {
+            RCLCPP_ERROR(this->get_logger(), "Failed to compute model FPFH features");
+        }
+        
+        // TODO: compare the features and find the best match for the segments
+        auto cluster_idx = pcl_utils::findBestClusterByHistogram(
+            model_features,
+            cluster_features,
+            0.7,
+            this->get_logger()
+        );
 
         // If you want to publish the planes cloud:
         if (save_debug_clouds_ && segmentation_result.planes_cloud->size() > 0) {
@@ -499,8 +516,6 @@ void publishRegistrationResults(
     }
 
 
-   
-
     // Node members
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloud_subscription_;
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr icp_result_publisher_;
@@ -511,11 +526,12 @@ void publishRegistrationResults(
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr filtered_plane_debug_pub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr clustered_plane_debug_pub_;
     
+    
     // Callback groups for concurrent execution
     rclcpp::CallbackGroup::SharedPtr callback_group_subscription_;
     rclcpp::CallbackGroup::SharedPtr callback_group_processing_;
     
-    // Parameters
+    // General Parameters
     double voxel_size_;
     bool save_debug_clouds_;
     std::string object_frame_;
@@ -523,14 +539,18 @@ void publishRegistrationResults(
     bool use_goicp_;
     bool goicp_debug_;
     double gicp_fitness_threshold_;
+
+    // 3D descriptor parameters
+    pcl_utils::ClusterFeatures model_features;
     
-    // New clustering parameters
+    //clustering parameters
     double cluster_tolerance_;
     int min_cluster_size_;
     int max_cluster_size_;
     bool visualize_normals_;
     float normal_radius_;
     float fpfh_radius_;
+
 
     // Plane segmentation parameters 
     double plane_distance_threshold_;
@@ -546,13 +566,16 @@ void publishRegistrationResults(
     
     // Point clouds
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr model_cloud_;
+    std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr> model_vector;
     
+
     // Go-ICP wrapper
     std::unique_ptr<go_icp::GoICPWrapper> goicp_wrapper_;
     
     // Data storage with thread synchronization
     std::mutex data_mutex_;
     sensor_msgs::msg::PointCloud2::SharedPtr latest_cloud_msg_;
+    
     // Eigen::Matrix4f latest_initial_transform_;
     bool has_new_data_;
     

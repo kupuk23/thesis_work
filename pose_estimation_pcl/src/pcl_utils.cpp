@@ -364,7 +364,6 @@ PlaneSegmentationResult detect_and_remove_planes(
     
     return result;
 }
-
 std::vector<ClusterFeatures> computeFPFHFeatures(
     const std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr>& clusters,
     float normal_radius,
@@ -378,18 +377,36 @@ std::vector<ClusterFeatures> computeFPFHFeatures(
     
     RCLCPP_INFO(logger, "Computing FPFH features for %ld clusters", clusters.size());
     
+    // Pre-create reusable objects
+    pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>());
+    pcl::NormalEstimationOMP<pcl::PointXYZ, pcl::Normal> normal_estimator;
+    if (num_threads > 0) normal_estimator.setNumberOfThreads(num_threads);
+    normal_estimator.setRadiusSearch(normal_radius);
+    
+    pcl::FPFHEstimationOMP<pcl::PointXYZ, pcl::Normal, pcl::FPFHSignature33> fpfh;
+    if (num_threads > 0) fpfh.setNumberOfThreads(num_threads);
+    fpfh.setRadiusSearch(feature_radius);
+    
     // Process each cluster
     for (size_t i = 0; i < clusters.size(); ++i) {
         auto start_time = std::chrono::high_resolution_clock::now();
         
-        // Convert RGB to XYZ (FPFH works with XYZ points)
-        pcl::PointCloud<pcl::PointXYZ>::Ptr xyz_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-        xyz_cloud->points.resize(clusters[i]->size());
+        // Skip empty clusters
+        if (clusters[i]->empty()) {
+            RCLCPP_WARN(logger, "Cluster %ld is empty, skipping", i);
+            continue;
+        }
+        
+        // Convert RGB to XYZ efficiently
+        pcl::PointCloud<pcl::PointXYZ>::Ptr xyz_cloud(new pcl::PointCloud<pcl::PointXYZ>());
+        xyz_cloud->resize(clusters[i]->size());
         xyz_cloud->width = clusters[i]->width;
         xyz_cloud->height = clusters[i]->height;
         xyz_cloud->is_dense = clusters[i]->is_dense;
         
+        // Use memcpy for faster copy of XYZ data
         for (size_t j = 0; j < clusters[i]->size(); ++j) {
+            // Direct assignment is faster than creating a temporary point
             xyz_cloud->points[j].x = clusters[i]->points[j].x;
             xyz_cloud->points[j].y = clusters[i]->points[j].y;
             xyz_cloud->points[j].z = clusters[i]->points[j].z;
@@ -406,20 +423,15 @@ std::vector<ClusterFeatures> computeFPFHFeatures(
         ClusterFeatures cluster_result;
         
         try {
-            // Create search method
-            pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>());
+            // Reset the KdTree for this cluster
+            tree->setInputCloud(xyz_cloud);
             
-            // Estimate normals using OMP version for parallel processing
-            pcl::NormalEstimationOMP<pcl::PointXYZ, pcl::Normal> normal_estimator;
-            if (num_threads > 0) normal_estimator.setNumberOfThreads(num_threads);
-            
+            // Compute normals
             pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>());
-            
             normal_estimator.setInputCloud(xyz_cloud);
             normal_estimator.setSearchMethod(tree);
-            normal_estimator.setRadiusSearch(normal_radius);
             normal_estimator.compute(*normals);
-
+            
             // Visualize normals if requested
             if (visualize_normals) {
                 RCLCPP_INFO(logger, "Visualizing normals for cluster %ld", i);
@@ -427,37 +439,57 @@ std::vector<ClusterFeatures> computeFPFHFeatures(
                 visualizeNormals(xyz_cloud, normals, 0.02, 3, window_name);
             }
             
-            // Compute FPFH features using OMP version
-            pcl::FPFHEstimationOMP<pcl::PointXYZ, pcl::Normal, pcl::FPFHSignature33> fpfh;
-            if (num_threads > 0) fpfh.setNumberOfThreads(num_threads);
-            
+            // Compute FPFH features
             fpfh.setInputCloud(xyz_cloud);
             fpfh.setInputNormals(normals);
             fpfh.setSearchMethod(tree);
-            fpfh.setRadiusSearch(feature_radius);
             fpfh.compute(*(cluster_result.fpfh_features));
             
-            // Compute average FPFH descriptor
-            for (int j = 0; j < 33; ++j) {
-                cluster_result.average_fpfh.histogram[j] = 0;
+            // Early exit if no features were computed
+            if (cluster_result.fpfh_features->empty()) {
+                RCLCPP_WARN(logger, "No FPFH features computed for cluster %ld", i);
+                continue;
             }
             
-            for (size_t j = 0; j < cluster_result.fpfh_features->size(); ++j) {
+            // Initialize average descriptor to zeros
+            std::fill_n(cluster_result.average_fpfh.histogram, 33, 0.0f);
+            
+            // Compute average and normalize individual features in one pass
+            const size_t num_features = cluster_result.fpfh_features->size();
+            for (size_t j = 0; j < num_features; ++j) {
+                // Get the current feature
+                pcl::FPFHSignature33& feature = cluster_result.fpfh_features->points[j];
+                
+                // Normalize the individual feature
+                float point_sum = 0.0f;
                 for (int k = 0; k < 33; ++k) {
-                    cluster_result.average_fpfh.histogram[k] += 
-                        cluster_result.fpfh_features->points[j].histogram[k];
+                    point_sum += feature.histogram[k];
+                }
+                
+                if (point_sum > 0) {
+                    // float inv_sum = 1.0f / point_sum;
+                    for (int k = 0; k < 33; ++k) {
+                        feature.histogram[k] /= point_sum;  // Normalize
+                        cluster_result.average_fpfh.histogram[k] += feature.histogram[k];
+                    }
                 }
             }
             
-            for (int j = 0; j < 33; ++j) {
-                cluster_result.average_fpfh.histogram[j] /= cluster_result.fpfh_features->size();
+            // Finalize average by dividing by number of features
+            if (num_features > 0) {
+                float inv_size = 1.0f / static_cast<float>(num_features);
+                for (int j = 0; j < 33; ++j) {
+                    cluster_result.average_fpfh.histogram[j] *= inv_size;
+                }
             }
+            
+            // Already normalized since we normalized individual features first
             
             auto end_time = std::chrono::high_resolution_clock::now();
             double execution_time = std::chrono::duration<double>(end_time - start_time).count();
             
-            RCLCPP_INFO(logger, "Cluster %ld: Computed %ld FPFH features in %.3f seconds",
-                      i, cluster_result.fpfh_features->size(), execution_time);
+            RCLCPP_INFO(logger, "Cluster %ld: Computed %ld normalized FPFH features in %.3f seconds",
+                      i, num_features, execution_time);
             
             results.push_back(cluster_result);
             
@@ -470,6 +502,68 @@ std::vector<ClusterFeatures> computeFPFHFeatures(
                results.size(), clusters.size());
     
     return results;
+}
+
+/**
+ * @brief Find the best matching cluster to the model using histogram matching
+ * 
+ * This function compares the average FPFH histograms between the model and scene clusters
+ * to identify which cluster most likely contains the target object.
+ * 
+ * @param model_features FPFH features of the model
+ * @param cluster_features Vector of FPFH features for each cluster
+ * @param similarity_threshold Minimum similarity score to consider a match valid
+ * @param logger ROS logger for output messages
+ * @return int Index of the best matching cluster or -1 if no match found
+ */
+int findBestClusterByHistogram(
+    const ClusterFeatures& model_features,
+    const std::vector<ClusterFeatures>& cluster_features,
+    float similarity_threshold ,
+    const rclcpp::Logger& logger)
+{
+    RCLCPP_INFO(logger, "Matching model with %ld clusters using histogram matching", cluster_features.size());
+    
+    int best_cluster_idx = -1;
+    float best_similarity = 0.0f;
+    
+    // Process each cluster
+    for (size_t i = 0; i < cluster_features.size(); ++i) {
+        // Skip if the cluster has no features
+        if (cluster_features[i].fpfh_features->empty()) {
+            RCLCPP_WARN(logger, "Cluster %ld has no FPFH features, skipping", i);
+            continue;
+        }
+        
+        // Compare average FPFH histograms using histogram intersection
+        float similarity = 0.0f;
+        for (int j = 0; j < 33; ++j) {
+            similarity += std::min(
+                model_features.average_fpfh.histogram[j],
+                cluster_features[i].average_fpfh.histogram[j]
+            );
+        }
+        
+        RCLCPP_INFO(logger, "Cluster %ld histogram similarity: %.4f", i, similarity);
+        
+        // Update best match if this cluster has better similarity
+        if (similarity > best_similarity) {
+            best_cluster_idx = i;
+            best_similarity = similarity;
+        }
+    }
+    
+    // Check if the best match exceeds the threshold
+    if (best_similarity < similarity_threshold) {
+        RCLCPP_WARN(logger, "Best cluster (idx: %d) similarity %.4f below threshold %.4f, rejecting match",
+                  best_cluster_idx, best_similarity, similarity_threshold);
+        return -1;
+    }
+    
+    RCLCPP_INFO(logger, "Best matching cluster: %d with similarity score: %.4f", 
+               best_cluster_idx, best_similarity);
+    
+    return best_cluster_idx;
 }
 
 } // namespace pcl_utils

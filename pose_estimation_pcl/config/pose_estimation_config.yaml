@@ -13,7 +13,7 @@ pose_estimation_pcl:
     gicp_max_iterations: 100
 
     # Point Cloud Processing Parameters
-    voxel_size: 0.2
+    voxel_size: 0.007
     save_debug_clouds: true
     object_frame: "docking_st"
     
@@ -24,8 +24,8 @@ pose_estimation_pcl:
 
     # 3D Descriptor Parameters
     visualize_normals: false
-    normal_radius: 0.03
-    fpfh_radius: 0.5
+    normal_radius: 0.05
+    fpfh_radius: 0.05
     
     # Plane Segmentation Parameters
     plane_distance_threshold: 0.01
