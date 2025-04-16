@@ -131,7 +131,7 @@ public:
         clustered_plane_debug_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/debug_clustered_plane_pointcloud", 1);
 
         array_publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>(
-            "/pose_estimation/array_data", 10);
+            "/pose_estimation/cluster_similarities", 10);
         
         // TODO: publish similarity result to array topic,
         // TODO: Check the dynamic reconfigure for the params 
@@ -153,9 +153,7 @@ public:
             std::bind(&PoseEstimationPCL::process_data, this),
             callback_group_processing_);
             
-        // Initialize empty pose
-        empty_pose_.header.frame_id = "map";  // Default frame
-        
+
         // Initialize flags and mutex
         has_new_data_ = false;
         tracking_initialized_ = false;  // Start with no tracking to force Go-ICP on first frame
@@ -252,7 +250,9 @@ void process_data() {
         
         // Check if cloud is empty
         if (preprocessed_cloud->size() < 100) {
-            publishEmptyPose(cloud_msg);
+            RCLCPP_INFO(this->get_logger(), "Scene point cloud is empty, skipping registration");
+            ros_utils::publish_empty_pose(icp_result_publisher_ ,cloud_msg);
+            tracking_initialized_ = false;
             return;
         }
         
@@ -284,17 +284,7 @@ void process_data() {
     }
 }
 
-// Publish empty pose when cloud is insufficient
-void publishEmptyPose(const sensor_msgs::msg::PointCloud2::SharedPtr& cloud_msg) {
-    RCLCPP_INFO(this->get_logger(), "Scene point cloud is empty, skipping registration");
 
-    empty_pose_.header.stamp = cloud_msg->header.stamp;
-    empty_pose_.header.frame_id = "map";
-    empty_pose_.pose = ros_utils::matrix_to_pose(Eigen::Matrix4f::Identity());
-    icp_result_publisher_->publish(empty_pose_);
-    goicp_result_publisher_->publish(empty_pose_);
-    tracking_initialized_ = false;
-}
 
 
 
@@ -687,8 +677,6 @@ void publishRegistrationResults(
     float previous_gicp_score_ = std::numeric_limits<float>::max();
     Eigen::Matrix4f previous_transformation_ = Eigen::Matrix4f::Identity();
     
-    // Pose stamped
-    geometry_msgs::msg::PoseStamped empty_pose_;
 
     
 };

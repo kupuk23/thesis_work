@@ -4,6 +4,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
+#include <std_msgs/msg/float32_multi_array.hpp> 
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <tf2_ros/transform_broadcaster.h>
@@ -12,19 +13,18 @@
 
 namespace ros_utils {
 
+// publishArray function defined in cpp
 /**
- * @brief Publish a point cloud as a ROS PointCloud2 message
+ * @brief Publish an array of floats as a ROS Float32MultiArray message
  * 
- * @param publisher Publisher to use
- * @param cloud Point cloud to publish
- * @param header_stamp Timestamp for the message
- * @param frame_id Frame ID for the message
+ * @param values Array of float values to publish
+ * @param array_publisher Publisher to use
  */
+void publishArray(const rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr& array_publisher, 
+                    const std::array<float, 4>& values 
+                  );
 
-void publish_point_cloud(
-    const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr& publisher,
-    const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,
-    const sensor_msgs::msg::PointCloud2::SharedPtr& original_msg);
+
 
 /**
  * @brief Publish a pose as a ROS PoseStamped message
@@ -46,6 +46,7 @@ void publish_pose(
  * @param publisher Publisher to use
  * @param cloud_msg Original point cloud message
  */
+
 void publish_empty_pose(
     const rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr& publisher,
     const sensor_msgs::msg::PointCloud2::SharedPtr& cloud_msg);

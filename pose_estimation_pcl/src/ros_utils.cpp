@@ -1,5 +1,6 @@
 #include <pose_estimation_pcl/ros_utils.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+#include <std_msgs/msg/float32_multi_array.hpp>
 #include <tf2_ros/transform_listener.h>
 #include <tf2/convert.h>
 #include <tf2_eigen/tf2_eigen.hpp>
@@ -180,6 +181,38 @@ Eigen::Matrix4f apply_noise_to_transform(
     noisy_transform.block<3, 3>(0, 0) = noisy_rot;
     
     return noisy_transform;
+}
+
+void publishArray(const rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr& array_publisher,
+                    const std::array<float, 4>& values
+                  ) {
+    auto message = std_msgs::msg::Float32MultiArray();
+    
+    // Set up the array structure
+    message.layout.dim.push_back(std_msgs::msg::MultiArrayDimension());
+    message.layout.dim[0].size = 4;
+    message.layout.dim[0].stride = 1;
+    message.layout.dim[0].label = "values";
+    
+    // Copy data
+    message.data.resize(4);
+    for (size_t i = 0; i < 4; i++) {
+        message.data[i] = values[i];
+    }
+    
+    // Publish
+    array_publisher->publish(message);
+}
+
+// Publish empty pose when cloud is insufficient
+void publish_empty_pose(const rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr& publisher,
+    const sensor_msgs::msg::PointCloud2::SharedPtr& cloud_msg) {
+
+    geometry_msgs::msg::PoseStamped empty_pose_;
+    empty_pose_.header.stamp = cloud_msg->header.stamp;
+    empty_pose_.header.frame_id = "map";
+    empty_pose_.pose = matrix_to_pose(Eigen::Matrix4f::Identity());
+    publisher->publish(empty_pose_);
 }
 
 } // namespace ros_utils
