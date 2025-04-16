@@ -136,6 +136,8 @@ Visualization Manager:
           Value: true
         camera_link:
           Value: true
+        docking_st_goicp:
+          Value: true
         docking_st_icp:
           Value: true
         dummy_link:
@@ -175,6 +177,8 @@ Visualization Manager:
                   camera_infra2_frame:
                     camera_infra2_optical_frame:
                       {}
+                  docking_st_goicp:
+                    {}
                   docking_st_icp:
                     {}
       Update Interval: 0
@@ -295,7 +299,7 @@ Visualization Manager:
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /ds_pc
+        Value: /pre_processed_pc
       Use Fixed Frame: true
       Use rainbow: true
       Value: true

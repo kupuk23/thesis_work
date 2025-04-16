@@ -5,14 +5,24 @@ pose_estimation_pcl:
       goicp_debug : false
       save_debug_clouds : true
       voxel_size: 0.01
-      object_frame: "docking_st"
+      object_frame: "grapple"
 
-    registration:
+    gen_icp:
+      fitness_threshold: 0.05
+      max_iteration : 75
+      transformation_epsilon: 1e-6
+      max_correspondence_distance: 0.05 # 0.1 m default
+      fitness_epsilon: 5e-4
+      ransac_threshold: 0.1
+
+    go_icp:
       use_goicp : false
-      gicp_fitness_threshold: 0.05
+      mse_threshold: 0.001
+      dt_size: 25
+      dt_expandFactor: 4.0
 
     clustering:
-      cluster_tolerance: 0.05 #in meters, default is 0.03
+      cluster_tolerance: 0.03 #in meters, default is 0.03
       min_cluster_size: 150 #250
       max_cluster_size: 75000 #50000
 
@@ -20,7 +30,7 @@ pose_estimation_pcl:
       visualize_normals: false
       normal_radius: 0.1 # the highger the more neighbor to consider, improving the normal vector
       fpfh_radius: 0.07 # the highger the more neighbor to consider, improving the descriptor
-      similarity_threshold : 0.6 #0.5
+      similarity_threshold : 0.5 #0.5
     
     plane_detection:
       plane_distance_threshold: 0.01

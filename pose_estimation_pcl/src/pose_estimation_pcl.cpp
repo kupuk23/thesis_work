@@ -40,10 +40,21 @@ public:
         voxel_size_ = this->declare_parameter("general.voxel_size", 0.05);
         object_frame_ = this->declare_parameter("general.object_frame", "grapple");
 
-        // Registration parameters
-        use_goicp_ = this->declare_parameter("registration.use_goicp", false);
-        gicp_fitness_threshold_ = this->declare_parameter("registration.gicp_fitness_threshold", 0.05);
+        // Gen ICP params
+        gicp_fitness_threshold_ = this->declare_parameter("gen_icp.fitness_threshold", 0.05);
+        gicp_max_iterations_ = this->declare_parameter("gen_icp.max_iterations", 100);
+        gicp_transformation_epsilon_ = this->declare_parameter("gen_icp.transformation_epsilon", 1e-6);
+        gicp_max_correspondence_distance_ = this->declare_parameter("gen_icp.max_correspondence_distance", 0.1);
+        gicp_euclidean_fitness_epsilon_ = this->declare_parameter("gen_icp.euclidean_fitness_epsilon", 5e-5);
+        gicp_ransac_outlier_threshold_ = this->declare_parameter("gen_icp.ransac_threshold", 0.05);
 
+        // GO ICP params
+        use_goicp_ = this->declare_parameter("go_icp.use_goicp", false);
+        goicp_mse_thresh_ = this->declare_parameter("go_icp.mse_threshold", 0.001);
+        goicp_dt_size_ = this->declare_parameter("go_icp.dt_size", 25);
+        goicp_expand_factor_ = this->declare_parameter("go_icp.dt_expandFactor", 4.0);
+        
+        
         // Clustering parameters
         cluster_tolerance_ = this->declare_parameter("clustering.cluster_tolerance", 0.02);
         min_cluster_size_ = this->declare_parameter("clustering.min_cluster_size", 100);
@@ -117,7 +128,7 @@ public:
         
         // Load model cloud
         if (object_frame_ == "grapple") 
-            model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/grapple_fixture_v2.pcd", this->get_logger());
+            model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/grapple_fixture_down.pcd", this->get_logger());
         else if (object_frame_ == "handrail")
             model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/handrail_pcd_down.pcd", this->get_logger());
         else if (object_frame_ == "docking_st")
@@ -130,8 +141,7 @@ public:
             std::chrono::milliseconds(processing_period_ms_),
             std::bind(&PoseEstimationPCL::process_data, this),
             callback_group_processing_);
-            
-
+        
         // Initialize flags and mutex
         has_new_data_ = false;
         tracking_initialized_ = false;  // Start with no tracking to force Go-ICP on first frame
@@ -169,7 +179,7 @@ private:
     }
     
     // Run GICP registration with a given initial transformation
-    bool runGICP(
+    bool run_gicp(
         const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& source_cloud,
         const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& target_cloud,
         const Eigen::Matrix4f& initial_transform,
@@ -183,11 +193,11 @@ private:
         gicp.setUseReciprocalCorrespondences(true);
         
         // Set GICP parameters
-        gicp.setMaximumIterations(100);
-        gicp.setTransformationEpsilon(1e-6);
-        gicp.setMaxCorrespondenceDistance(0.1);
-        gicp.setEuclideanFitnessEpsilon(5e-5);
-        gicp.setRANSACOutlierRejectionThreshold(0.05);
+        gicp.setMaximumIterations(gicp_max_iterations_);
+        gicp.setTransformationEpsilon(gicp_transformation_epsilon_);
+        gicp.setMaxCorrespondenceDistance(gicp_max_correspondence_distance_);
+        gicp.setEuclideanFitnessEpsilon(gicp_euclidean_fitness_epsilon_);
+        gicp.setRANSACOutlierRejectionThreshold(gicp_ransac_outlier_threshold_);
         
         // Align using provided initial transform
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr aligned_cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
@@ -264,13 +274,18 @@ Eigen::Matrix4f performRegistration(
     float gicp_score = 0.0f;
     
     // Determine if we need to use Go-ICP
-    bool run_goicp = use_goicp_ && (!tracking_initialized_ || previous_gicp_score_ > gicp_fitness_threshold_);
+    // only run Go-ICP if:
+    // 1. use_goicp_ is true
+    // 2. tracking is not initialized or previous GICP score is above threshold
+    // 3. object is detected
+    
+    bool run_goicp = use_goicp_ && (!tracking_initialized_ || previous_gicp_score_ > gicp_fitness_threshold_) && object_detected_;
     
     // First try GICP with previous transform if we have good tracking
     if (!run_goicp && tracking_initialized_) {
         RCLCPP_INFO(this->get_logger(), "Using GICP with previous transformation");
         
-        bool gen_icp_converged = runGICP(
+        bool gen_icp_converged = run_gicp(
             model_cloud_, 
             preprocessed_cloud, 
             previous_transformation_, 
@@ -292,15 +307,16 @@ Eigen::Matrix4f performRegistration(
     }
     
     // Run Go-ICP if needed (first frame or GICP failed)
+    // TODO: Debug GO-ICP transformation result, z axis always inverted
     if (run_goicp) {
-        final_transformation = runGoICP(preprocessed_cloud, cloud_msg);
+        final_transformation = run_go_ICP(preprocessed_cloud, cloud_msg);
     }
     
     return final_transformation;
 }
 
 // Run Go-ICP registration and GICP refinement
-Eigen::Matrix4f runGoICP(
+Eigen::Matrix4f run_go_ICP(
     const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& preprocessed_cloud,
     const sensor_msgs::msg::PointCloud2::SharedPtr& cloud_msg) {
     
@@ -311,8 +327,12 @@ Eigen::Matrix4f runGoICP(
         model_cloud_,
         preprocessed_cloud,
         2000,  // Max target points 
-        goicp_debug_
+        goicp_debug_,
+        goicp_dt_size_,
+        goicp_mse_thresh_,
+        goicp_expand_factor_
     );
+
     
     // Get Go-ICP statistics
     float goicp_error = goicp_wrapper_->getLastError();
@@ -327,6 +347,8 @@ Eigen::Matrix4f runGoICP(
         goicp_result_publisher_, 
         tf_broadcaster_, 
         object_frame_, "_goicp");
+
+    
     
     // Now refine with GICP using Go-ICP result as initial guess
     Eigen::Matrix4f final_transformation;
@@ -334,7 +356,7 @@ Eigen::Matrix4f runGoICP(
 
     //TODO: Perform GOCIP orientation check, if orientation is not correct, rerun go-ICP until satisfied
     
-    bool gen_icp_converged = runGICP(
+    bool gen_icp_converged = run_gicp(
         model_cloud_, 
         preprocessed_cloud, 
         alignment_transform, 
@@ -420,6 +442,7 @@ Eigen::Matrix4f runGoICP(
         // if result.best_matching_cluster is nullptr, return filtered_cloud
         if (matching_result.best_matching_cluster == nullptr) {
             RCLCPP_WARN(this->get_logger(), "No matching cluster found, returning filtered cloud");
+            object_detected_ = false;
             return filtered_cloud;
         }
 
@@ -444,7 +467,7 @@ Eigen::Matrix4f runGoICP(
 
             ros_utils::publish_debug_cloud(matching_result.best_matching_cluster, cloud_msg, pre_processed_debug_pub, save_debug_clouds_);
         }
-        
+        object_detected_ = true;
         
         return matching_result.best_matching_cluster;
     }
@@ -477,17 +500,35 @@ Eigen::Matrix4f runGoICP(
         } else if (param.get_name() == "general.object_frame") {
             object_frame_ = param.as_string();
             if (object_frame_ == "grapple") 
-            model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/grapple_fixture_v2.pcd", this->get_logger());
+            model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/grapple_fixture_down.pcd", this->get_logger());
             else if (object_frame_ == "handrail")
                 model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/handrail_pcd_down.pcd", this->get_logger());
             else if (object_frame_ == "docking_st")
                 model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/astrobee_dock_ds.pcd", this->get_logger());
             
             model_vector = {model_cloud_};
-        } else if (param.get_name() == "registration.use_goicp") {
+        } else if (param.get_name() == "go_icp.use_goicp") {
             use_goicp_ = param.as_bool();
-        } else if (param.get_name() == "registration.gicp_fitness_threshold") {
+        } else if (param.get_name() == "go_icp.mse_threshold") {
+            goicp_mse_thresh_ = param.as_double();
+        } else if (param.get_name() == "go_icp.dt_size") {
+            goicp_dt_size_ = param.as_int();
+        } else if (param.get_name() == "go_icp.dt_expandFactor") {
+            goicp_expand_factor_ = param.as_double();
+            
+        } else if (param.get_name() == "gen_icp.fitness_threshold") {
             gicp_fitness_threshold_ = param.as_double();
+        } else if (param.get_name() == "gen_icp.max_iterations") {
+            gicp_max_iterations_ = param.as_int();
+        } else if (param.get_name() == "gen_icp.transformation_epsilon") {
+            gicp_transformation_epsilon_ = param.as_double();
+        } else if (param.get_name() == "gen_icp.max_correspondence_distance") {
+            gicp_max_correspondence_distance_ = param.as_double();
+        } else if (param.get_name() == "gen_icp.euclidean_fitness_epsilon") {
+            gicp_euclidean_fitness_epsilon_ = param.as_double();
+        } else if (param.get_name() == "gen_icp.ransac_threshold") {
+            gicp_ransac_outlier_threshold_ = param.as_double();
+
 
         } else if (param.get_name() == "clustering.cluster_tolerance") {
             cluster_tolerance_ = param.as_double();
@@ -546,16 +587,25 @@ Eigen::Matrix4f runGoICP(
     bool save_debug_clouds_;
     std::string object_frame_;
     int processing_period_ms_;
-    bool use_goicp_;
+    
+    // Go-ICP parameters
     bool goicp_debug_;
+    bool use_goicp_;
+    double goicp_mse_thresh_;
+    int goicp_dt_size_;
+    double goicp_expand_factor_;
+    bool object_detected_ = false;
+
+    // GICP parameters
     double gicp_fitness_threshold_;
-    
-    
+    double gicp_max_iterations_;
+    double gicp_transformation_epsilon_;
+    double gicp_max_correspondence_distance_;
+    double gicp_euclidean_fitness_epsilon_;
+    double gicp_ransac_outlier_threshold_;
 
     // 3D descriptor parameters 
     pcl_utils::ClusterFeatures model_features;
-    std::array<float, 4> clusters_similarity = {0.0f, 0.0f, 0.0f, 0.0f};
-
     
     //clustering parameters
     double cluster_tolerance_;

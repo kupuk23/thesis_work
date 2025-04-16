@@ -30,13 +30,17 @@ public:
      * @param scene_cloud The scene point cloud (target)
      * @param max_scene_points Maximum number of scene points to use (for performance)
      * @param debug Enable debug output
+     * @param params Go-ICP algorithm parameters      
      * @return Eigen::Matrix4f The registration transformation
      */
     Eigen::Matrix4f registerPointClouds(
         const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& model_cloud,
         const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& scene_cloud,
         int max_scene_points = 3000,
-        bool debug = false);
+        bool debug = false,
+        int dt_size = 25,
+        float dt_expand_factor = 4.0,
+        float mse_thresh = 0.001);
 
     /**
      * @brief Get the last registration error

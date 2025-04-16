@@ -12,7 +12,10 @@ Eigen::Matrix4f GoICPWrapper::registerPointClouds(
     const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& model_cloud,
     const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& scene_cloud,
     int max_scene_points,
-    bool debug) {
+    bool debug,
+    int dt_size,
+    float dt_expand_factor,
+    float mse_thresh) {
     
     auto start = std::chrono::high_resolution_clock::now();
 
@@ -68,7 +71,7 @@ Eigen::Matrix4f GoICPWrapper::registerPointClouds(
     tNode.w = 1.0;
     
     // Set Go-ICP parameters
-    goicp.MSEThresh = 0.0009;  // Mean Square Error threshold
+    goicp.MSEThresh = mse_thresh;  // Mean Square Error threshold
     goicp.trimFraction = 0.0;  // Trimming fraction (0.0 = no trimming)
     goicp.doTrim = (goicp.trimFraction >= 0.001);
     
@@ -79,8 +82,8 @@ Eigen::Matrix4f GoICPWrapper::registerPointClouds(
     goicp.Nd = scene_points.size();
     
     // Set DT parameters
-    goicp.dt.SIZE = 50;
-    goicp.dt.expandFactor = 3.0;
+    goicp.dt.SIZE = dt_size;
+    goicp.dt.expandFactor = dt_expand_factor;
     
     // Set initial rotation and translation nodes
     goicp.initNodeRot = rNode;
