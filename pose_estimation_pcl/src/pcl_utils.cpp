@@ -213,8 +213,8 @@ auto end_time = std::chrono::high_resolution_clock::now();
 double execution_time = std::chrono::duration<double>(end_time - start_time).count();
 
 RCLCPP_INFO(logger, "Clustering completed in %.3f seconds", execution_time);
-RCLCPP_INFO(logger, "Output cloud has %ld points across %ld clusters", 
-        result.colored_cloud->size(), cluster_indices.size());
+// RCLCPP_INFO(logger, "Output cloud has %ld points across %ld clusters", 
+//         result.colored_cloud->size(), cluster_indices.size());
 
 return result;
 }
@@ -253,7 +253,7 @@ PlaneSegmentationResult detect_and_remove_planes(
     
 
     
-    RCLCPP_INFO(logger, "Starting plane detection on cloud with %zu points", remaining_points);
+    // RCLCPP_INFO(logger, "Starting plane detection on cloud with %zu points", remaining_points);
     
     // Detect all planes but only update the working cloud at the end
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr temp_cloud(new pcl::PointCloud<pcl::PointXYZRGB>(*working_cloud));
@@ -375,7 +375,7 @@ std::vector<ClusterFeatures> computeFPFHFeatures(
     std::vector<ClusterFeatures> results;
     results.reserve(clusters.size());
     
-    RCLCPP_INFO(logger, "Computing FPFH features for %ld clusters", clusters.size());
+    // RCLCPP_INFO(logger, "Computing FPFH features for %ld clusters", clusters.size());
     
     // Pre-create reusable objects
     pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>());
@@ -516,12 +516,15 @@ std::vector<ClusterFeatures> computeFPFHFeatures(
  * @param logger ROS logger for output messages
  * @return int Index of the best matching cluster or -1 if no match found
  */
-int findBestClusterByHistogram(
+std::vector<float> findBestClusterByHistogram(
     const ClusterFeatures& model_features,
     const std::vector<ClusterFeatures>& cluster_features,
     float similarity_threshold ,
     const rclcpp::Logger& logger)
 {
+    // store the similarity of all clusters into an array, then publish the value using ros_utils::publish_array
+    std::vector<float> clusters_similarity(cluster_features.size(), 0.0f);
+    
     RCLCPP_INFO(logger, "Matching model with %ld clusters using histogram matching", cluster_features.size());
     
     int best_cluster_idx = -1;
@@ -543,8 +546,9 @@ int findBestClusterByHistogram(
                 cluster_features[i].average_fpfh.histogram[j]
             );
         }
-        
-        RCLCPP_INFO(logger, "Cluster %ld histogram similarity: %.4f", i, similarity);
+        clusters_similarity[i] = similarity;
+
+        // RCLCPP_INFO(logger, "Cluster %ld histogram similarity: %.4f", i, similarity);
         
         // Update best match if this cluster has better similarity
         if (similarity > best_similarity) {
@@ -557,13 +561,14 @@ int findBestClusterByHistogram(
     if (best_similarity < similarity_threshold) {
         RCLCPP_WARN(logger, "Best cluster (idx: %d) similarity %.4f below threshold %.4f, rejecting match",
                   best_cluster_idx, best_similarity, similarity_threshold);
-        return -1;
+        // return empty vector
+        std::fill(clusters_similarity.begin(), clusters_similarity.end(), 0.0f);
     }
     
-    RCLCPP_INFO(logger, "Best matching cluster: %d with similarity score: %.4f", 
-               best_cluster_idx, best_similarity);
+    // RCLCPP_INFO(logger, "Best matching cluster: %d with similarity score: %.4f", 
+    //            best_cluster_idx, best_similarity);
     
-    return best_cluster_idx;
+    return clusters_similarity;
 }
 
 } // namespace pcl_utils

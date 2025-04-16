@@ -5,10 +5,53 @@
 #include <tf2/convert.h>
 #include <tf2_eigen/tf2_eigen.hpp>
 #include <tf2_ros/transform_broadcaster.h>
+#include <pcl_conversions/pcl_conversions.h>
+
 #include <random>
 #include <string>
 
 namespace ros_utils {
+    
+void publish_debug_cloud(
+    const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,
+    const sensor_msgs::msg::PointCloud2::SharedPtr& cloud_msg,
+    const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr& debug_publisher,
+    bool enable_debug) {
+    
+    if (enable_debug) {
+        sensor_msgs::msg::PointCloud2 debug_cloud_msg;
+        pcl::toROSMsg(*cloud, debug_cloud_msg);
+        debug_cloud_msg.header = cloud_msg->header;
+        debug_publisher->publish(debug_cloud_msg);
+    }
+}
+
+void publish_registration_results(
+    const Eigen::Matrix4f& transform,
+    const sensor_msgs::msg::PointCloud2::SharedPtr& cloud_msg,
+    const rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr& pose_publisher,
+    std::shared_ptr<tf2_ros::TransformBroadcaster>& tf_broadcaster,
+    const std::string& object_frame,
+    const std::string& suffix) {
+    
+    // Publish the transformation as a pose
+    geometry_msgs::msg::PoseStamped aligned_pose;
+    aligned_pose.header.stamp = cloud_msg->header.stamp;
+    aligned_pose.header.frame_id = cloud_msg->header.frame_id;
+    aligned_pose.pose = matrix_to_pose(transform);
+    
+    pose_publisher->publish(aligned_pose);
+    
+    // Broadcast the transformation
+    broadcast_transform(
+        tf_broadcaster,
+        transform,
+        cloud_msg->header.stamp,
+        cloud_msg->header.frame_id,
+        object_frame + suffix
+    );
+}
+
 void broadcast_transform(
     std::shared_ptr<tf2_ros::TransformBroadcaster>& broadcaster,
     const Eigen::Matrix4f& transform,
@@ -183,22 +226,17 @@ Eigen::Matrix4f apply_noise_to_transform(
     return noisy_transform;
 }
 
-void publishArray(const rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr& array_publisher,
-                    const std::array<float, 4>& values
+void publish_array(const rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr& array_publisher,
+                    const std::vector<float>& values
                   ) {
     auto message = std_msgs::msg::Float32MultiArray();
     
     // Set up the array structure
     message.layout.dim.push_back(std_msgs::msg::MultiArrayDimension());
-    message.layout.dim[0].size = 4;
+    message.layout.dim[0].size = values.size();
     message.layout.dim[0].stride = 1;
     message.layout.dim[0].label = "values";
-    
-    // Copy data
-    message.data.resize(4);
-    for (size_t i = 0; i < 4; i++) {
-        message.data[i] = values[i];
-    }
+    message.data = values;
     
     // Publish
     array_publisher->publish(message);

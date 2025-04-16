@@ -13,32 +13,32 @@
 
 namespace ros_utils {
 
-// publishArray function defined in cpp
+
+
+/**
+ * @brief Publish a debug point cloud
+ * 
+ * @param cloud The point cloud to publish
+ * @param cloud_msg The original point cloud message (for header information)
+ * @param debug_publisher The publisher to use
+ * @param enable_debug Flag to control if debug publishing is enabled
+ */
+void publish_debug_cloud(
+    const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,
+    const sensor_msgs::msg::PointCloud2::SharedPtr& cloud_msg,
+    const rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr& debug_publisher,
+    bool enable_debug = true);
+    
+
 /**
  * @brief Publish an array of floats as a ROS Float32MultiArray message
  * 
  * @param values Array of float values to publish
  * @param array_publisher Publisher to use
  */
-void publishArray(const rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr& array_publisher, 
-                    const std::array<float, 4>& values 
+void publish_array(const rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr& array_publisher, 
+                    const std::vector<float>& values 
                   );
-
-
-
-/**
- * @brief Publish a pose as a ROS PoseStamped message
- * 
- * @param publisher Publisher to use
- * @param transform Transformation matrix
- * @param header_stamp Timestamp for the message
- * @param frame_id Frame ID for the message
- */
-void publish_pose(
-    const rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr& publisher,
-    const Eigen::Matrix4f& transform,
-    const rclcpp::Time& header_stamp,
-    const std::string& frame_id);
 
 /**
  * @brief Publish an empty pose (identity matrix)
@@ -52,17 +52,25 @@ void publish_empty_pose(
     const sensor_msgs::msg::PointCloud2::SharedPtr& cloud_msg);
 
 /**
- * @brief Broadcast registration results to TF tree
+ * @brief Publish registration results
  * 
- * @param broadcaster TF broadcaster
- * @param transform Transformation matrix
- * @param cloud_msg Original point cloud message
+ * @param transform The final transformation matrix
+ * @param cloud_msg The original point cloud message (for timestamp and frame_id)
+ * @param pose_publisher Publisher for the aligned pose
+ * @param tf_broadcaster Transform broadcaster
+ * @param object_frame The object frame name
+ * @param suffix Suffix for the child frame ID
+ 
  */
-void broadcast_registration_results(
-    std::shared_ptr<tf2_ros::TransformBroadcaster>& broadcaster,
+void publish_registration_results(
     const Eigen::Matrix4f& transform,
-    const sensor_msgs::msg::PointCloud2::SharedPtr& cloud_msg);
-    
+    const sensor_msgs::msg::PointCloud2::SharedPtr& cloud_msg,
+    const rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr& pose_publisher,
+    std::shared_ptr<tf2_ros::TransformBroadcaster>& tf_broadcaster,
+    const std::string& object_frame,
+    const std::string& suffix
+);
+
 /**
  * @brief Convert Eigen transformation matrix to ROS Pose message
  * 

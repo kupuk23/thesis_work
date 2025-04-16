@@ -209,7 +209,7 @@ std::vector<ClusterFeatures> computeFPFHFeatures(
  * @param logger ROS logger for output messages
  * @return int Index of the best matching cluster or -1 if no match found
  */
-int findBestClusterByHistogram(
+std::vector<float> findBestClusterByHistogram(
     const ClusterFeatures& model_features,
     const std::vector<ClusterFeatures>& cluster_features,
     float similarity_threshold = 0.7,
