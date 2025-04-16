@@ -504,31 +504,21 @@ std::vector<ClusterFeatures> computeFPFHFeatures(
     return results;
 }
 
-/**
- * @brief Find the best matching cluster to the model using histogram matching
- * 
- * This function compares the average FPFH histograms between the model and scene clusters
- * to identify which cluster most likely contains the target object.
- * 
- * @param model_features FPFH features of the model
- * @param cluster_features Vector of FPFH features for each cluster
- * @param similarity_threshold Minimum similarity score to consider a match valid
- * @param logger ROS logger for output messages
- * @return int Index of the best matching cluster or -1 if no match found
- */
-std::vector<float> findBestClusterByHistogram(
+HistogramMatchingResult findBestClusterByHistogram(
     const ClusterFeatures& model_features,
     const std::vector<ClusterFeatures>& cluster_features,
-    float similarity_threshold ,
+    const std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr>& cluster_clouds,
+    float similarity_threshold,
     const rclcpp::Logger& logger)
 {
-    // store the similarity of all clusters into an array, then publish the value using ros_utils::publish_array
-    std::vector<float> clusters_similarity(cluster_features.size(), 0.0f);
+    HistogramMatchingResult result;
+    result.cluster_similarities.resize(cluster_features.size(), 0.0f);
     
     RCLCPP_INFO(logger, "Matching model with %ld clusters using histogram matching", cluster_features.size());
     
-    int best_cluster_idx = -1;
-    float best_similarity = 0.0f;
+    // Track best match information locally instead of in the result struct
+    int best_cluster_index = -1;
+    float best_similarity_score = 0.0f;
     
     // Process each cluster
     for (size_t i = 0; i < cluster_features.size(); ++i) {
@@ -546,29 +536,30 @@ std::vector<float> findBestClusterByHistogram(
                 cluster_features[i].average_fpfh.histogram[j]
             );
         }
-        clusters_similarity[i] = similarity;
-
-        // RCLCPP_INFO(logger, "Cluster %ld histogram similarity: %.4f", i, similarity);
+        result.cluster_similarities[i] = similarity;
         
         // Update best match if this cluster has better similarity
-        if (similarity > best_similarity) {
-            best_cluster_idx = i;
-            best_similarity = similarity;
+        if (similarity > best_similarity_score) {
+            best_cluster_index = i;
+            best_similarity_score = similarity;
         }
     }
     
     // Check if the best match exceeds the threshold
-    if (best_similarity < similarity_threshold) {
+    if (best_similarity_score >= similarity_threshold && 
+        best_cluster_index >= 0 && 
+        best_cluster_index < static_cast<int>(cluster_clouds.size())) {
+        
+        result.best_matching_cluster = cluster_clouds[best_cluster_index];
+        RCLCPP_INFO(logger, "Best matching cluster: %d with similarity score: %.4f", 
+                   best_cluster_index, best_similarity_score);
+    } else {
         RCLCPP_WARN(logger, "Best cluster (idx: %d) similarity %.4f below threshold %.4f, rejecting match",
-                  best_cluster_idx, best_similarity, similarity_threshold);
-        // return empty vector
-        std::fill(clusters_similarity.begin(), clusters_similarity.end(), 0.0f);
+                  best_cluster_index, best_similarity_score, similarity_threshold);
+        // No valid match found - keep result.best_matching_cluster as nullptr
     }
     
-    // RCLCPP_INFO(logger, "Best matching cluster: %d with similarity score: %.4f", 
-    //            best_cluster_idx, best_similarity);
-    
-    return clusters_similarity;
+    return result;
 }
 
 } // namespace pcl_utils

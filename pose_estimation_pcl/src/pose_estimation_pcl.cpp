@@ -28,25 +28,6 @@
 
 using namespace std::chrono_literals;
 
-struct PlaneInfo {
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud;
-    size_t num_points;
-    pcl::ModelCoefficients::Ptr coefficients;
-    int index;  // To track the original detection order
-};
-
-static const std::vector<std::array<uint8_t, 3>> DEFAULT_COLORS = {
-    {255, 0, 0},      // Red
-    {0, 255, 0},      // Green
-    {0, 0, 255},      // Blue
-    {255, 255, 0},    // Yellow
-    {255, 0, 255},    // Magenta
-    {0, 255, 255},    // Cyan
-    {255, 128, 0},    // Orange
-    {128, 0, 255},    // Purple
-    {0, 128, 255},    // Light Blue
-    {255, 0, 128}     // Pink
-};
 
 class PoseEstimationPCL : public rclcpp::Node {
 public:
@@ -115,24 +96,23 @@ public:
         icp_result_publisher_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(
             "/pose/icp_result", 10);
         
-        // Create a publisher for debugged point clouds if needed
-        cloud_debug_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(
-            "/ds_pc", 1);
+        
         
         // Create publishers for Go-ICP results
         goicp_result_publisher_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(
             "/pose/goicp_result", 10);
 
-        // Create a publisher for plane debug point clouds
+        // Create a publisher for point clouds debuggin
+        cloud_debug_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(
+            "/ds_pc", 1);
         plane_debug_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/planes_pc", 1);
         filtered_plane_debug_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/filtered_plane_pc", 1);
         clustered_plane_debug_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/clustered_plane_pc", 1);
+        pre_processed_debug_pub = this->create_publisher<sensor_msgs::msg::PointCloud2>("/pre_processed_pc", 1);
 
         array_publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>(
             "/pose_estimation/cluster_similarities", 10);
         
-        // TODO: publish similarity result to array topic,
-        // TODO: Check the dynamic reconfigure for the params 
 
         
         // Load model cloud
@@ -244,8 +224,7 @@ void process_data() {
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud = pcl_utils::convertPointCloud2ToPCL(cloud_msg);
         auto preprocessed_cloud = preprocess_pointcloud(cloud, cloud_msg);
         
-        // TODO: use the features to find the best match for the segments and choose the best one.
-        
+
         // Check if cloud is empty
         if (preprocessed_cloud->size() < 100) {
             RCLCPP_INFO(this->get_logger(), "Scene point cloud is empty, skipping registration");
@@ -254,22 +233,13 @@ void process_data() {
             return;
         }
         
-        // Visualize preprocessed cloud if debugging enabled
-        ros_utils::publish_debug_cloud(preprocessed_cloud, cloud_msg, cloud_debug_pub_, save_debug_clouds_);
-        
+
         // Perform registration
         Eigen::Matrix4f final_transformation = performRegistration(preprocessed_cloud, cloud_msg);
         
         // Publish and broadcast results
         ros_utils::publish_registration_results(final_transformation, cloud_msg, 
             icp_result_publisher_, tf_broadcaster_, object_frame_, "_icp");
-
-        // publish the filtered cloud
-        sensor_msgs::msg::PointCloud2 filtered_cloud_msg;
-        pcl::toROSMsg(*preprocessed_cloud, filtered_cloud_msg);
-        filtered_cloud_msg.header = cloud_msg->header;
-        filtered_cloud_msg.header.frame_id = cloud_msg->header.frame_id;
-        cloud_debug_pub_->publish(filtered_cloud_msg);
         
         
         auto end_time = std::chrono::high_resolution_clock::now();
@@ -287,8 +257,10 @@ void process_data() {
 Eigen::Matrix4f performRegistration(
     const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& preprocessed_cloud,
     const sensor_msgs::msg::PointCloud2::SharedPtr& cloud_msg) {
-    
+    // initialize final_transformation with identity matrix 4x4
     Eigen::Matrix4f final_transformation;
+    final_transformation = Eigen::Matrix4f::Identity();
+
     float gicp_score = 0.0f;
     
     // Determine if we need to use Go-ICP
@@ -359,6 +331,8 @@ Eigen::Matrix4f runGoICP(
     // Now refine with GICP using Go-ICP result as initial guess
     Eigen::Matrix4f final_transformation;
     float gicp_score = 0.0f;
+
+    //TODO: Perform GOCIP orientation check, if orientation is not correct, rerun go-ICP until satisfied
     
     bool gen_icp_converged = runGICP(
         model_cloud_, 
@@ -415,7 +389,6 @@ Eigen::Matrix4f runGoICP(
         auto segmentation_result = pcl_utils::detect_and_remove_planes(filtered_cloud, this->get_logger(), true);
 
         // cluster the pointclouds
-        // TODO: COMMENT UNUSED LOGGER
         auto clustering_result = pcl_utils::cluster_point_cloud(segmentation_result.remaining_cloud, cluster_tolerance_, min_cluster_size_, max_cluster_size_);
         
         
@@ -435,19 +408,33 @@ Eigen::Matrix4f runGoICP(
             RCLCPP_ERROR(this->get_logger(), "Failed to compute model FPFH features");
         }
         
-        // TODO: compare the features and find the best match for the segments
-        auto clusters_similarity = pcl_utils::findBestClusterByHistogram(
+        
+        auto matching_result = pcl_utils::findBestClusterByHistogram(
             model_features,
             cluster_features,
+            clustering_result.individual_clusters,
             similarity_threshold_,
             this->get_logger()
         );
 
+        // if result.best_matching_cluster is nullptr, return filtered_cloud
+        if (matching_result.best_matching_cluster == nullptr) {
+            RCLCPP_WARN(this->get_logger(), "No matching cluster found, returning filtered cloud");
+            return filtered_cloud;
+        }
+
+        // use the index from cluster_similarity with highest value, and return the cluster pointcloud
+
+
         // publish the similarity results to the array topic
-        ros_utils::publish_array(array_publisher_, clusters_similarity);
+        ros_utils::publish_array(array_publisher_, matching_result.cluster_similarities);
 
         // If you want to publish the planes cloud:
         if (save_debug_clouds_ && segmentation_result.planes_cloud->size() > 0) {
+            // publish the downsampled pointcloud
+            ros_utils::publish_debug_cloud(filtered_cloud, cloud_msg, cloud_debug_pub_, save_debug_clouds_);
+        
+
             // publish the detected planes
             ros_utils::publish_debug_cloud(segmentation_result.planes_cloud, cloud_msg, plane_debug_pub_, save_debug_clouds_);
             // publish the filtered planes
@@ -455,12 +442,14 @@ Eigen::Matrix4f runGoICP(
             // publish the clustered planes
             ros_utils::publish_debug_cloud(clustering_result.colored_cloud, cloud_msg, clustered_plane_debug_pub_, save_debug_clouds_);
 
+            ros_utils::publish_debug_cloud(matching_result.best_matching_cluster, cloud_msg, pre_processed_debug_pub, save_debug_clouds_);
         }
         
         
-        return filtered_cloud;
+        return matching_result.best_matching_cluster;
     }
 
+    
     // Parameter callback function to handle dynamic updates
     rcl_interfaces::msg::SetParametersResult parametersCallback(
         const std::vector<rclcpp::Parameter>& parameters) {
@@ -542,6 +531,7 @@ Eigen::Matrix4f runGoICP(
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr plane_debug_pub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr filtered_plane_debug_pub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr clustered_plane_debug_pub_;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pre_processed_debug_pub;
     rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr array_publisher_;
     
     

@@ -39,6 +39,15 @@ struct ClusteringResult {
     {}
 };
 
+// Structure to hold histogram matching results
+struct HistogramMatchingResult {
+    std::vector<float> cluster_similarities;
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr best_matching_cluster;
+    
+    HistogramMatchingResult() 
+        : best_matching_cluster(nullptr) {}
+};
+
 // Structure to hold plane segmentation results
 struct PlaneSegmentationResult {
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr remaining_cloud;
@@ -79,18 +88,6 @@ void visualizeNormals(
     bool blocking = true);
 
 
-/**
- * @brief Preprocess a point cloud by downsampling and filtering
- * 
- * @param input_cloud Input point cloud
- * @param voxel_size Voxel size for downsampling
- * @param logger ROS logger for output messages
- * @return pcl::PointCloud<pcl::PointXYZRGB>::Ptr Preprocessed cloud
- */
-pcl::PointCloud<pcl::PointXYZRGB>::Ptr preprocess_pointcloud(
-    const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,
-    double voxel_size,
-    const rclcpp::Logger& logger);
 
 /**
  * @brief Detect and remove planes from point cloud
@@ -209,12 +206,12 @@ std::vector<ClusterFeatures> computeFPFHFeatures(
  * @param logger ROS logger for output messages
  * @return int Index of the best matching cluster or -1 if no match found
  */
-std::vector<float> findBestClusterByHistogram(
+HistogramMatchingResult findBestClusterByHistogram(
     const ClusterFeatures& model_features,
     const std::vector<ClusterFeatures>& cluster_features,
+    const std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr>& cluster_clouds,
     float similarity_threshold = 0.7,
     const rclcpp::Logger& logger = rclcpp::get_logger("histogram_matcher"));
-
 
 } // namespace pcl_utils
 
