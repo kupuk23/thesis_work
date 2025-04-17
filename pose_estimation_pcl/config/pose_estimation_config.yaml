@@ -6,6 +6,7 @@ pose_estimation_pcl:
       save_debug_clouds : true
       voxel_size: 0.01
       object_frame: "grapple"
+      save_to_pcd_ : false
 
     gen_icp:
       fitness_threshold: 0.0

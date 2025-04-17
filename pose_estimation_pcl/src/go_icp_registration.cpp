@@ -128,10 +128,10 @@ int main(int argc, char** argv) {
     rNode.w = 2*PI;
     
     // Set translation search space
-    tNode.x = -1;
-    tNode.y = -1;
-    tNode.z = -1;
-    tNode.w = 2.0;
+    tNode.x = -0.5;
+    tNode.y = -0.5;
+    tNode.z = -0.5;
+    tNode.w = 1.0;
     
     // Set Go-ICP parameters
     goicp.MSEThresh = 0.0005;  // Mean Square Error threshold

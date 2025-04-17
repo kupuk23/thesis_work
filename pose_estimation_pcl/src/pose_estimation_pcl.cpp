@@ -39,6 +39,7 @@ public:
         save_debug_clouds_ = this->declare_parameter("general.save_debug_clouds", false);
         voxel_size_ = this->declare_parameter("general.voxel_size", 0.05);
         object_frame_ = this->declare_parameter("general.object_frame", "grapple");
+        save_to_pcd_ = this->declare_parameter("general.save_to_pcd", false);
 
         // Gen ICP params
         gicp_fitness_threshold_ = this->declare_parameter("gen_icp.fitness_threshold", 0.05);
@@ -170,6 +171,8 @@ private:
             
             // Update flag to indicate new data is available
             has_new_data_ = true;
+
+            
             
             RCLCPP_DEBUG(this->get_logger(), "Received new point cloud data");
             
@@ -234,6 +237,11 @@ void process_data() {
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud = pcl_utils::convertPointCloud2ToPCL(cloud_msg);
         auto preprocessed_cloud = preprocess_pointcloud(cloud, cloud_msg);
         
+        if (save_to_pcd_) {
+            // Save the point cloud to PCD file for debugging
+            std::string filename = "/home/tafarrel/o3d_logs/" + object_frame_ + "_test" + ".pcd";
+            pcl_utils::saveToPCD(preprocessed_cloud, filename, this->get_logger());
+        }
 
         // Check if cloud is empty
         if (preprocessed_cloud->size() < 100) {
@@ -307,7 +315,7 @@ Eigen::Matrix4f performRegistration(
     }
     
     // Run Go-ICP if needed (first frame or GICP failed)
-    // TODO: Debug GO-ICP transformation result, z axis always inverted
+    // TODO: Debug GO-ICP transformation result, orientation check
     if (run_goicp) {
         final_transformation = run_go_ICP(preprocessed_cloud, cloud_msg);
     }
@@ -493,6 +501,8 @@ Eigen::Matrix4f run_go_ICP(
                 std::chrono::milliseconds(processing_period_ms_),
                 std::bind(&PoseEstimationPCL::process_data, this),
                 callback_group_processing_);
+        } else if (param.get_name() == "general.save_to_pcd") {
+            save_to_pcd_ = param.as_bool();
         } else if (param.get_name() == "general.goicp_debug") {
             goicp_debug_ = param.as_bool();
         } else if (param.get_name() == "general.save_debug_clouds") {
@@ -589,6 +599,7 @@ Eigen::Matrix4f run_go_ICP(
     bool save_debug_clouds_;
     std::string object_frame_;
     int processing_period_ms_;
+    bool save_to_pcd_;
     
     // Go-ICP parameters
     bool goicp_debug_;

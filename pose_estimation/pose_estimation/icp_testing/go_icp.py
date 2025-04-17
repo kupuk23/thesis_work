@@ -4,6 +4,11 @@ from py_goicp import GoICP, POINT3D, ROTNODE, TRANSNODE
 import time
 import copy
 
+from pose_estimation.tools.pose_estimation_tools import preprocess_model
+
+# preprocess_model(
+#     "/home/tafarrel/blender_files/astrobee_dock/astrobee_dock_inv_z.obj", "astrobee_dock_ds_inv_z")
+
 
 def normalize_point_cloud(data_points, model_points):
     """
@@ -139,14 +144,14 @@ def init_GO_ICP():
     tNode.w = 1.0
 
     # Set parameters
-    goicp.MSEThresh = 0.0007   # Mean Square Error threshold
+    goicp.MSEThresh = 0.0005   # Mean Square Error threshold
     goicp.trimFraction = 0.00  # Trimming fraction (0.0 = no trimming)
 
     if goicp.trimFraction < 0.001:
         goicp.doTrim = False
 
     # Higher values = more accurate but slower
-    goicp.setDTSizeAndFactor(25, 4.0)
+    goicp.setDTSizeAndFactor(50, 4.0)
     goicp.setInitNodeRot(rNode)
     goicp.setInitNodeTrans(tNode)
 
@@ -300,11 +305,11 @@ def go_icp(
         target_pcd.paint_uniform_color([0, 1, 0])  # Green
 
         # print transformed point cloud
-        print("Transformed source point cloud sample:")
-        print(np.asarray(source_transformed.points)[:5])
-        print("Transformed point cloud:")
-        print(model_points[:5])
-        print("Registration result:")
+        # print("Transformed source point cloud sample:")
+        # print(np.asarray(source_transformed.points)[:5])
+        # print("Transformed point cloud:")
+        # print(model_points[:5])
+        # print("Registration result:")
         o3d.visualization.draw_geometries([source_transformed, target_pcd])
 
     # 9. print the absolute error of the transformed point cloud centroid to the target point cloud centroid
@@ -323,18 +328,19 @@ def go_icp(
 
 if __name__ == "__main__":
     # Paths to your PCD files
-    model = "grapple"
+    model = "docking_st"
     
     if model == "grapple":
 
         model_file = "/home/tafarrel/o3d_logs/grapple_fixture_down.pcd"
         # scene_file = "/home/tafarrel/o3d_logs/grapple_center.pcd"
-        scene_file = "/home/tafarrel/o3d_logs/grapple_right_side.pcd"
+        scene_file = "/home/tafarrel/o3d_logs/grapple_test.pcd"
+        # scene_file = "/home/tafarrel/o3d_logs/grapple_right_side.pcd"
         # scene_file = "/home/tafarrel/o3d_logs/grapple_with_handrail.pcd"
     elif model == "docking_st":
-        model_file = "/home/tafarrel/o3d_logs/astrobee_dock_ds.pcd"
-        scene_file = "/home/tafarrel/o3d_logs/docking_front.pcd"
-        # scene_file = "/home/tafarrel/o3d_logs/docking_left.pcd"
+        model_file = "/home/tafarrel/o3d_logs/astrobee_dock_ds_inv_z.pcd"
+        # scene_file = "/home/tafarrel/o3d_logs/docking_front.pcd"
+        scene_file = "/home/tafarrel/o3d_logs/docking_left.pcd"
     else:
         model_file = "/home/tafarrel/o3d_logs/handrail_pcd_down.pcd"
         scene_file = "/home/tafarrel/o3d_logs/handrail_origin.pcd"

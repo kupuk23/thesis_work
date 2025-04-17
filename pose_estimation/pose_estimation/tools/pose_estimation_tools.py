@@ -4,7 +4,7 @@ from sklearn import linear_model
 import copy
 
 
-def preprocess_model(model_path, file_name="pcd_down.pcd", voxel_size=0.01):
+def preprocess_model(model_path, file_name="pcd_down", voxel_size=0.01):
     """
     Preprocess the 3D model from Blender
 
