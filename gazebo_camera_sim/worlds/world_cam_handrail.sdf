@@ -331,7 +331,7 @@
       <self_collide>false</self_collide>
     </model>
 
-    <!--<include>
+    <include>
       <uri>file:///home/tafarrel/gazebo_models/Coke</uri>
       <name>Coke2</name>
       <pose>-5.3 0.15 0.8 0 0 0</pose>
@@ -345,7 +345,7 @@
       <static>true</static>
     </include>
 
-    <!~~ spawn cardboard box ~~>
+    <!-- spawn cardboard box -->
     <model name='cardboard_box2'>
       <static>true</static>
       <link name='cardboard_box_body'>
@@ -395,10 +395,10 @@
         <enable_wind>false</enable_wind>
       </link>
       <static>true</static>
-      <!~~ <pose>-2.95 3 0.3 0 0 1.57</pose> ~~>
+      <!-- <pose>-2.95 3 0.3 0 0 1.57</pose> -->
       <pose>-5 -.8 0.6 0 0 0</pose>
       <self_collide>false</self_collide>
-    </model>-->
+    </model>
 
     <!-- Spawn Grapple Fixture -->
 

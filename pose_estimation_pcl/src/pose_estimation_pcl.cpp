@@ -128,7 +128,7 @@ public:
         
         // Load model cloud
         if (object_frame_ == "grapple") 
-            model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/grapple_fixture_down.pcd", this->get_logger());
+            model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/grapple_fixture_v2.pcd", this->get_logger());
         else if (object_frame_ == "handrail")
             model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/handrail_pcd_down.pcd", this->get_logger());
         else if (object_frame_ == "docking_st")
@@ -329,8 +329,9 @@ Eigen::Matrix4f run_go_ICP(
         2000,  // Max target points 
         goicp_debug_,
         goicp_dt_size_,
-        goicp_mse_thresh_,
-        goicp_expand_factor_
+        goicp_expand_factor_,
+        goicp_mse_thresh_
+        
     );
 
     
@@ -501,7 +502,7 @@ Eigen::Matrix4f run_go_ICP(
         } else if (param.get_name() == "general.object_frame") {
             object_frame_ = param.as_string();
             if (object_frame_ == "grapple") 
-            model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/grapple_fixture_down.pcd", this->get_logger());
+            model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/grapple_fixture_v2.pcd", this->get_logger());
             else if (object_frame_ == "handrail")
                 model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/handrail_pcd_down.pcd", this->get_logger());
             else if (object_frame_ == "docking_st")

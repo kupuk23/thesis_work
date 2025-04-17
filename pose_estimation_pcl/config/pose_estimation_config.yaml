@@ -8,7 +8,7 @@ pose_estimation_pcl:
       object_frame: "grapple"
 
     gen_icp:
-      fitness_threshold: 0.05
+      fitness_threshold: 0.0
       max_iteration : 75
       transformation_epsilon: 1e-6
       max_correspondence_distance: 0.05 # 0.1 m default
@@ -16,7 +16,7 @@ pose_estimation_pcl:
       ransac_threshold: 0.1
 
     go_icp:
-      use_goicp : false
+      use_goicp : true
       mse_threshold: 0.001
       dt_size: 25
       dt_expandFactor: 4.0
