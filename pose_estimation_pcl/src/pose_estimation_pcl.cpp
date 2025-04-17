@@ -469,6 +469,7 @@ Eigen::Matrix4f run_go_ICP(
         }
         object_detected_ = true;
         
+        // return filtered_cloud;
         return matching_result.best_matching_cluster;
     }
 

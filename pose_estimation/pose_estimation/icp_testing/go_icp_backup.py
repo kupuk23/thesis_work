@@ -266,7 +266,7 @@ if __name__ == "__main__":
         target_file=target_file,
         ds_target=True,  # Downsample target
         voxel_size=0.02, # Voxel size for downsampling
-        visualize_before=False,
+        visualize_before=True,
         visualize_after=True
     )
     

@@ -51,7 +51,7 @@ class PoseEstimationNode(Node):
         self.object = "grapple"  # or "handrail"
 
         self.model_pcd = (
-            o3d.io.read_point_cloud("/home/tafarrel/o3d_logs/grapple_fixture_down.pcd")
+            o3d.io.read_point_cloud("/home/tafarrel/o3d_logs/grapple_fixture_v2.pcd")
             if self.object == "grapple"
             else o3d.io.read_point_cloud(
                 "/home/tafarrel/o3d_logs/handrail_pcd_down.pcd"
@@ -129,10 +129,10 @@ class PoseEstimationNode(Node):
                 f"Pointcloud processed --> {len(scene_pcd.points)} points ({finished_time - start_time}s)"
             )
 
-            self.visualize_point_clouds(
-                target=scene_pcd,
-                target_filename="grapple_trans_left.pcd",
-            )
+            # self.visualize_point_clouds(
+            #     target=scene_pcd,
+            #     target_filename="grapple_trans_left.pcd",
+            # )
 
             # if scene_pcd empty, return
             if len(scene_pcd.points) < 100:

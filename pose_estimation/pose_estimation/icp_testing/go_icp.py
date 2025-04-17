@@ -146,7 +146,7 @@ def init_GO_ICP():
         goicp.doTrim = False
 
     # Higher values = more accurate but slower
-    goicp.setDTSizeAndFactor(50, 4.0)
+    goicp.setDTSizeAndFactor(25, 4.0)
     goicp.setInitNodeRot(rNode)
     goicp.setInitNodeTrans(tNode)
 
@@ -191,8 +191,14 @@ def go_icp(
         target_pcd.points = o3d.utility.Vector3dVector(model_points)
         source_pcd.paint_uniform_color([1, 0, 0])  # Red
         target_pcd.paint_uniform_color([0, 1, 0])  # Green
+        # visualize the coordinate axis of the model point cloud
+        # Create a coordinate frame for the model point cloud
+        coordinate_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(
+            size=0.1, origin=[0, 0, 0])  # Adjust size as needed
+    
 
-        o3d.visualization.draw_geometries([source_pcd, target_pcd])
+
+        o3d.visualization.draw_geometries([source_pcd, target_pcd, coordinate_frame])
 
     # 2. Normalize both point clouds
     # print("Normalizing point clouds...")
@@ -275,6 +281,10 @@ def go_icp(
     # print("Final transformation matrix:")
     # print(transform)
 
+    source_transformed = o3d.geometry.PointCloud()
+    source_transformed.points = o3d.utility.Vector3dVector(data_points)
+    source_transformed.transform(transform)
+
     # 8. Apply the transformation and visualize if requested
     if visualize_after:
         # print several lines of the point cloud
@@ -282,9 +292,7 @@ def go_icp(
         # print(data_points[:5])
         # print("Target point cloud sampmodel_centroidle:")
         # print(model_points[:5])
-        source_transformed = o3d.geometry.PointCloud()
-        source_transformed.points = o3d.utility.Vector3dVector(data_points)
-        source_transformed.transform(transform)
+        
         target_pcd = o3d.geometry.PointCloud()
         target_pcd.points = o3d.utility.Vector3dVector(model_points)
 
@@ -315,7 +323,7 @@ def go_icp(
 
 if __name__ == "__main__":
     # Paths to your PCD files
-    model = "docking_st"
+    model = "grapple"
     
     if model == "grapple":
 
