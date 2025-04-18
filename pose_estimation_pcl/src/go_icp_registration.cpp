@@ -48,8 +48,8 @@ void visualizeRegistrationResult(
     const std::string& title = "Registration Result");
 
 int main(int argc, char** argv) {
-    bool visualize_before = false;
-    bool visualize_after = false;
+    bool visualize_before = true;
+    bool visualize_after = true;
     int max_target_points = 3000;
     std::string source_filename = "/home/tafarrel/o3d_logs/grapple_fixture_down.pcd";
     std::string target_filename = "/home/tafarrel/o3d_logs/grapple_center.pcd";

@@ -4,12 +4,14 @@ pose_estimation_pcl:
       processing_period_ms: 100
       goicp_debug : false
       save_debug_clouds : true
-      voxel_size: 0.01
+      voxel_size: 0.012
       object_frame: "grapple"
+      debug_grapple : false
       save_to_pcd_ : false
+      suffix_name_pcd : "_center_test"
 
     gen_icp:
-      fitness_threshold: 0.0
+      fitness_threshold: 4e-4 # good threshold for the fitness score is 3e-4
       max_iteration : 75
       transformation_epsilon: 1e-6
       max_correspondence_distance: 0.05 # 0.1 m default
@@ -18,9 +20,9 @@ pose_estimation_pcl:
 
     go_icp:
       use_goicp : true
-      mse_threshold: 0.001
+      mse_threshold: 7e-4
       dt_size: 25
-      dt_expandFactor: 4.0
+      dt_expandFactor: 6.0 # lowering will increase orientation accuracy a lot
 
     clustering:
       cluster_tolerance: 0.03 #in meters, default is 0.03

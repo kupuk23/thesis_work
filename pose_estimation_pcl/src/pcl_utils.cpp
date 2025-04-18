@@ -498,8 +498,8 @@ std::vector<ClusterFeatures> computeFPFHFeatures(
         }
     }
     
-    RCLCPP_INFO(logger, "FPFH computation complete for %ld of %ld clusters", 
-               results.size(), clusters.size());
+    // RCLCPP_INFO(logger, "FPFH computation complete for %ld of %ld clusters", 
+    //            results.size(), clusters.size());
     
     return results;
 }
@@ -514,7 +514,7 @@ HistogramMatchingResult findBestClusterByHistogram(
     HistogramMatchingResult result;
     result.cluster_similarities.resize(cluster_features.size(), 0.0f);
     
-    RCLCPP_INFO(logger, "Matching model with %ld clusters using histogram matching", cluster_features.size());
+    // RCLCPP_INFO(logger, "Matching model with %ld clusters using histogram matching", cluster_features.size());
     
     // Track best match information locally instead of in the result struct
     int best_cluster_index = -1;

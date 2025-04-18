@@ -136,14 +136,14 @@ Visualization Manager:
           Value: true
         camera_link:
           Value: true
-        docking_st_goicp:
-          Value: true
-        docking_st_icp:
-          Value: true
         dummy_link:
           Value: true
         grapple:
           Value: false
+        grapple_goicp:
+          Value: true
+        grapple_icp:
+          Value: true
         handrail:
           Value: true
         map:
@@ -177,9 +177,9 @@ Visualization Manager:
                   camera_infra2_frame:
                     camera_infra2_optical_frame:
                       {}
-                  docking_st_goicp:
+                  grapple_goicp:
                     {}
-                  docking_st_icp:
+                  grapple_icp:
                     {}
       Update Interval: 0
       Value: true
@@ -317,26 +317,26 @@ Visualization Manager:
   Value: true
   Views:
     Current:
-      Class: rviz_default_plugins/ThirdPersonFollower
-      Distance: 3.6285650730133057
+      Class: rviz_default_plugins/Orbit
+      Distance: 1.9415313005447388
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -0.22009921073913574
-        Y: 0.9039416313171387
-        Z: -0.9999995231628418
+        X: -0.10358777642250061
+        Y: -0.0823848769068718
+        Z: 0.03491467237472534
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.4799998998641968
+      Pitch: 0.5499998927116394
       Target Frame: camera_color_optical_frame
-      Value: ThirdPersonFollower (rviz_default_plugins)
-      Yaw: 4.815009593963623
+      Value: Orbit (rviz_default_plugins)
+      Yaw: 1.5318259000778198
     Saved: ~
 Window Geometry:
   Displays:

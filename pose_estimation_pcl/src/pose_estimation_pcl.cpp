@@ -40,6 +40,7 @@ public:
         voxel_size_ = this->declare_parameter("general.voxel_size", 0.05);
         object_frame_ = this->declare_parameter("general.object_frame", "grapple");
         save_to_pcd_ = this->declare_parameter("general.save_to_pcd", false);
+        suffix_name_pcd_ = this->declare_parameter("general.suffix_name_pcd", "test");
 
         // Gen ICP params
         gicp_fitness_threshold_ = this->declare_parameter("gen_icp.fitness_threshold", 0.05);
@@ -160,15 +161,7 @@ private:
             
             latest_cloud_msg_ = pointcloud_msg;
             
-            // Get the initial transformation from the object pose using TF2 lookup
-            // Note: We'll keep this for fallback purposes, but it will be ignored if Go-ICP is used
-            // latest_initial_transform_ = pcl_utils::transform_obj_pose(
-            //     pointcloud_msg, 
-            //     *tf_buffer_, 
-            //     object_frame_,
-            //     this->get_logger()
-            // );
-            
+                       
             // Update flag to indicate new data is available
             has_new_data_ = true;
 
@@ -239,7 +232,7 @@ void process_data() {
         
         if (save_to_pcd_) {
             // Save the point cloud to PCD file for debugging
-            std::string filename = "/home/tafarrel/o3d_logs/" + object_frame_ + "_test" + ".pcd";
+            std::string filename = "/home/tafarrel/o3d_logs/" + object_frame_ + suffix_name_pcd_ + ".pcd";
             pcl_utils::saveToPCD(preprocessed_cloud, filename, this->get_logger());
         }
 
@@ -346,10 +339,14 @@ Eigen::Matrix4f run_go_ICP(
     // Get Go-ICP statistics
     float goicp_error = goicp_wrapper_->getLastError();
     float goicp_time = goicp_wrapper_->getLastRegistrationTime();
-    
+
+    /// print the rotation matrix
+    Eigen::Matrix3f rotation_matrix = alignment_transform.block<3, 3>(0, 0);
+    cout << "Rotation matrix: " << endl << rotation_matrix << endl;
     RCLCPP_INFO(this->get_logger(), 
         "Go-ICP completed in %.3f seconds with error: %.5f", 
         goicp_time, goicp_error);
+
     
     // Publish Go-ICP result
     ros_utils::publish_registration_results(alignment_transform, cloud_msg, 
@@ -375,6 +372,10 @@ Eigen::Matrix4f run_go_ICP(
     
     if (gen_icp_converged) {
         RCLCPP_INFO(this->get_logger(), "GICP refinement converged with score: %f", gicp_score);
+        // extract rotation matrix from final_transformation
+        Eigen::Matrix3f rotation_matrix = final_transformation.block<3, 3>(0, 0);
+        cout << "Final rotation matrix: " << endl << rotation_matrix << endl;
+
     } else {
         RCLCPP_WARN(this->get_logger(), "GICP refinement failed, using Go-ICP result directly");
         final_transformation = alignment_transform;
@@ -519,6 +520,9 @@ Eigen::Matrix4f run_go_ICP(
                 model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/astrobee_dock_ds.pcd", this->get_logger());
             
             model_vector = {model_cloud_};
+        } else if (param.get_name() == "general.suffix_name_pcd") {
+            suffix_name_pcd_ = param.as_string();
+
         } else if (param.get_name() == "go_icp.use_goicp") {
             use_goicp_ = param.as_bool();
         } else if (param.get_name() == "go_icp.mse_threshold") {
@@ -600,7 +604,8 @@ Eigen::Matrix4f run_go_ICP(
     std::string object_frame_;
     int processing_period_ms_;
     bool save_to_pcd_;
-    
+    std::string suffix_name_pcd_;
+
     // Go-ICP parameters
     bool goicp_debug_;
     bool use_goicp_;

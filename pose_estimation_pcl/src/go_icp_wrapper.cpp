@@ -295,10 +295,10 @@ Eigen::Matrix4f GoICPWrapper::denormalizeTransformation(
     
     // Create matrices for each step
     Eigen::Matrix4f T_data = Eigen::Matrix4f::Identity();  // Translation to source centroid
-    T_data.block<3, 1>(0, 3) = data_centroid;
+    T_data.block<3, 1>(0, 3) = -data_centroid;
     
     Eigen::Matrix4f T_model = Eigen::Matrix4f::Identity();  // Translation from target centroid
-    T_model.block<3, 1>(0, 3) = -model_centroid;
+    T_model.block<3, 1>(0, 3) = model_centroid;
     
     Eigen::Matrix4f S = Eigen::Matrix4f::Identity();  // Scaling
     S(0, 0) = S(1, 1) = S(2, 2) = scale;
@@ -307,9 +307,11 @@ Eigen::Matrix4f GoICPWrapper::denormalizeTransformation(
     S_inv(0, 0) = S_inv(1, 1) = S_inv(2, 2) = 1.0f / scale;
     
     // Combine transformations: T_model * S_inv * transform * S * T_data
-    Eigen::Matrix4f denorm_transform = T_data * S_inv * transform * S * T_model;
-    
-    return denorm_transform;
+    Eigen::Matrix4f scene_T_model = T_model * S * transform * S_inv * T_data;
+
+    // inverse the matrix
+    Eigen::Matrix4f model_T_scene = scene_T_model.inverse();
+    return model_T_scene;
 }
 
 std::vector<POINT3D> GoICPWrapper::convertToPoint3DList(

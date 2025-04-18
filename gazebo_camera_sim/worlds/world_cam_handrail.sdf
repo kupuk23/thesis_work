@@ -231,6 +231,13 @@
       <self_collide>false</self_collide>
     </model>
 
+
+    <include>
+    <uri>model://dart</uri>
+    <pose>-2 2 2 -1.57 0 0</pose>
+    <collision>false</collision>
+    <name>dart</name>
+    </include>
     <!-- Spawn astrobee dock -->
 
     <model name='astrobee_dock'>

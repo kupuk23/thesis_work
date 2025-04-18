@@ -144,14 +144,14 @@ def init_GO_ICP():
     tNode.w = 1.0
 
     # Set parameters
-    goicp.MSEThresh = 0.0005   # Mean Square Error threshold
+    goicp.MSEThresh = 0.0007   # Mean Square Error threshold
     goicp.trimFraction = 0.00  # Trimming fraction (0.0 = no trimming)
 
     if goicp.trimFraction < 0.001:
         goicp.doTrim = False
 
     # Higher values = more accurate but slower
-    goicp.setDTSizeAndFactor(50, 4.0)
+    goicp.setDTSizeAndFactor(25, 6.0)
     goicp.setInitNodeRot(rNode)
     goicp.setInitNodeTrans(tNode)
 
@@ -328,13 +328,15 @@ def go_icp(
 
 if __name__ == "__main__":
     # Paths to your PCD files
-    model = "docking_st"
+    model = "grapple"
     
     if model == "grapple":
 
         model_file = "/home/tafarrel/o3d_logs/grapple_fixture_down.pcd"
         # scene_file = "/home/tafarrel/o3d_logs/grapple_center.pcd"
-        scene_file = "/home/tafarrel/o3d_logs/grapple_test.pcd"
+        scene_file = "/home/tafarrel/o3d_logs/grapple_center_test.pcd"
+        scene_file = "/home/tafarrel/o3d_logs/grapple_right_test.pcd"
+        scene_file = "/home/tafarrel/o3d_logs/grapple_extreme_test.pcd"
         # scene_file = "/home/tafarrel/o3d_logs/grapple_right_side.pcd"
         # scene_file = "/home/tafarrel/o3d_logs/grapple_with_handrail.pcd"
     elif model == "docking_st":
