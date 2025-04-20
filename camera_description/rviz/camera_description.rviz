@@ -54,11 +54,6 @@ Visualization Manager:
         Expand Link Details: false
         Expand Tree: false
         Link Tree Style: Links in Alphabetic Order
-        base_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
         camera_color_frame:
           Alpha: 1
           Show Axes: false
@@ -116,8 +111,6 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: false
-        base_link:
-          Value: true
         camera_color_frame:
           Value: true
         camera_color_optical_frame:
@@ -138,14 +131,6 @@ Visualization Manager:
           Value: true
         dummy_link:
           Value: true
-        grapple:
-          Value: false
-        grapple_goicp:
-          Value: true
-        grapple_icp:
-          Value: true
-        handrail:
-          Value: true
         map:
           Value: true
         odom:
@@ -157,29 +142,20 @@ Visualization Manager:
       Show Names: false
       Tree:
         map:
-          grapple:
-            {}
-          handrail:
-            {}
           odom:
             dummy_link:
-              base_link:
-                camera_link:
-                  camera_color_frame:
-                    camera_color_optical_frame:
-                      {}
-                  camera_depth_frame:
-                    camera_depth_optical_frame:
-                      {}
-                  camera_infra1_frame:
-                    camera_infra1_optical_frame:
-                      {}
-                  camera_infra2_frame:
-                    camera_infra2_optical_frame:
-                      {}
-                  grapple_goicp:
+              camera_link:
+                camera_color_frame:
+                  camera_color_optical_frame:
                     {}
-                  grapple_icp:
+                camera_depth_frame:
+                  camera_depth_optical_frame:
+                    {}
+                camera_infra1_frame:
+                  camera_infra1_optical_frame:
+                    {}
+                camera_infra2_frame:
+                  camera_infra2_optical_frame:
                     {}
       Update Interval: 0
       Value: true
@@ -306,7 +282,7 @@ Visualization Manager:
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
-    Fixed Frame: map
+    Fixed Frame: odom
     Frame Rate: 30
   Name: root
   Tools:
@@ -318,25 +294,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 1.9415313005447388
+      Distance: 2.1745150089263916
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -0.10358777642250061
-        Y: -0.0823848769068718
-        Z: 0.03491467237472534
+        X: -0.03887185454368591
+        Y: 0.12195931375026703
+        Z: -0.034956879913806915
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.5499998927116394
+      Pitch: 0.39500004053115845
       Target Frame: camera_color_optical_frame
       Value: Orbit (rviz_default_plugins)
-      Yaw: 1.5318259000778198
+      Yaw: 2.556826114654541
     Saved: ~
 Window Geometry:
   Displays:

@@ -231,7 +231,7 @@
       <self_collide>false</self_collide>
     </model>
 
-  
+
 
     <!-- <include>
     <uri>model://dart</uri>
@@ -241,12 +241,12 @@
     </include> -->
     <!-- Spawn astrobee dock -->
 
-     <!-- <include>
-    <uri>model://kth_freeflyer</uri>
-    <pose>0 0 0 0 0 0</pose>
-    <collision>false</collision>
-    <name>atmos</name>
-    </include>  -->
+    <include>
+      <uri>model://kth_freeflyer</uri>
+      <pose>0 0 10 0 0 0</pose>
+      <collision>false</collision>
+      <name>atmos</name>
+    </include>
 
 
 

@@ -26,7 +26,7 @@
   <xacro:property name="camera_ry_offset" value="0" />
   <xacro:property name="camera_rz_offset" value="${0}" />
   
-  <xacro:rgbd_camera prefix="$(arg prefix)" mass = "0.01" camera_name="camera" xyz_offset="${camera_x_offset} ${camera_y_offset} ${camera_z_offset}" rpy_offset="${camera_rx_offset} ${camera_ry_offset} ${camera_rz_offset}" material_color="0.5 0.2 0.2 1" />
+  <xacro:rgbd_camera prefix="$(arg prefix)" parent="dummy_link" mass = "0.01" camera_name="camera" xyz_offset="${camera_x_offset} ${camera_y_offset} ${camera_z_offset}" rpy_offset="${camera_rx_offset} ${camera_ry_offset} ${camera_rz_offset}" material_color="0.5 0.2 0.2 1" />
 
 
 
@@ -44,7 +44,9 @@
     </visual>
   </link>
 
-  <link name="base_link">
+  
+
+   <!--<link name="base_link">
     <gravity>0</gravity>
     <inertial>
       <origin xyz="0 0 0" rpy="0 0 0"/>
@@ -67,20 +69,20 @@
       </material>
     </visual>
   </link>
-
-  <!-- Fixed joint connecting dummy_link to base_link -->
+  
+  <!~~> Fixed joint connecting dummy_link to base_link ~~>
   <joint name="dummy_to_base" type="fixed">
     <gravity>0</gravity>
     <parent link="dummy_link"/>
     <child link="base_link"/>
     <origin xyz="0 0 0" rpy="0 0 0"/>
-  </joint>
-
+  </joint>-->
+<!--
 
 
   <gazebo reference="base_link">
     <gravity>0</gravity>
-  </gazebo>
+  </gazebo>-->
 
 
   <gazebo reference="camera_link">
