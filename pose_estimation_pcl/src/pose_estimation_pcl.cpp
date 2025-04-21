@@ -230,6 +230,12 @@ void process_data() {
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud = pcl_utils::convertPointCloud2ToPCL(cloud_msg);
         auto preprocessed_cloud = preprocess_pointcloud(cloud, cloud_msg);
         
+        auto end_time = std::chrono::high_resolution_clock::now();
+        RCLCPP_INFO(this->get_logger(), 
+            "PRE-PROCESSING TAKES: %.3f s",
+            std::chrono::duration<double>(end_time - start_time).count());
+        
+
         if (save_to_pcd_) {
             // Save the point cloud to PCD file for debugging
             std::string filename = "/home/tafarrel/o3d_logs/" + object_frame_ + suffix_name_pcd_ + ".pcd";
@@ -243,17 +249,22 @@ void process_data() {
             tracking_initialized_ = false;
             return;
         }
-        
 
         // Perform registration
+        start_time = std::chrono::high_resolution_clock::now();
         Eigen::Matrix4f final_transformation = performRegistration(preprocessed_cloud, cloud_msg);
+        end_time = std::chrono::high_resolution_clock::now();
+
+        RCLCPP_INFO(this->get_logger(), 
+            "ICP takes: %.3f s",
+            std::chrono::duration<double>(end_time - start_time).count());
         
         // Publish and broadcast results
         ros_utils::publish_registration_results(final_transformation, cloud_msg, 
             icp_result_publisher_, tf_broadcaster_, object_frame_, "_icp");
         
         
-        auto end_time = std::chrono::high_resolution_clock::now();
+        end_time = std::chrono::high_resolution_clock::now();
         RCLCPP_INFO(this->get_logger(), 
             "Total processing time: %.3f s",
             std::chrono::duration<double>(end_time - start_time).count());
@@ -418,7 +429,12 @@ Eigen::Matrix4f run_go_ICP(
         pass_x.filter(*filtered_cloud);
 
         // remove largest plane (wall)
-        auto segmentation_result = pcl_utils::detect_and_remove_planes(filtered_cloud, this->get_logger(), true);
+        auto segmentation_result = pcl_utils::detect_and_remove_planes(filtered_cloud, this->get_logger(), true, 
+            min_plane_points_,  // min points per plane
+            0.2,  // min remaining percent
+            max_planes_,  // max planes
+            plane_distance_threshold_,  // distance threshold
+            max_plane_iterations_);  // max iterations
 
         // cluster the pointclouds
         auto clustering_result = pcl_utils::cluster_point_cloud(segmentation_result.remaining_cloud, cluster_tolerance_, min_cluster_size_, max_cluster_size_);
@@ -435,7 +451,7 @@ Eigen::Matrix4f run_go_ICP(
         
         if (!model_features_vector.empty()) {
             model_features = model_features_vector[0];
-            RCLCPP_INFO(this->get_logger(), "Model FPFH features computed successfully");
+            // RCLCPP_INFO(this->get_logger(), "Model FPFH features computed successfully");
         } else {
             RCLCPP_ERROR(this->get_logger(), "Failed to compute model FPFH features");
         }

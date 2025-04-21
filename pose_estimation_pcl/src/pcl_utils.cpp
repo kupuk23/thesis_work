@@ -223,7 +223,7 @@ return result;
 PlaneSegmentationResult detect_and_remove_planes(
     const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,
     const rclcpp::Logger& logger,
-    bool colorize_planes, size_t min_plane_points,float min_remaining_percent ,int max_planes) {
+    bool colorize_planes, size_t min_plane_points,float min_remaining_percent ,int max_planes, float dist_threshold, int max_iterations) {
     
     PlaneSegmentationResult result;
     result.remaining_cloud.reset(new pcl::PointCloud<pcl::PointXYZRGB>());
@@ -244,8 +244,8 @@ PlaneSegmentationResult detect_and_remove_planes(
     seg.setOptimizeCoefficients(true);
     seg.setModelType(pcl::SACMODEL_PLANE);
     seg.setMethodType(pcl::SAC_RANSAC);
-    seg.setDistanceThreshold(0.02);  // 2cm threshold
-    seg.setMaxIterations(100);
+    seg.setDistanceThreshold(dist_threshold);  // 2cm threshold
+    seg.setMaxIterations(max_iterations);
     
     int plane_count = 0;
     size_t remaining_points = working_cloud->size();
@@ -551,8 +551,8 @@ HistogramMatchingResult findBestClusterByHistogram(
         best_cluster_index < static_cast<int>(cluster_clouds.size())) {
         
         result.best_matching_cluster = cluster_clouds[best_cluster_index];
-        RCLCPP_INFO(logger, "Best matching cluster: %d with similarity score: %.4f", 
-                   best_cluster_index, best_similarity_score);
+        // RCLCPP_INFO(logger, "Best matching cluster: %d with similarity score: %.4f", 
+        //            best_cluster_index, best_similarity_score);
     } else {
         RCLCPP_WARN(logger, "Best cluster (idx: %d) similarity %.4f below threshold %.4f, rejecting match",
                   best_cluster_index, best_similarity_score, similarity_threshold);

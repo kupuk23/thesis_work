@@ -11,16 +11,16 @@ pose_estimation_pcl:
       suffix_name_pcd : "_center_test"
 
     gen_icp:
-      fitness_threshold: 4e-4 # good threshold for the fitness score is 3e-4
+      fitness_threshold: 1.5e-3 # good threshold for the fitness score is 3e-4
       max_iteration : 75
-      transformation_epsilon: 1e-6
-      max_correspondence_distance: 0.05 # 0.1 m default
-      fitness_epsilon: 5e-4
+      transformation_epsilon: 5e-3 # 1e-6
+      max_correspondence_distance: 0.08 # 0.1 m default
+      fitness_epsilon: 5e-4 # 5e-4
       ransac_threshold: 0.1
 
     go_icp:
-      use_goicp : true
-      mse_threshold: 7e-4
+      use_goicp : false
+      mse_threshold: 9e-4
       dt_size: 25
       dt_expandFactor: 6.0 # lowering will increase orientation accuracy a lot
 
@@ -36,7 +36,7 @@ pose_estimation_pcl:
       similarity_threshold : 0.5 #0.5
     
     plane_detection:
-      plane_distance_threshold: 0.01
+      plane_distance_threshold: 0.02
       max_plane_iterations: 100
-      min_plane_points: 800
+      min_plane_points: 500
       max_planes: 3

@@ -98,6 +98,8 @@ void visualizeNormals(
  * @param min_plane_points Minimum points to consider a plane
  * @param min_remaining_percent Minimum percentage of points to remain
  * @param max_planes Maximum number of planes to extract
+ * @param dist_threshold Distance threshold for plane fitting
+ * @param max_iterations Maximum iterations for plane fitting
  * @return PlaneSegmentationResult Segmentation result with planes and remaining points
  */
 PlaneSegmentationResult detect_and_remove_planes(
@@ -106,7 +108,9 @@ PlaneSegmentationResult detect_and_remove_planes(
     bool colorize_planes = true,
     size_t min_plane_points = 800,
     float min_remaining_percent = 0.2,
-    int max_planes = 3);
+    int max_planes = 3,
+    float dist_threshold = 0.02,
+    int max_iterations = 100);
 
 /**
  * @brief Cluster a point cloud into separate objects
