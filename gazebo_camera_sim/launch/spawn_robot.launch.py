@@ -95,7 +95,7 @@ def generate_launch_description():
 
     world_arg = DeclareLaunchArgument(
         "world",
-        default_value="world_cam_v2.sdf",
+        default_value="world_cam_handrail.sdf",
         description="Name of the Gazebo world file to load",
     )
 
@@ -250,14 +250,14 @@ def generate_launch_description():
     launchDescriptionObject.add_action(spawn_robot_arg)
     launchDescriptionObject.add_action(world_launch)
     launchDescriptionObject.add_action(rviz_node)
-    # launchDescriptionObject.add_action(tf_broadcaster)
-    # launchDescriptionObject.add_action(robot_state_publisher_node)
+    launchDescriptionObject.add_action(tf_broadcaster)
+    launchDescriptionObject.add_action(robot_state_publisher_node)
     launchDescriptionObject.add_action(gz_bridge_node)
     launchDescriptionObject.add_action(gz_image_bridge_node)
     launchDescriptionObject.add_action(relay_camera_info_node)
     launchDescriptionObject.add_action(tf_world_publisher)
     # launchDescriptionObject.add_action(ibvs_node)
-    # launchDescriptionObject.add_action(OpaqueFunction(function=launch_setup))
+    launchDescriptionObject.add_action(OpaqueFunction(function=launch_setup))
     # launchDescriptionObject.add_action(tf_camera_link_pub)
 
     return launchDescriptionObject

@@ -129,14 +129,15 @@ public:
 
         
         // Load model cloud
-        if (object_frame_ == "grapple") 
-            model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/grapple_fixture_v2.pcd", this->get_logger());
-        else if (object_frame_ == "handrail")
-            model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/handrail_pcd_down.pcd", this->get_logger());
-        else if (object_frame_ == "docking_st")
-            model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/astrobee_dock_ds.pcd", this->get_logger());
-        
-        model_vector = {model_cloud_};
+        model_features = pcl_utils::loadAndComputeModelFeatures(
+            object_frame_,
+            normal_radius_,
+            fpfh_radius_,
+            0,  // Auto-detect thread count
+            visualize_normals_,
+            model_cloud_,
+            this->get_logger()
+        );
 
         // Initialize processing timer in separate callback group
         processing_timer_ = this->create_wall_timer(
@@ -224,13 +225,20 @@ void process_data() {
     }
     
     try {
-        auto start_time = std::chrono::high_resolution_clock::now();
+        auto first_start_time = std::chrono::high_resolution_clock::now();
         
         // Convert and preprocess point cloud
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud = pcl_utils::convertPointCloud2ToPCL(cloud_msg);
-        auto preprocessed_cloud = preprocess_pointcloud(cloud, cloud_msg);
         
         auto end_time = std::chrono::high_resolution_clock::now();
+        RCLCPP_INFO(this->get_logger(), 
+            "CONVERTING POINT CLOUD TAKES: %.3f s",
+            std::chrono::duration<double>(end_time - first_start_time).count());
+
+        auto start_time = std::chrono::high_resolution_clock::now();
+        auto preprocessed_cloud = preprocess_pointcloud(cloud, cloud_msg);
+        
+        end_time = std::chrono::high_resolution_clock::now();
         RCLCPP_INFO(this->get_logger(), 
             "PRE-PROCESSING TAKES: %.3f s",
             std::chrono::duration<double>(end_time - start_time).count());
@@ -267,7 +275,7 @@ void process_data() {
         end_time = std::chrono::high_resolution_clock::now();
         RCLCPP_INFO(this->get_logger(), 
             "Total processing time: %.3f s",
-            std::chrono::duration<double>(end_time - start_time).count());
+            std::chrono::duration<double>(end_time - first_start_time).count());
         
     } catch (const std::exception& e) {
         RCLCPP_ERROR(this->get_logger(), "Error processing point cloud: %s", e.what());
@@ -343,7 +351,6 @@ Eigen::Matrix4f run_go_ICP(
         goicp_dt_size_,
         goicp_expand_factor_,
         goicp_mse_thresh_
-        
     );
 
     
@@ -446,16 +453,6 @@ Eigen::Matrix4f run_go_ICP(
             0,     // auto-detect thread count
             visualize_normals_
         );        
-
-        auto model_features_vector = pcl_utils::computeFPFHFeatures(model_vector, normal_radius_, fpfh_radius_, 0, visualize_normals_);
-        
-        if (!model_features_vector.empty()) {
-            model_features = model_features_vector[0];
-            // RCLCPP_INFO(this->get_logger(), "Model FPFH features computed successfully");
-        } else {
-            RCLCPP_ERROR(this->get_logger(), "Failed to compute model FPFH features");
-        }
-        
         
         auto matching_result = pcl_utils::findBestClusterByHistogram(
             model_features,
@@ -528,14 +525,15 @@ Eigen::Matrix4f run_go_ICP(
             voxel_size_ = param.as_double();
         } else if (param.get_name() == "general.object_frame") {
             object_frame_ = param.as_string();
-            if (object_frame_ == "grapple") 
-            model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/grapple_fixture_v2.pcd", this->get_logger());
-            else if (object_frame_ == "handrail")
-                model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/handrail_pcd_down.pcd", this->get_logger());
-            else if (object_frame_ == "docking_st")
-                model_cloud_ = pcl_utils::loadModelPCD("/home/tafarrel/o3d_logs/astrobee_dock_ds.pcd", this->get_logger());
-            
-            model_vector = {model_cloud_};
+            model_features = pcl_utils::loadAndComputeModelFeatures(
+                object_frame_,
+                normal_radius_,
+                fpfh_radius_,
+                0,  // Auto-detect thread count
+                visualize_normals_,
+                model_cloud_,
+                this->get_logger()
+            );
         } else if (param.get_name() == "general.suffix_name_pcd") {
             suffix_name_pcd_ = param.as_string();
 
@@ -664,7 +662,6 @@ Eigen::Matrix4f run_go_ICP(
     
     // Point clouds
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr model_cloud_;
-    std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr> model_vector;
     
 
     // Go-ICP wrapper

@@ -217,6 +217,27 @@ HistogramMatchingResult findBestClusterByHistogram(
     float similarity_threshold = 0.7,
     const rclcpp::Logger& logger = rclcpp::get_logger("histogram_matcher"));
 
+/**
+ * @brief Load a model from PCD file and compute its FPFH features
+ * 
+ * @param object_name The name of the object (grapple, handrail, or docking_st)
+ * @param normal_radius Radius for normal estimation
+ * @param feature_radius Radius for FPFH feature computation
+ * @param num_threads Number of threads to use (0 for auto)
+ * @param visualize_normals Whether to visualize normals
+ * @param model_cloud_out Output point cloud of the model
+ * @param logger ROS logger for output messages
+ * @return ClusterFeatures containing the computed features
+ */
+ClusterFeatures loadAndComputeModelFeatures(
+    const std::string& object_name,
+    float normal_radius,
+    float feature_radius,
+    int num_threads,
+    bool visualize_normals,
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr& model_cloud_out,
+    const rclcpp::Logger& logger);
+
 } // namespace pcl_utils
 
 

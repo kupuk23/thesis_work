@@ -43,8 +43,6 @@
     </visual>
   </link>
 
-
-
   <link name="base_link">
     <gravity>0</gravity>
     <inertial>
@@ -76,8 +74,6 @@
     <child link="base_link"/>
     <origin xyz="0 0 0" rpy="0 0 0"/>
   </joint>
-
-
 
   <gazebo reference="base_link">
     <gravity>0</gravity>

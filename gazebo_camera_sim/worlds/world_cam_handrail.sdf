@@ -239,7 +239,33 @@
     <collision>false</collision>
     <name>dart</name>
     </include> -->
+
     <!-- Spawn astrobee dock -->
+    <model name='astrobee_dock'>
+      <static>true</static>
+      <link name='body'>
+        <collision name='astrobee_dock_collision'>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///astrobee_dock/astrobee_dock.dae</uri>
+            </mesh>
+          </geometry>
+        </collision>
+        <visual name='astrobee_dock_visual'>
+          <geometry>
+            <mesh>
+              <scale>1 1 1</scale>
+              <uri>file:///astrobee_dock/astrobee_dock.dae</uri>
+            </mesh>
+          </geometry>
+        </visual>
+        <enable_wind>false</enable_wind>
+      </link>
+      <!-- <pose>-3.2 3.5 1 0 0 0</pose> -->
+      <pose>-2 0 1.1 0 0 1.57</pose>
+      <self_collide>false</self_collide>
+    </model>
 
     <!-- <include>
       <uri>model://kth_freeflyer</uri>

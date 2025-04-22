@@ -61,6 +61,7 @@ void visualizeNormals(
     }
 }
 
+
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr convertPointCloud2ToPCL(
     const sensor_msgs::msg::PointCloud2::SharedPtr& cloud_msg) {
     
@@ -225,6 +226,9 @@ PlaneSegmentationResult detect_and_remove_planes(
     const rclcpp::Logger& logger,
     bool colorize_planes, size_t min_plane_points,float min_remaining_percent ,int max_planes, float dist_threshold, int max_iterations) {
     
+    // Start timing
+    auto start_time = std::chrono::high_resolution_clock::now();
+    
     PlaneSegmentationResult result;
     result.remaining_cloud.reset(new pcl::PointCloud<pcl::PointXYZRGB>());
     result.planes_cloud.reset(new pcl::PointCloud<pcl::PointXYZRGB>());
@@ -233,8 +237,9 @@ PlaneSegmentationResult detect_and_remove_planes(
     // Initialize working cloud as a copy of input
     size_t largest_plane_size = 0;
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr largest_plane(new pcl::PointCloud<pcl::PointXYZRGB>());
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr working_cloud(new pcl::PointCloud<pcl::PointXYZRGB>(*input_cloud));
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr with_largest_plane_removed(new pcl::PointCloud<pcl::PointXYZRGB>());
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr working_cloud(new pcl::PointCloud<pcl::PointXYZRGB>(*input_cloud));
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr temp_cloud(new pcl::PointCloud<pcl::PointXYZRGB>(*working_cloud));
     
     // Plane segmentation setup
     pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients());
@@ -256,7 +261,6 @@ PlaneSegmentationResult detect_and_remove_planes(
     // RCLCPP_INFO(logger, "Starting plane detection on cloud with %zu points", remaining_points);
     
     // Detect all planes but only update the working cloud at the end
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr temp_cloud(new pcl::PointCloud<pcl::PointXYZRGB>(*working_cloud));
     
     while (plane_count < max_planes && 
         remaining_points > (min_remaining_percent * input_cloud->size()) &&
@@ -359,8 +363,13 @@ PlaneSegmentationResult detect_and_remove_planes(
         RCLCPP_INFO(logger, "No planes found to remove");
     }
     
-    RCLCPP_INFO(logger, "Plane detection complete. Found %d planes, visualizing %lu points in planes cloud.",
-               plane_count, result.planes_cloud->size());
+    // RCLCPP_INFO(logger, "Plane detection complete. Found %d planes, visualizing %lu points in planes cloud.",
+    //            plane_count, result.planes_cloud->size());
+    
+    // Calculate and log execution time
+    auto end_time = std::chrono::high_resolution_clock::now();
+    double execution_time = std::chrono::duration<double>(end_time - start_time).count();
+    RCLCPP_INFO(logger, "Plane detection executed in %.3f seconds", execution_time);
     
     return result;
 }
@@ -371,6 +380,7 @@ std::vector<ClusterFeatures> computeFPFHFeatures(
     int num_threads,
     bool visualize_normals,
     const rclcpp::Logger& logger) {
+    auto start_time = std::chrono::high_resolution_clock::now();
     
     std::vector<ClusterFeatures> results;
     results.reserve(clusters.size());
@@ -497,6 +507,9 @@ std::vector<ClusterFeatures> computeFPFHFeatures(
             RCLCPP_ERROR(logger, "Error computing features for cluster %ld: %s", i, e.what());
         }
     }
+    auto end_time = std::chrono::high_resolution_clock::now();
+    double execution_time = std::chrono::duration<double>(end_time - start_time).count();
+    RCLCPP_INFO(logger, "FPFH computation executed in %.3f seconds", execution_time);
     
     // RCLCPP_INFO(logger, "FPFH computation complete for %ld of %ld clusters", 
     //            results.size(), clusters.size());
@@ -511,6 +524,7 @@ HistogramMatchingResult findBestClusterByHistogram(
     float similarity_threshold,
     const rclcpp::Logger& logger)
 {
+    auto start_time = std::chrono::high_resolution_clock::now();
     HistogramMatchingResult result;
     result.cluster_similarities.resize(cluster_features.size(), 0.0f);
     
@@ -558,8 +572,72 @@ HistogramMatchingResult findBestClusterByHistogram(
                   best_cluster_index, best_similarity_score, similarity_threshold);
         // No valid match found - keep result.best_matching_cluster as nullptr
     }
+    auto end_time = std::chrono::high_resolution_clock::now();
+    double execution_time = std::chrono::duration<double>(end_time - start_time).count();
+    RCLCPP_INFO(logger, "Finding best cluster executed in %.3f seconds", execution_time);
     
     return result;
+}
+
+pcl_utils::ClusterFeatures loadAndComputeModelFeatures(
+    const std::string& object_name,
+    float normal_radius,
+    float feature_radius,
+    int num_threads,
+    bool visualize_normals,
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr& model_cloud_out,
+    const rclcpp::Logger& logger) {
+    
+    // Start timing
+    auto start_time = std::chrono::high_resolution_clock::now();
+    
+    // Determine file path based on object name
+    std::string model_path;
+    if (object_name == "grapple") {
+        model_path = "/home/tafarrel/o3d_logs/grapple_fixture_v2.pcd";
+    } else if (object_name == "handrail") {
+        model_path = "/home/tafarrel/o3d_logs/handrail_pcd_down.pcd";
+    } else if (object_name == "docking_st") {
+        model_path = "/home/tafarrel/o3d_logs/astrobee_dock_ds.pcd";
+    } else {
+        RCLCPP_ERROR(logger, "Unknown object name: %s", object_name.c_str());
+        return ClusterFeatures();  // Return empty features
+    }
+    
+    // Load model point cloud
+    model_cloud_out = loadModelPCD(model_path, logger);
+    if (model_cloud_out->empty()) {
+        RCLCPP_ERROR(logger, "Failed to load model for %s", object_name.c_str());
+        return ClusterFeatures();  // Return empty features
+    }
+    
+    // Create vector with single model
+    std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr> model_vector = {model_cloud_out};
+    
+    // Compute features
+    std::vector<ClusterFeatures> features = computeFPFHFeatures(
+        model_vector,
+        normal_radius,
+        feature_radius,
+        num_threads,
+        visualize_normals,
+        logger
+    );
+    
+    // Calculate and log execution time
+    auto end_time = std::chrono::high_resolution_clock::now();
+    double execution_time = std::chrono::duration<double>(end_time - start_time).count();
+    // RCLCPP_INFO(logger, "Model feature computation for %s executed in %.3f seconds", 
+    //            object_name.c_str(), execution_time);
+    
+    // Return the first (and only) feature set or throw an exception if none computed
+if (features.empty()) {
+    std::string error_msg = "CRITICAL ERROR: Failed to compute features for model " + object_name;
+    RCLCPP_ERROR(logger, "%s", error_msg.c_str());
+    throw std::runtime_error(error_msg);  // Throw exception instead of returning empty features
+}
+    
+    return features[0];
 }
 
 } // namespace pcl_utils
