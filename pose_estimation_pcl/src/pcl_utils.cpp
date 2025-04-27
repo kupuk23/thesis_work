@@ -8,6 +8,7 @@
 #include <chrono>
 
 #include <pcl/search/kdtree.h>
+#include <pcl/search/octree.h>
 #include <pcl/segmentation/extract_clusters.h>
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/ModelCoefficients.h>
@@ -17,6 +18,11 @@
 #include <pcl/features/fpfh_omp.h>
 #include <pcl/visualization/pcl_visualizer.h>
 
+
+#include <pcl/gpu/octree/octree.hpp>
+#include <pcl/gpu/segmentation/gpu_extract_clusters.h>
+#include <pcl/gpu/containers/device_array.h>
+#include <pcl/gpu/features/features.hpp>
 
 
 namespace pcl_utils {
@@ -134,14 +140,111 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr loadModelPCD(
 }
 
 
+ClusteringResult cluster_point_cloud_gpu(
+    const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,
+    double cluster_tolerance,
+    int min_cluster_size,
+    int max_cluster_size,
+    bool debug_time,
+    const rclcpp::Logger& logger)
+{
+    // Start timing
+    auto start_time = std::chrono::high_resolution_clock::now();
+    
+    // Create result struct
+    ClusteringResult result;
+    result.colored_cloud.reset(new pcl::PointCloud<pcl::PointXYZRGB>);
+    
+    // Convert XYZRGB to XYZ (GPU processing needs XYZ)
+    pcl::PointCloud<pcl::PointXYZ>::Ptr xyz_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    xyz_cloud->resize(input_cloud->size());
+    
+    for (size_t i = 0; i < input_cloud->size(); ++i) {
+        xyz_cloud->points[i].x = input_cloud->points[i].x;
+        xyz_cloud->points[i].y = input_cloud->points[i].y;
+        xyz_cloud->points[i].z = input_cloud->points[i].z;
+    }
+    
+    // Upload point cloud to GPU
+    pcl::gpu::Octree::PointCloud cloud_device;
+    cloud_device.upload(xyz_cloud->points);
+    
+    // Create GPU octree using a shared pointer
+    pcl::gpu::Octree::Ptr octree_device(new pcl::gpu::Octree);
+    octree_device->setCloud(cloud_device);
+    octree_device->build();
+    
+    // Run clustering on GPU
+    pcl::gpu::EuclideanClusterExtraction<pcl::PointXYZ> gec;
+    gec.setClusterTolerance(cluster_tolerance);
+    gec.setMinClusterSize(min_cluster_size);
+    gec.setMaxClusterSize(max_cluster_size);
+    gec.setSearchMethod(octree_device);
+    gec.setHostCloud(xyz_cloud);
+    
+    std::vector<pcl::PointIndices> cluster_indices;
+    gec.extract(cluster_indices);
+    
+    // Check if we found any clusters
+    if (cluster_indices.empty()) {
+        RCLCPP_WARN(logger, "No clusters found in the point cloud");
+        result.colored_cloud = input_cloud;  // Return original cloud if no clusters found
+        return result;
+    }
+    
+    // Reserve space for individual clusters
+    result.individual_clusters.resize(cluster_indices.size());
+    
+    // Extract and color each cluster
+    for (size_t i = 0; i < cluster_indices.size(); ++i) {
+        // Get a color for this cluster
+        const std::array<uint8_t, 3>& color = DEFAULT_COLORS[i % DEFAULT_COLORS.size()];
+        
+        // Create a cloud for this cluster
+        result.individual_clusters[i].reset(new pcl::PointCloud<pcl::PointXYZRGB>);
+        
+        // Extract points for this cluster and color them
+        for (const auto& idx : cluster_indices[i].indices) {
+            pcl::PointXYZRGB colored_point = input_cloud->points[idx];
+            
+            // Set the RGB color
+            colored_point.r = color[0];
+            colored_point.g = color[1];
+            colored_point.b = color[2];
+            
+            result.individual_clusters[i]->push_back(colored_point);
+        }
+        
+        result.individual_clusters[i]->width = result.individual_clusters[i]->size();
+        result.individual_clusters[i]->height = 1;
+        result.individual_clusters[i]->is_dense = true;
+        
+        // Add this cluster to the output cloud
+        *result.colored_cloud += *result.individual_clusters[i];
+    }
+    
+    // Measure and report execution time
+    auto end_time = std::chrono::high_resolution_clock::now();
+    double execution_time = std::chrono::duration<double>(end_time - start_time).count();
+    
+    if (debug_time) RCLCPP_INFO(logger, "GPU clustering completed in %.3f seconds", execution_time);
+    
+    return result;
+}
+
 // Function to cluster a point cloud and color each cluster
 ClusteringResult cluster_point_cloud(
     const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,
     double cluster_tolerance,
     int min_cluster_size,
     int max_cluster_size,
+    bool debug_time,
     const rclcpp::Logger& logger
 ) {
+
+    // return cluster_point_cloud_gpu(input_cloud, cluster_tolerance, 
+    //     min_cluster_size, max_cluster_size, logger);
+
     // Start timing
     auto start_time = std::chrono::high_resolution_clock::now();
 
@@ -150,6 +253,8 @@ ClusteringResult result;
 std::vector<pcl::PointIndices> cluster_indices;
 
 // Create KdTree for searching
+// float resolution = 0.01f;  // 1cm resolution for the octree
+// pcl::search::Octree<pcl::PointXYZRGB>::Ptr tree(new pcl::search::Octree<pcl::PointXYZRGB>(resolution));
 pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZRGB>);
 tree->setInputCloud(input_cloud);
 
@@ -213,7 +318,7 @@ for (size_t i = 0; i < cluster_indices.size(); ++i) {
 auto end_time = std::chrono::high_resolution_clock::now();
 double execution_time = std::chrono::duration<double>(end_time - start_time).count();
 
-RCLCPP_INFO(logger, "Clustering completed in %.3f seconds", execution_time);
+if (debug_time) RCLCPP_INFO(logger, "Clustering completed in %.3f seconds", execution_time);
 // RCLCPP_INFO(logger, "Output cloud has %ld points across %ld clusters", 
 //         result.colored_cloud->size(), cluster_indices.size());
 
@@ -221,10 +326,11 @@ return result;
 }
 
 
+
 PlaneSegmentationResult detect_and_remove_planes(
     const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,
     const rclcpp::Logger& logger,
-    bool colorize_planes, size_t min_plane_points,float min_remaining_percent ,int max_planes, float dist_threshold, int max_iterations) {
+    bool colorize_planes, size_t min_plane_points,float min_remaining_percent ,int max_planes, float dist_threshold, int max_iterations, bool debug_time) {
     
     // Start timing
     auto start_time = std::chrono::high_resolution_clock::now();
@@ -254,9 +360,6 @@ PlaneSegmentationResult detect_and_remove_planes(
     
     int plane_count = 0;
     size_t remaining_points = working_cloud->size();
-    
-    
-
     
     // RCLCPP_INFO(logger, "Starting plane detection on cloud with %zu points", remaining_points);
     
@@ -369,17 +472,182 @@ PlaneSegmentationResult detect_and_remove_planes(
     // Calculate and log execution time
     auto end_time = std::chrono::high_resolution_clock::now();
     double execution_time = std::chrono::duration<double>(end_time - start_time).count();
-    RCLCPP_INFO(logger, "Plane detection executed in %.3f seconds", execution_time);
+    if (debug_time) RCLCPP_INFO(logger, "Plane detection executed in %.3f seconds", execution_time);
     
     return result;
 }
+
+std::vector<ClusterFeatures> computeFPFHFeaturesGPU(
+    const std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr>& clusters,
+    float normal_radius,
+    float feature_radius,
+    bool visualize_normals,
+    const rclcpp::Logger& logger) {
+    
+    auto start_time = std::chrono::high_resolution_clock::now();
+    
+    std::vector<ClusterFeatures> results;
+    results.reserve(clusters.size());
+    
+    RCLCPP_INFO(logger, "Computing FPFH features using GPU for %ld clusters", clusters.size());
+    
+    // Process each cluster
+    for (size_t i = 0; i < clusters.size(); ++i) {
+        auto cluster_start_time = std::chrono::high_resolution_clock::now();
+        
+        // Skip empty clusters
+        if (clusters[i]->empty()) {
+            RCLCPP_WARN(logger, "Cluster %ld is empty, skipping", i);
+            continue;
+        }
+        
+        // Convert RGB to XYZ for GPU processing
+        pcl::PointCloud<pcl::PointXYZ>::Ptr xyz_cloud(new pcl::PointCloud<pcl::PointXYZ>());
+        xyz_cloud->resize(clusters[i]->size());
+        
+        for (size_t j = 0; j < clusters[i]->size(); ++j) {
+            xyz_cloud->points[j].x = clusters[i]->points[j].x;
+            xyz_cloud->points[j].y = clusters[i]->points[j].y;
+            xyz_cloud->points[j].z = clusters[i]->points[j].z;
+        }
+        
+        // Skip if cluster has too few points
+        if (xyz_cloud->size() < 10) {
+            RCLCPP_WARN(logger, "Cluster %ld has only %ld points, skipping feature computation", 
+                       i, xyz_cloud->size());
+            continue;
+        }
+        
+        ClusterFeatures cluster_result;
+        
+        try {
+            // Upload point cloud to GPU
+            pcl::gpu::DeviceArray<pcl::PointXYZ> device_cloud;
+            device_cloud.upload(xyz_cloud->points);
+            
+            // Create a GPU-based KdTree for search
+            pcl::gpu::DeviceArray<pcl::PointXYZ> device_normals;
+            pcl::gpu::NormalEstimation ne;
+            ne.setInputCloud(device_cloud);
+            ne.setRadiusSearch(normal_radius, INT_MAX); // Add max elements parameter
+            ne.compute(device_normals);
+            
+            // Download normals for visualization (if needed)
+            pcl::PointCloud<pcl::Normal>::Ptr host_normals;
+            
+            // if (visualize_normals) {
+            //     host_normals.reset(new pcl::PointCloud<pcl::Normal>());
+            //     host_normals->resize(device_normals.size());
+            //     device_normals.download(host_normals->points);
+                
+            //     std::string window_name = "Normals for Cluster " + std::to_string(i);
+            //     visualizeNormals(xyz_cloud, host_normals, 0.02, 3, window_name);
+            // }
+            
+            // Compute FPFH features on GPU
+            pcl::gpu::FPFHEstimation fpfh_gpu;
+            pcl::gpu::DeviceArray2D<pcl::FPFHSignature33> device_features;
+            fpfh_gpu.setInputCloud(device_cloud);
+            fpfh_gpu.setInputNormals(device_normals);
+            fpfh_gpu.setRadiusSearch(feature_radius, INT_MAX); // Add max elements parameter
+            fpfh_gpu.compute(device_features);
+            
+            // Download features to host
+            cluster_result.fpfh_features.reset(new pcl::PointCloud<pcl::FPFHSignature33>());
+            int rows = device_features.rows();
+            int cols = device_features.cols();
+            cluster_result.fpfh_features->resize(rows);
+            
+            // Download features from GPU to host using a proper host Array2D
+            std::vector<pcl::FPFHSignature33> host_features;
+            host_features.resize(rows);
+            device_features.download(&host_features[0], cols * sizeof(pcl::FPFHSignature33));
+            
+            // Copy downloaded features to the point cloud
+            for (int j = 0; j < rows; j++) {
+                cluster_result.fpfh_features->points[j] = host_features[j];
+            }
+            
+            // Initialize average descriptor to zeros
+            std::fill_n(cluster_result.average_fpfh.histogram, 33, 0.0f);
+            
+            // Compute average and normalize individual features
+            const size_t num_features = cluster_result.fpfh_features->size();
+            
+            // Parallel reduction for computing average (using CPU since data is now downloaded)
+            #pragma omp parallel
+            {
+                pcl::FPFHSignature33 local_avg;
+                std::fill_n(local_avg.histogram, 33, 0.0f);
+                
+                #pragma omp for
+                for (size_t j = 0; j < num_features; ++j) {
+                    // Get the current feature
+                    pcl::FPFHSignature33& feature = cluster_result.fpfh_features->points[j];
+                    
+                    // Normalize the individual feature
+                    float point_sum = 0.0f;
+                    for (int k = 0; k < 33; ++k) {
+                        point_sum += feature.histogram[k];
+                    }
+                    
+                    if (point_sum > 0) {
+                        float inv_sum = 1.0f / point_sum;
+                        for (int k = 0; k < 33; ++k) {
+                            feature.histogram[k] *= inv_sum;  // Normalize
+                            local_avg.histogram[k] += feature.histogram[k];
+                        }
+                    }
+                }
+                
+                #pragma omp critical
+                {
+                    for (int k = 0; k < 33; ++k) {
+                        cluster_result.average_fpfh.histogram[k] += local_avg.histogram[k];
+                    }
+                }
+            }
+            
+            // Finalize average by dividing by number of features
+            if (num_features > 0) {
+                float inv_size = 1.0f / static_cast<float>(num_features);
+                for (int j = 0; j < 33; ++j) {
+                    cluster_result.average_fpfh.histogram[j] *= inv_size;
+                }
+            }
+            
+            auto cluster_end_time = std::chrono::high_resolution_clock::now();
+            double cluster_time = std::chrono::duration<double>(cluster_end_time - cluster_start_time).count();
+            
+            RCLCPP_INFO(logger, "Cluster %ld: GPU computed %ld FPFH features in %.3f seconds",
+                       i, num_features, cluster_time);
+            
+            results.push_back(cluster_result);
+            
+        } catch (const std::exception& e) {
+            RCLCPP_ERROR(logger, "Error in GPU feature computation for cluster %ld: %s", i, e.what());
+        }
+    }
+    
+    auto end_time = std::chrono::high_resolution_clock::now();
+    double execution_time = std::chrono::duration<double>(end_time - start_time).count();
+    RCLCPP_INFO(logger, "GPU FPFH computation executed in %.3f seconds", execution_time);
+    
+    return results;
+}
+
 std::vector<ClusterFeatures> computeFPFHFeatures(
     const std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr>& clusters,
     float normal_radius,
     float feature_radius,
     int num_threads,
     bool visualize_normals,
+    bool debug_time,
     const rclcpp::Logger& logger) {
+
+    // return computeFPFHFeaturesGPU(clusters, normal_radius, feature_radius, 
+    //         visualize_normals, logger);
+
     auto start_time = std::chrono::high_resolution_clock::now();
     
     std::vector<ClusterFeatures> results;
@@ -509,7 +777,7 @@ std::vector<ClusterFeatures> computeFPFHFeatures(
     }
     auto end_time = std::chrono::high_resolution_clock::now();
     double execution_time = std::chrono::duration<double>(end_time - start_time).count();
-    RCLCPP_INFO(logger, "FPFH computation executed in %.3f seconds", execution_time);
+    if (debug_time) RCLCPP_INFO(logger, "FPFH computation executed in %.3f seconds", execution_time);
     
     // RCLCPP_INFO(logger, "FPFH computation complete for %ld of %ld clusters", 
     //            results.size(), clusters.size());
@@ -522,6 +790,7 @@ HistogramMatchingResult findBestClusterByHistogram(
     const std::vector<ClusterFeatures>& cluster_features,
     const std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr>& cluster_clouds,
     float similarity_threshold,
+    bool debug_time,
     const rclcpp::Logger& logger)
 {
     auto start_time = std::chrono::high_resolution_clock::now();
@@ -574,7 +843,7 @@ HistogramMatchingResult findBestClusterByHistogram(
     }
     auto end_time = std::chrono::high_resolution_clock::now();
     double execution_time = std::chrono::duration<double>(end_time - start_time).count();
-    RCLCPP_INFO(logger, "Finding best cluster executed in %.3f seconds", execution_time);
+    if (debug_time) RCLCPP_INFO(logger, "Finding best cluster executed in %.3f seconds", execution_time);
     
     return result;
 }
@@ -621,6 +890,7 @@ pcl_utils::ClusterFeatures loadAndComputeModelFeatures(
         feature_radius,
         num_threads,
         visualize_normals,
+        false,  // debug_time
         logger
     );
     

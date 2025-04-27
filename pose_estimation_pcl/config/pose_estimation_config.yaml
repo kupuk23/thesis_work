@@ -5,13 +5,14 @@ pose_estimation_pcl:
       goicp_debug : false
       save_debug_clouds : true
       voxel_size: 0.012
-      object_frame: "grapple"
+      object_frame: "docking_st"
       debug_grapple : false
       save_to_pcd_ : false
       suffix_name_pcd : "_center_test"
+      debug_time : false
 
     gen_icp:
-      fitness_threshold: 1.5e-3 # good threshold for the fitness score is 3e-4
+      fitness_threshold: 1e-2 # good threshold for the fitness score is 3e-4 for grapple, 1.5e-3 for docking
       max_iteration : 75
       transformation_epsilon: 5e-3 # 1e-6
       max_correspondence_distance: 0.08 # 0.1 m default
@@ -20,9 +21,9 @@ pose_estimation_pcl:
 
     go_icp:
       use_goicp : true
-      mse_threshold: 5e-4 # 9e-4
-      dt_size: 25
-      dt_expandFactor: 4.0 # lowering will increase orientation accuracy a lot
+      mse_threshold: 5e-4 # 5e-4 for grapple, 4e-4 for docking
+      dt_size: 50 # 25 for grapple, 50 for docking
+      dt_expandFactor: 3.0 # lowering will increase orientation accuracy a lot, 4.0 for grapple
 
     clustering:
       cluster_tolerance: 0.03 #in meters, default is 0.03

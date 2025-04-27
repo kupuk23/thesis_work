@@ -100,6 +100,7 @@ void visualizeNormals(
  * @param max_planes Maximum number of planes to extract
  * @param dist_threshold Distance threshold for plane fitting
  * @param max_iterations Maximum iterations for plane fitting
+ * @param debug_time Whether to log execution time
  * @return PlaneSegmentationResult Segmentation result with planes and remaining points
  */
 PlaneSegmentationResult detect_and_remove_planes(
@@ -110,16 +111,18 @@ PlaneSegmentationResult detect_and_remove_planes(
     float min_remaining_percent = 0.2,
     int max_planes = 3,
     float dist_threshold = 0.02,
-    int max_iterations = 100);
+    int max_iterations = 100,
+    bool debug_time = false);
 
 /**
  * @brief Cluster a point cloud into separate objects
  * 
  * @param input_cloud Input point cloud
- * @param logger ROS logger for output
  * @param cluster_tolerance Distance tolerance for clustering
  * @param min_cluster_size Minimum points per cluster
  * @param max_cluster_size Maximum points per cluster
+ * @param debug_time Whether to log execution time
+ * @param logger ROS logger for output
  * @return ClusteringResult Clustered point cloud
  */
 ClusteringResult cluster_point_cloud(
@@ -127,6 +130,7 @@ ClusteringResult cluster_point_cloud(
     double cluster_tolerance = 0.02,
     int min_cluster_size = 100,
     int max_cluster_size = 25000,
+    bool debug_time = false,
     const rclcpp::Logger& logger = rclcpp::get_logger("cluster_point_cloud"));
 
 /**
@@ -187,6 +191,7 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr loadModelPCD(
  * @param feature_radius Radius for FPFH feature computation
  * @param num_threads Number of threads to use (0 = auto-detect)
  * @param visualize_normals Whether to visualize normals
+ * @param debug_time Whether to log execution time
  * @param logger Logger for output messages
  * @return std::vector<ClusterFeatures> Vector of features for each cluster
  */
@@ -196,6 +201,7 @@ std::vector<ClusterFeatures> computeFPFHFeatures(
     float feature_radius = 0.5,
     int num_threads = 0,
     bool visualize_normals = false,
+    bool debug_time = false,
     const rclcpp::Logger& logger = rclcpp::get_logger("fpfh_computation"));
 
 /**
@@ -207,6 +213,7 @@ std::vector<ClusterFeatures> computeFPFHFeatures(
  * @param model_features FPFH features of the model
  * @param cluster_features Vector of FPFH features for each cluster
  * @param similarity_threshold Minimum similarity score to consider a match valid
+ * @param debug_time Whether to log execution time
  * @param logger ROS logger for output messages
  * @return int Index of the best matching cluster or -1 if no match found
  */
@@ -215,6 +222,7 @@ HistogramMatchingResult findBestClusterByHistogram(
     const std::vector<ClusterFeatures>& cluster_features,
     const std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr>& cluster_clouds,
     float similarity_threshold = 0.7,
+    bool debug_time = false,
     const rclcpp::Logger& logger = rclcpp::get_logger("histogram_matcher"));
 
 /**

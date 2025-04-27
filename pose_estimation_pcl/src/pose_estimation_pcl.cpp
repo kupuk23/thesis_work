@@ -41,6 +41,7 @@ public:
         object_frame_ = this->declare_parameter("general.object_frame", "grapple");
         save_to_pcd_ = this->declare_parameter("general.save_to_pcd", false);
         suffix_name_pcd_ = this->declare_parameter("general.suffix_name_pcd", "test");
+        debug_time_ = this->declare_parameter("general.debug_time", false);
 
         // Gen ICP params
         gicp_fitness_threshold_ = this->declare_parameter("gen_icp.fitness_threshold", 0.05);
@@ -231,7 +232,7 @@ void process_data() {
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud = pcl_utils::convertPointCloud2ToPCL(cloud_msg);
         
         auto end_time = std::chrono::high_resolution_clock::now();
-        RCLCPP_INFO(this->get_logger(), 
+        if (debug_time_) RCLCPP_INFO(this->get_logger(), 
             "CONVERTING POINT CLOUD TAKES: %.3f s",
             std::chrono::duration<double>(end_time - first_start_time).count());
 
@@ -239,7 +240,7 @@ void process_data() {
         auto preprocessed_cloud = preprocess_pointcloud(cloud, cloud_msg);
         
         end_time = std::chrono::high_resolution_clock::now();
-        RCLCPP_INFO(this->get_logger(), 
+        if (debug_time_) RCLCPP_INFO(this->get_logger(), 
             "PRE-PROCESSING TAKES: %.3f s",
             std::chrono::duration<double>(end_time - start_time).count());
         
@@ -263,19 +264,17 @@ void process_data() {
         Eigen::Matrix4f final_transformation = performRegistration(preprocessed_cloud, cloud_msg);
         end_time = std::chrono::high_resolution_clock::now();
 
-        RCLCPP_INFO(this->get_logger(), 
+        if (debug_time_) RCLCPP_INFO(this->get_logger(), 
             "ICP takes: %.3f s",
             std::chrono::duration<double>(end_time - start_time).count());
         
-        // Publish and broadcast results
-        ros_utils::publish_registration_results(final_transformation, cloud_msg, 
-            icp_result_publisher_, tf_broadcaster_, object_frame_, "_icp");
-        
         
         end_time = std::chrono::high_resolution_clock::now();
-        RCLCPP_INFO(this->get_logger(), 
+        if (debug_time_)  RCLCPP_INFO(this->get_logger(), 
             "Total processing time: %.3f s",
             std::chrono::duration<double>(end_time - first_start_time).count());
+        
+
         
     } catch (const std::exception& e) {
         RCLCPP_ERROR(this->get_logger(), "Error processing point cloud: %s", e.what());
@@ -298,8 +297,13 @@ Eigen::Matrix4f performRegistration(
     // 1. use_goicp_ is true
     // 2. tracking is not initialized or previous GICP score is above threshold
     // 3. object is detected
+
+    if (previous_gicp_score_ > gicp_fitness_threshold_) {
+        cout << "Generalized-ICP has high fitness!! : " << previous_gicp_score_ << endl;
+        tracking_initialized_ = false;
+    }
     
-    bool run_goicp = use_goicp_ && (!tracking_initialized_ || previous_gicp_score_ > gicp_fitness_threshold_) && object_detected_;
+    bool run_goicp = use_goicp_ && (!tracking_initialized_) && object_detected_;
     
     // First try GICP with previous transform if we have good tracking
     if (!run_goicp && tracking_initialized_) {
@@ -331,6 +335,40 @@ Eigen::Matrix4f performRegistration(
     if (run_goicp) {
         final_transformation = run_go_ICP(preprocessed_cloud, cloud_msg);
     }
+
+    // Check if the transformation x axis and z axis is flipped
+    Eigen::Vector3f x_axis = final_transformation.block<3, 1>(0, 0);
+
+    Eigen::Vector3f z_axis = final_transformation.block<3, 1>(0, 2);
+    
+        
+    // Check if the x-axis is flipped by inverse cosine
+    float x_angle = std::acos(x_axis.dot(Eigen::Vector3f::UnitX()));
+    float z_angle = std::acos(z_axis.dot(Eigen::Vector3f::UnitZ()));
+    // print the angle
+    // cout << "X axis difference (in rad): " << x_angle << endl;
+    if (x_angle < M_PI / 2) {
+        RCLCPP_WARN(this->get_logger(), "Go-ICP transformation x-axis is flipped, retrying...");
+        run_goicp = true;
+        tracking_initialized_ = false;
+
+    } else if (z_angle > M_PI / 2) {
+        RCLCPP_WARN(this->get_logger(), "GO-ICP Geometric verification failed (wrong orientation), retrying...");
+        run_goicp = true;
+        tracking_initialized_ = false;
+    }
+    else{
+        // cout << "Go-ICP transformation x-axis is correct, treshold = " << (M_PI / 2) << endl;
+        run_goicp = false;
+
+        // Publish and broadcast results
+        ros_utils::publish_registration_results(final_transformation, cloud_msg, 
+            icp_result_publisher_, tf_broadcaster_, object_frame_, "_icp");
+        
+    }
+
+    
+    
     
     return final_transformation;
 }
@@ -360,8 +398,8 @@ Eigen::Matrix4f run_go_ICP(
 
     /// print the rotation matrix
     Eigen::Matrix3f rotation_matrix = alignment_transform.block<3, 3>(0, 0);
-    cout << "Rotation matrix: " << endl << rotation_matrix << endl;
-    RCLCPP_INFO(this->get_logger(), 
+    // cout << "Rotation matrix: " << endl << rotation_matrix << endl;
+    if (debug_time_) RCLCPP_INFO(this->get_logger(), 
         "Go-ICP completed in %.3f seconds with error: %.5f", 
         goicp_time, goicp_error);
 
@@ -392,7 +430,7 @@ Eigen::Matrix4f run_go_ICP(
         RCLCPP_INFO(this->get_logger(), "GICP refinement converged with score: %f", gicp_score);
         // extract rotation matrix from final_transformation
         Eigen::Matrix3f rotation_matrix = final_transformation.block<3, 3>(0, 0);
-        cout << "Final rotation matrix: " << endl << rotation_matrix << endl;
+        // cout << "Final rotation matrix: " << endl << rotation_matrix << endl;
 
     } else {
         RCLCPP_WARN(this->get_logger(), "GICP refinement failed, using Go-ICP result directly");
@@ -441,17 +479,17 @@ Eigen::Matrix4f run_go_ICP(
             0.2,  // min remaining percent
             max_planes_,  // max planes
             plane_distance_threshold_,  // distance threshold
-            max_plane_iterations_);  // max iterations
+            max_plane_iterations_, debug_time_);  // max iterations
 
         // cluster the pointclouds
-        auto clustering_result = pcl_utils::cluster_point_cloud(segmentation_result.remaining_cloud, cluster_tolerance_, min_cluster_size_, max_cluster_size_);
+        auto clustering_result = pcl_utils::cluster_point_cloud(segmentation_result.remaining_cloud, cluster_tolerance_, min_cluster_size_, max_cluster_size_, debug_time_);
         
         
         auto cluster_features = pcl_utils::computeFPFHFeatures(clustering_result.individual_clusters,
             normal_radius_,  // normal radius - adjust based on your point cloud density
             fpfh_radius_,  // feature radius - adjust based on your point cloud density
             0,     // auto-detect thread count
-            visualize_normals_
+            visualize_normals_, debug_time_
         );        
         
         auto matching_result = pcl_utils::findBestClusterByHistogram(
@@ -459,7 +497,7 @@ Eigen::Matrix4f run_go_ICP(
             cluster_features,
             clustering_result.individual_clusters,
             similarity_threshold_,
-            this->get_logger()
+            debug_time_
         );
 
         // if result.best_matching_cluster is nullptr, return filtered_cloud
@@ -536,7 +574,8 @@ Eigen::Matrix4f run_go_ICP(
             );
         } else if (param.get_name() == "general.suffix_name_pcd") {
             suffix_name_pcd_ = param.as_string();
-
+        } else if (param.get_name() == "general.debug_time") {
+            debug_time_ = param.as_bool();
         } else if (param.get_name() == "go_icp.use_goicp") {
             use_goicp_ = param.as_bool();
         } else if (param.get_name() == "go_icp.mse_threshold") {
@@ -619,6 +658,7 @@ Eigen::Matrix4f run_go_ICP(
     int processing_period_ms_;
     bool save_to_pcd_;
     std::string suffix_name_pcd_;
+    bool debug_time_;
 
     // Go-ICP parameters
     bool goicp_debug_;

@@ -5,8 +5,10 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
+        - /TF1
         - /TF1/Frames1
-        - /Pose1/Topic1
+        - /TF1/Tree1
+        - /Pose1
         - /PointCloud22
       Splitter Ratio: 0.5
     Tree Height: 368
@@ -54,6 +56,11 @@ Visualization Manager:
         Expand Link Details: false
         Expand Tree: false
         Link Tree Style: Links in Alphabetic Order
+        base_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
         camera_color_frame:
           Alpha: 1
           Show Axes: false
@@ -111,30 +118,36 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: false
+        base_link:
+          Value: false
         camera_color_frame:
-          Value: true
+          Value: false
         camera_color_optical_frame:
-          Value: true
+          Value: false
         camera_depth_frame:
-          Value: true
+          Value: false
         camera_depth_optical_frame:
-          Value: true
+          Value: false
         camera_infra1_frame:
-          Value: true
+          Value: false
         camera_infra1_optical_frame:
-          Value: true
+          Value: false
         camera_infra2_frame:
-          Value: true
+          Value: false
         camera_infra2_optical_frame:
-          Value: true
+          Value: false
         camera_link:
           Value: true
         dummy_link:
-          Value: true
+          Value: false
+        grapple:
+          Value: false
+        handrail:
+          Value: false
         map:
-          Value: true
+          Value: false
         odom:
-          Value: true
+          Value: false
       Marker Scale: 1
       Name: TF
       Show Arrows: true
@@ -142,8 +155,14 @@ Visualization Manager:
       Show Names: false
       Tree:
         map:
+          grapple:
+            {}
+          handrail:
+            {}
           odom:
             dummy_link:
+              base_link:
+                {}
               camera_link:
                 camera_color_frame:
                   camera_color_optical_frame:
@@ -207,16 +226,16 @@ Visualization Manager:
         Value: /tracking_visualization
       Value: false
     - Alpha: 1
-      Axes Length: 1
-      Axes Radius: 0.10000000149011612
+      Axes Length: 0.10000000149011612
+      Axes Radius: 0.019999999552965164
       Class: rviz_default_plugins/Pose
-      Color: 255; 25; 0
+      Color: 255; 255; 255
       Enabled: true
-      Head Length: 0.10000000149011612
-      Head Radius: 0.05000000074505806
+      Head Length: 0.05000000074505806
+      Head Radius: 0.029999999329447746
       Name: Pose
-      Shaft Length: 0.5
-      Shaft Radius: 0.029999999329447746
+      Shaft Length: 0.20000000298023224
+      Shaft Radius: 0.009999999776482582
       Shape: Arrow
       Topic:
         Depth: 5
@@ -227,8 +246,8 @@ Visualization Manager:
         Value: /pose/icp_result
       Value: true
     - Alpha: 1
-      Axes Length: 1
-      Axes Radius: 0.10000000149011612
+      Axes Length: 0.20000000298023224
+      Axes Radius: 0.019999999552965164
       Class: rviz_default_plugins/Pose
       Color: 53; 132; 228
       Enabled: true
@@ -237,7 +256,7 @@ Visualization Manager:
       Name: Pose
       Shaft Length: 0.30000001192092896
       Shaft Radius: 0.029999999329447746
-      Shape: Arrow
+      Shape: Axes
       Topic:
         Depth: 5
         Durability Policy: Volatile
@@ -294,25 +313,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 2.1745150089263916
+      Distance: 2.070674419403076
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -0.03887185454368591
-        Y: 0.12195931375026703
-        Z: -0.034956879913806915
+        X: 0.09357530623674393
+        Y: -0.39115628600120544
+        Z: 0.44419047236442566
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.39500004053115845
+      Pitch: 0.5100001692771912
       Target Frame: camera_color_optical_frame
       Value: Orbit (rviz_default_plugins)
-      Yaw: 2.556826114654541
+      Yaw: 1.9918243885040283
     Saved: ~
 Window Geometry:
   Displays:
@@ -326,5 +345,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 1200
-  X: 720
-  Y: 153
+  X: 371
+  Y: 92
