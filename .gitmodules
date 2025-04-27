@@ -1,0 +1,3 @@
+[submodule "px4-mpc"]
+	path = px4-mpc
+	url = git@github.com:kupuk23/px4-mpc.git
