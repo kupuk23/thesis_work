@@ -5,3 +5,6 @@
 	path = perception_pcl
 	url = https://github.com/ros-perception/perception_pcl.git
 	branch = jazzy
+[submodule "px4-offboard"]
+	path = px4-offboard
+	url = https://github.com/Jaeyoung-Lim/px4-offboard
