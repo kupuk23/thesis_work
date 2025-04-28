@@ -93,17 +93,6 @@ def generate_launch_description():
         description="Use simulation time.",
     )
 
-    world_arg = DeclareLaunchArgument(
-        "world",
-        default_value="world_cam_handrail.sdf",
-        description="Name of the Gazebo world file to load",
-    )
-
-    model_arg = DeclareLaunchArgument(
-        "model",
-        default_value="robot_3d.urdf.xacro",
-        description="Name of the URDF description to load",
-    )
 
     spawn_robot_arg = DeclareLaunchArgument(
         "spawn_robot",
@@ -137,13 +126,6 @@ def generate_launch_description():
         arguments=["0", "0", "0", "0", "0", "0", "map", "odom"],
         output="screen",
     )
-
-    tf_camera_link_pub = Node(
-            package='tf2_ros',
-            executable='static_transform_publisher',
-            name='spacecraft_to_camera_tf',
-            arguments=['0.2', '0.0', '0.25', '0.0', '0.0', '0.0', 'base_link', 'camera_link']
-        )
 
     # Launch rviz
     rviz_node = Node(
@@ -183,8 +165,7 @@ def generate_launch_description():
             "/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock",  # [ means the message type is from gazebo
             "/cmd_vel@geometry_msgs/msg/Twist@gz.msgs.Twist",  # @ means the message type is bi directional
             "/odom@nav_msgs/msg/Odometry@gz.msgs.Odometry",
-            "/tf@tf2_msgs/msg/TFMessage@gz.msgs.Pose_V",
-            # add the world pose
+            "/tf@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V",
             "/world/iss_world/pose/info@geometry_msgs/msg/PoseArray@gz.msgs.Pose_V",
             # "/camera/image@sensor_msgs/msg/Image@gz.msgs.Image",
             "/camera/camera_info@sensor_msgs/msg/CameraInfo@gz.msgs.CameraInfo",
@@ -214,6 +195,12 @@ def generate_launch_description():
         ],
     )
 
+    tf_camera_link_pub = Node(
+    package='tf2_ros',
+    executable='static_transform_publisher',
+    name='spacecraft_to_camera_tf',
+    arguments=['0.189', '0.0', '0.478', '0.0', '0.0', '0.0', 'base_link', 'camera_link']
+)
     # add perception pipeline with config file
     
     perception_pkg_dir = get_package_share_directory('pose_estimation_pcl')
@@ -260,19 +247,12 @@ def generate_launch_description():
 
     launchDescriptionObject.add_action(rviz_launch_arg)
     launchDescriptionObject.add_action(use_sim_time_arg)
-    launchDescriptionObject.add_action(world_arg)
-    launchDescriptionObject.add_action(model_arg)
-    launchDescriptionObject.add_action(spawn_robot_arg)
-    launchDescriptionObject.add_action(world_launch)
-    launchDescriptionObject.add_action(rviz_node)
-    launchDescriptionObject.add_action(tf_broadcaster)
-    launchDescriptionObject.add_action(robot_state_publisher_node)
+    # launchDescriptionObject.add_action(rviz_node)
     launchDescriptionObject.add_action(gz_bridge_node)
     launchDescriptionObject.add_action(gz_image_bridge_node)
     launchDescriptionObject.add_action(relay_camera_info_node)
     launchDescriptionObject.add_action(tf_world_publisher)
-    # launchDescriptionObject.add_action(ibvs_node)
-    launchDescriptionObject.add_action(OpaqueFunction(function=launch_setup))
     launchDescriptionObject.add_action(pose_estimation_node)
+    launchDescriptionObject.add_action(tf_camera_link_pub)
 
     return launchDescriptionObject

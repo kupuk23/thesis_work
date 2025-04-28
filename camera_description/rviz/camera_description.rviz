@@ -8,6 +8,7 @@ Panels:
         - /TF1
         - /TF1/Frames1
         - /TF1/Tree1
+        - /PointCloud21
         - /Pose1
         - /PointCloud22
       Splitter Ratio: 0.5
@@ -56,53 +57,6 @@ Visualization Manager:
         Expand Link Details: false
         Expand Tree: false
         Link Tree Style: Links in Alphabetic Order
-        base_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        camera_color_frame:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        camera_color_optical_frame:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        camera_depth_frame:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        camera_depth_optical_frame:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        camera_infra1_frame:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        camera_infra1_optical_frame:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        camera_infra2_frame:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        camera_infra2_optical_frame:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-        camera_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
-        dummy_link:
-          Alpha: 1
-          Show Axes: false
-          Show Trail: false
-          Value: true
       Mass Properties:
         Inertia: false
         Mass: false
@@ -117,37 +71,15 @@ Visualization Manager:
       Filter (whitelist): ""
       Frame Timeout: 15
       Frames:
-        All Enabled: false
+        All Enabled: true
         base_link:
-          Value: false
-        camera_color_frame:
-          Value: false
-        camera_color_optical_frame:
-          Value: false
-        camera_depth_frame:
-          Value: false
-        camera_depth_optical_frame:
-          Value: false
-        camera_infra1_frame:
-          Value: false
-        camera_infra1_optical_frame:
-          Value: false
-        camera_infra2_frame:
-          Value: false
-        camera_infra2_optical_frame:
-          Value: false
+          Value: true
         camera_link:
           Value: true
-        dummy_link:
-          Value: false
-        grapple:
-          Value: false
-        handrail:
-          Value: false
         map:
-          Value: false
+          Value: true
         odom:
-          Value: false
+          Value: true
       Marker Scale: 1
       Name: TF
       Show Arrows: true
@@ -155,27 +87,10 @@ Visualization Manager:
       Show Names: false
       Tree:
         map:
-          grapple:
-            {}
-          handrail:
-            {}
           odom:
-            dummy_link:
-              base_link:
-                {}
+            base_link:
               camera_link:
-                camera_color_frame:
-                  camera_color_optical_frame:
-                    {}
-                camera_depth_frame:
-                  camera_depth_optical_frame:
-                    {}
-                camera_infra1_frame:
-                  camera_infra1_optical_frame:
-                    {}
-                camera_infra2_frame:
-                  camera_infra2_optical_frame:
-                    {}
+                {}
       Update Interval: 0
       Value: true
     - Alpha: 1
@@ -190,7 +105,7 @@ Visualization Manager:
       Color: 255; 255; 255
       Color Transformer: RGB8
       Decay Time: 0
-      Enabled: false
+      Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
       Max Intensity: 4096
@@ -207,10 +122,10 @@ Visualization Manager:
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /camera/points
+        Value: /pre_processed_pc
       Use Fixed Frame: true
       Use rainbow: true
-      Value: false
+      Value: true
     - Class: rviz_default_plugins/Image
       Enabled: false
       Max Value: 1
@@ -313,25 +228,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 2.070674419403076
+      Distance: 6.413801670074463
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0.09357530623674393
-        Y: -0.39115628600120544
-        Z: 0.44419047236442566
+        X: -0.5838025212287903
+        Y: -0.6223624348640442
+        Z: 0.027588538825511932
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.5100001692771912
+      Pitch: 0.4850003123283386
       Target Frame: camera_color_optical_frame
       Value: Orbit (rviz_default_plugins)
-      Yaw: 1.9918243885040283
+      Yaw: 1.5036393404006958
     Saved: ~
 Window Geometry:
   Displays:
