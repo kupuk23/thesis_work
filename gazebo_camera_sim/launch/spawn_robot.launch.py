@@ -273,6 +273,6 @@ def generate_launch_description():
     launchDescriptionObject.add_action(tf_world_publisher)
     # launchDescriptionObject.add_action(ibvs_node)
     launchDescriptionObject.add_action(OpaqueFunction(function=launch_setup))
-    launchDescriptionObject.add_action(pose_estimation_node)
+    # launchDescriptionObject.add_action(pose_estimation_node)
 
     return launchDescriptionObject

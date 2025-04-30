@@ -62,6 +62,7 @@ public:
         cluster_tolerance_ = this->declare_parameter("clustering.cluster_tolerance", 0.02);
         min_cluster_size_ = this->declare_parameter("clustering.min_cluster_size", 100);
         max_cluster_size_ = this->declare_parameter("clustering.max_cluster_size", 25000);
+        cluster_pc_ = this->declare_parameter("clustering.cluster_pc", true);
 
         
         // 3D Descriptor parameters
@@ -188,7 +189,7 @@ private:
         
         gicp.setInputSource(source_cloud);
         gicp.setInputTarget(target_cloud);
-        gicp.setUseReciprocalCorrespondences(true);
+        gicp.setUseReciprocalCorrespondences(false);
         
         // Set GICP parameters
         gicp.setMaximumIterations(gicp_max_iterations_);
@@ -481,7 +482,8 @@ Eigen::Matrix4f run_go_ICP(
             plane_distance_threshold_,  // distance threshold
             max_plane_iterations_, debug_time_);  // max iterations
 
-        // cluster the pointclouds
+        if (cluster_pc_){
+            // cluster the pointclouds
         auto clustering_result = pcl_utils::cluster_point_cloud(segmentation_result.remaining_cloud, cluster_tolerance_, min_cluster_size_, max_cluster_size_, debug_time_);
         
         
@@ -504,7 +506,7 @@ Eigen::Matrix4f run_go_ICP(
         if (matching_result.best_matching_cluster == nullptr) {
             RCLCPP_WARN(this->get_logger(), "No matching cluster found, returning filtered cloud");
             object_detected_ = false;
-            return filtered_cloud;
+            return segmentation_result.remaining_cloud;
         }
 
         // use the index from cluster_similarity with highest value, and return the cluster pointcloud
@@ -513,7 +515,6 @@ Eigen::Matrix4f run_go_ICP(
         // publish the similarity results to the array topic
         ros_utils::publish_array(array_publisher_, matching_result.cluster_similarities);
 
-        // If you want to publish the planes cloud:
         if (save_debug_clouds_ && segmentation_result.planes_cloud->size() > 0) {
             // publish the downsampled pointcloud
             ros_utils::publish_debug_cloud(filtered_cloud, cloud_msg, cloud_debug_pub_, save_debug_clouds_);
@@ -532,6 +533,24 @@ Eigen::Matrix4f run_go_ICP(
         
         // return filtered_cloud;
         return matching_result.best_matching_cluster;
+        }
+        
+
+        // If you want to publish the planes cloud:
+        if (save_debug_clouds_ && segmentation_result.planes_cloud->size() > 0) {
+            // publish the downsampled pointcloud
+            ros_utils::publish_debug_cloud(filtered_cloud, cloud_msg, cloud_debug_pub_, save_debug_clouds_);
+        
+
+            // publish the detected planes
+            ros_utils::publish_debug_cloud(segmentation_result.planes_cloud, cloud_msg, plane_debug_pub_, save_debug_clouds_);
+            // publish the filtered planes
+            ros_utils::publish_debug_cloud(segmentation_result.remaining_cloud, cloud_msg, filtered_plane_debug_pub_, save_debug_clouds_);
+            }
+        object_detected_ = true;
+        
+        // return filtered_cloud;
+        return segmentation_result.remaining_cloud;
     }
 
     
@@ -605,6 +624,8 @@ Eigen::Matrix4f run_go_ICP(
             min_cluster_size_ = param.as_int();
         } else if (param.get_name() == "clustering.max_cluster_size") {
             max_cluster_size_ = param.as_int();
+        } else if (param.get_name() == "clustering.cluster_pc") {
+            cluster_pc_ = param.as_bool();
 
         } else if (param.get_name() == "3d_decriptors.visualize_normals") {
             visualize_normals_ = param.as_bool();
@@ -687,6 +708,7 @@ Eigen::Matrix4f run_go_ICP(
     float normal_radius_;
     float fpfh_radius_;
     double similarity_threshold_;
+    bool cluster_pc_ = true;
 
     // Plane segmentation parameters 
     double plane_distance_threshold_;

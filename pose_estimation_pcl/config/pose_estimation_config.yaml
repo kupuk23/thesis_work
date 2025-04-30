@@ -1,7 +1,7 @@
 pose_estimation_pcl:
   ros__parameters:
     general:
-      processing_period_ms: 100
+      processing_period_ms: 50
       goicp_debug : false
       save_debug_clouds : true
       voxel_size: 0.012
@@ -9,10 +9,10 @@ pose_estimation_pcl:
       debug_grapple : false
       save_to_pcd_ : false
       suffix_name_pcd : "_center_test"
-      debug_time : false
+      debug_time : true
 
     gen_icp:
-      fitness_threshold: 1e-2 # good threshold for the fitness score is 3e-4 for grapple, 1.5e-3 for docking
+      fitness_threshold: 5e-1 # good threshold for the fitness score is 3e-4 for grapple, 1.5e-3 for docking
       max_iteration : 75
       transformation_epsilon: 5e-3 # 1e-6
       max_correspondence_distance: 0.08 # 0.1 m default
@@ -29,6 +29,7 @@ pose_estimation_pcl:
       cluster_tolerance: 0.03 #in meters, default is 0.03
       min_cluster_size: 150 #250
       max_cluster_size: 75000 #50000
+      cluster_pc: false
 
     3d_decriptors:
       visualize_normals: false
