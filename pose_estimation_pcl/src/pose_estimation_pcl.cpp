@@ -123,6 +123,7 @@ public:
             "/ds_pc", 1);
         plane_debug_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/planes_pc", 1);
         filtered_plane_debug_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/filtered_plane_pc", 1);
+        largest_plane_debug_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/largest_plane_pc", 1);
         clustered_plane_debug_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/clustered_plane_pc", 1);
         pre_processed_debug_pub = this->create_publisher<sensor_msgs::msg::PointCloud2>("/pre_processed_pc", 1);
 
@@ -269,9 +270,11 @@ void process_data() {
         }
 
         // Perform registration
-        start_time = std::chrono::high_resolution_clock::now();
-        Eigen::Matrix4f final_transformation = performRegistration(preprocessed_cloud, cloud_msg);
-        end_time = std::chrono::high_resolution_clock::now();
+        if (use_goicp_){
+            start_time = std::chrono::high_resolution_clock::now();
+            Eigen::Matrix4f final_transformation = performRegistration(preprocessed_cloud, cloud_msg);
+            end_time = std::chrono::high_resolution_clock::now();
+        }
 
         if (debug_time_) RCLCPP_INFO(this->get_logger(), 
             "ICP takes: %.3f s",
@@ -537,11 +540,14 @@ Eigen::Matrix4f run_go_ICP(
                 // publish the detected planes
                 ros_utils::publish_debug_cloud(segmentation_result.planes_cloud, cloud_msg, plane_debug_pub_, save_debug_clouds_);
                 // publish the filtered planes
+                ros_utils::publish_debug_cloud(segmentation_result.largest_plane_cloud, cloud_msg, largest_plane_debug_pub_, save_debug_clouds_);
                 ros_utils::publish_debug_cloud(segmentation_result.remaining_cloud, cloud_msg, filtered_plane_debug_pub_, save_debug_clouds_);
                 // publish the clustered planes
                 ros_utils::publish_debug_cloud(clustering_result.colored_cloud, cloud_msg, clustered_plane_debug_pub_, save_debug_clouds_);
 
                 ros_utils::publish_debug_cloud(matching_result.best_matching_cluster, cloud_msg, pre_processed_debug_pub, save_debug_clouds_);
+                
+
             }
             object_detected_ = true;
             
@@ -559,8 +565,10 @@ Eigen::Matrix4f run_go_ICP(
             // publish the detected planes
             ros_utils::publish_debug_cloud(segmentation_result.planes_cloud, cloud_msg, plane_debug_pub_, save_debug_clouds_);
             // publish the filtered planes
+            ros_utils::publish_debug_cloud(segmentation_result.largest_plane_cloud, cloud_msg, largest_plane_debug_pub_, save_debug_clouds_);
             ros_utils::publish_debug_cloud(segmentation_result.remaining_cloud, cloud_msg, filtered_plane_debug_pub_, save_debug_clouds_);
-            }
+            
+        }
         object_detected_ = true;
         
         // return filtered_cloud;
@@ -715,6 +723,7 @@ Eigen::Matrix4f run_go_ICP(
     rclcpp::TimerBase::SharedPtr transform_update_timer_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr plane_debug_pub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr filtered_plane_debug_pub_;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr largest_plane_debug_pub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr clustered_plane_debug_pub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pre_processed_debug_pub;
     rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr array_publisher_;

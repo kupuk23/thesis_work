@@ -201,6 +201,7 @@ bool check_floor_plane(
     const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& plane_cloud,
     const pcl::ModelCoefficients::Ptr& coefficients,
     const Eigen::Matrix4f& camera_to_map_transform,
+    float& height_threshold,
     const rclcpp::Logger& logger);
 
 
