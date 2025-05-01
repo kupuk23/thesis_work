@@ -249,88 +249,164 @@ ClusteringResult cluster_point_cloud(
     auto start_time = std::chrono::high_resolution_clock::now();
 
     // Create result struct
-ClusteringResult result;
-std::vector<pcl::PointIndices> cluster_indices;
+    ClusteringResult result;
+    std::vector<pcl::PointIndices> cluster_indices;
 
-// Create KdTree for searching
-// float resolution = 0.01f;  // 1cm resolution for the octree
-// pcl::search::Octree<pcl::PointXYZRGB>::Ptr tree(new pcl::search::Octree<pcl::PointXYZRGB>(resolution));
-pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZRGB>);
-tree->setInputCloud(input_cloud);
+    // Create KdTree for searching
+    // float resolution = 0.01f;  // 1cm resolution for the octree
+    // pcl::search::Octree<pcl::PointXYZRGB>::Ptr tree(new pcl::search::Octree<pcl::PointXYZRGB>(resolution));
+    pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZRGB>);
+    tree->setInputCloud(input_cloud);
 
-// Setup clustering
-pcl::EuclideanClusterExtraction<pcl::PointXYZRGB> ec;
-ec.setClusterTolerance(cluster_tolerance);
-ec.setMinClusterSize(min_cluster_size);
-ec.setMaxClusterSize(max_cluster_size);
-ec.setSearchMethod(tree);
-ec.setInputCloud(input_cloud);
+    // Setup clustering
+    pcl::EuclideanClusterExtraction<pcl::PointXYZRGB> ec;
+    ec.setClusterTolerance(cluster_tolerance);
+    ec.setMinClusterSize(min_cluster_size);
+    ec.setMaxClusterSize(max_cluster_size);
+    ec.setSearchMethod(tree);
+    ec.setInputCloud(input_cloud);
 
-// Perform clustering
-// RCLCPP_INFO(logger, "Starting clustering with tolerance=%.3f, min_size=%d, max_size=%d",
-//         cluster_tolerance, min_cluster_size, max_cluster_size);
+    // Perform clustering
+    // RCLCPP_INFO(logger, "Starting clustering with tolerance=%.3f, min_size=%d, max_size=%d",
+    //         cluster_tolerance, min_cluster_size, max_cluster_size);
 
-ec.extract(cluster_indices);
+    ec.extract(cluster_indices);
 
-// Check if we found any clusters
-if (cluster_indices.empty()) {
-    RCLCPP_WARN(logger, "No clusters found in the point cloud");
-    result.colored_cloud = input_cloud;  // Return original cloud if no clusters found
-    return result;
-}
-// RCLCPP_INFO(logger, "Found %ld clusters", cluster_indices.size());
-
-// Reserve space for individual clusters
-result.individual_clusters.resize(cluster_indices.size());
-
-// Extract and color each cluster
-for (size_t i = 0; i < cluster_indices.size(); ++i) {
-    // Get a color for this cluster
-    const std::array<uint8_t,3>& color = DEFAULT_COLORS[i % DEFAULT_COLORS.size()];
-    
-    // Create a cloud for this cluster
-    result.individual_clusters[i].reset(new pcl::PointCloud<pcl::PointXYZRGB>);
-    
-    // Extract points for this cluster and color them
-    for (const auto& idx : cluster_indices[i].indices) {
-        pcl::PointXYZRGB colored_point = input_cloud->points[idx];
-        
-        // Set the RGB color
-        colored_point.r = color[0];
-        colored_point.g = color[1];
-        colored_point.b = color[2];
-        
-        result.individual_clusters[i]->push_back(colored_point);
+    // Check if we found any clusters
+    if (cluster_indices.empty()) {
+        RCLCPP_WARN(logger, "No clusters found in the point cloud");
+        result.colored_cloud = input_cloud;  // Return original cloud if no clusters found
+        return result;
     }
-    
-    result.individual_clusters[i]->width = result.individual_clusters[i]->size();
-    result.individual_clusters[i]->height = 1;
-    result.individual_clusters[i]->is_dense = true;
-    
-    // RCLCPP_INFO(logger, "Cluster %ld: %ld points, color RGB(%d,%d,%d)",
-    //         i, result.individual_clusters[i]->size(), color[0], color[1], color[2]);
-    
-    // Add this cluster to the output cloud
-    *result.colored_cloud += *result.individual_clusters[i];
-}
+    // RCLCPP_INFO(logger, "Found %ld clusters", cluster_indices.size());
 
-// Measure and report execution time
-auto end_time = std::chrono::high_resolution_clock::now();
-double execution_time = std::chrono::duration<double>(end_time - start_time).count();
+    // Reserve space for individual clusters
+    result.individual_clusters.resize(cluster_indices.size());
 
-if (debug_time) RCLCPP_INFO(logger, "Clustering completed in %.3f seconds", execution_time);
-// RCLCPP_INFO(logger, "Output cloud has %ld points across %ld clusters", 
-//         result.colored_cloud->size(), cluster_indices.size());
+    // Extract and color each cluster
+    for (size_t i = 0; i < cluster_indices.size(); ++i) {
+        // Get a color for this cluster
+        const std::array<uint8_t,3>& color = DEFAULT_COLORS[i % DEFAULT_COLORS.size()];
+        
+        // Create a cloud for this cluster
+        result.individual_clusters[i].reset(new pcl::PointCloud<pcl::PointXYZRGB>);
+        
+        // Extract points for this cluster and color them
+        for (const auto& idx : cluster_indices[i].indices) {
+            pcl::PointXYZRGB colored_point = input_cloud->points[idx];
+            
+            // Set the RGB color
+            colored_point.r = color[0];
+            colored_point.g = color[1];
+            colored_point.b = color[2];
+            
+            result.individual_clusters[i]->push_back(colored_point);
+        }
+        
+        result.individual_clusters[i]->width = result.individual_clusters[i]->size();
+        result.individual_clusters[i]->height = 1;
+        result.individual_clusters[i]->is_dense = true;
+        
+        // RCLCPP_INFO(logger, "Cluster %ld: %ld points, color RGB(%d,%d,%d)",
+        //         i, result.individual_clusters[i]->size(), color[0], color[1], color[2]);
+        
+        // Add this cluster to the output cloud
+        *result.colored_cloud += *result.individual_clusters[i];
+    }
 
-return result;
-}
+    // Measure and report execution time
+    auto end_time = std::chrono::high_resolution_clock::now();
+    double execution_time = std::chrono::duration<double>(end_time - start_time).count();
 
+    if (debug_time) RCLCPP_INFO(logger, "Clustering completed in %.3f seconds", execution_time);
+    // RCLCPP_INFO(logger, "Output cloud has %ld points across %ld clusters", 
+    //         result.colored_cloud->size(), cluster_indices.size());
+
+    return result;
+    }
+
+
+    bool check_floor_plane(
+        const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& plane_cloud,
+        const pcl::ModelCoefficients::Ptr& coefficients,
+        const Eigen::Matrix4f& camera_to_map_transform,
+        const rclcpp::Logger& logger) {
+        
+        if (!plane_cloud || plane_cloud->empty() || coefficients->values.size() < 4) {
+            RCLCPP_WARN(logger, "Invalid plane data for floor check");
+            return false;
+        }
+        
+        try {
+            // Get the plane normal in camera frame (a, b, c from plane equation)
+            Eigen::Vector3f normal_camera(
+                coefficients->values[0],
+                coefficients->values[1], 
+                coefficients->values[2]
+            );
+            
+            // Normalize the vector
+            normal_camera.normalize();
+            
+            // Extract rotation matrix from the transform (upper-left 3x3)
+            Eigen::Matrix3f rotation_matrix = camera_to_map_transform.block<3, 3>(0, 0);
+            
+            // Transform normal from camera frame to map frame
+            Eigen::Vector3f normal_map = rotation_matrix * normal_camera;
+            
+            // Z axis in map frame
+            const Eigen::Vector3f z_axis(0.0, 0.0, 1.0);
+            
+            // Compute the dot product between the normal and z axis
+            float dot_product = normal_map.dot(z_axis);
+            
+            // Compute the angle in degrees
+            float angle_degrees = std::acos(std::abs(dot_product)) * 180.0f / M_PI;
+            
+            // Check if the plane is roughly horizontal (aligned with Z or negative Z)
+            const float threshold_degrees = 15.0f;  // Planes within 15 degrees of horizontal
+            bool is_horizontal = angle_degrees < threshold_degrees;
+            
+            if (is_horizontal) {
+                // Check if it's below the camera (floor) or above (ceiling)
+                // Use the centroid of the plane to determine this
+                Eigen::Vector4f centroid_camera;
+                pcl::compute3DCentroid(*plane_cloud, centroid_camera);
+                
+                // Transform centroid to map frame
+                Eigen::Vector4f centroid_map = camera_to_map_transform * centroid_camera;
+                
+                // Extract camera position in map frame (translation part of the transform)
+                Eigen::Vector3f camera_position = camera_to_map_transform.block<3, 1>(0, 3);
+                
+                // If the plane is below the camera/robot, it's likely the floor
+                bool below_camera = centroid_map[2] < camera_position[2];
+                
+                if (below_camera) {
+                    RCLCPP_INFO(logger, "Detected floor plane! Normal angle to Z: %.2f degrees", angle_degrees);
+                    return true;
+                } else {
+                    RCLCPP_INFO(logger, "Detected ceiling plane! Normal angle to Z: %.2f degrees", angle_degrees);
+                    return false;
+                }
+            } else {
+                RCLCPP_DEBUG(logger, "Detected vertical plane. Normal angle to Z: %.2f degrees", angle_degrees);
+                return false;
+            }
+            
+        } catch (const std::exception& e) {
+            RCLCPP_ERROR(logger, "Error in floor plane check: %s", e.what());
+            return false;
+        }
+    }
 
 
 PlaneSegmentationResult detect_and_remove_planes(
     const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,
     const rclcpp::Logger& logger,
-    bool colorize_planes, size_t min_plane_points,float min_remaining_percent ,int max_planes, float dist_threshold, int max_iterations, bool debug_time) {
+    bool colorize_planes, size_t min_plane_points,float min_remaining_percent ,
+    int max_planes, float dist_threshold, int max_iterations, bool debug_time, 
+    const Eigen::Matrix4f& camera_to_map_transform) {
     
     // Start timing
     auto start_time = std::chrono::high_resolution_clock::now();
@@ -347,10 +423,17 @@ PlaneSegmentationResult detect_and_remove_planes(
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr working_cloud(new pcl::PointCloud<pcl::PointXYZRGB>(*input_cloud));
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr temp_cloud(new pcl::PointCloud<pcl::PointXYZRGB>(*working_cloud));
     
+
     // Plane segmentation setup
     pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients());
     pcl::PointIndices::Ptr inliers(new pcl::PointIndices());
     pcl::SACSegmentation<pcl::PointXYZRGB> seg;
+    pcl::PointIndices::Ptr largest_plane_indices(new pcl::PointIndices());
+    pcl::PointIndices::Ptr floor_plane_indices(new pcl::PointIndices());
+    bool is_floor = false;
+
+    // Extract the plane
+    pcl::ExtractIndices<pcl::PointXYZRGB> extract;
     
     seg.setOptimizeCoefficients(true);
     seg.setModelType(pcl::SACMODEL_PLANE);
@@ -379,8 +462,7 @@ PlaneSegmentationResult detect_and_remove_planes(
             break;
         }
         
-        // Extract the plane
-        pcl::ExtractIndices<pcl::PointXYZRGB> extract;
+        
         extract.setInputCloud(working_cloud);
         extract.setIndices(inliers);
         
@@ -395,24 +477,31 @@ PlaneSegmentationResult detect_and_remove_planes(
         extract.filter(*remaining_cloud);
         
         plane_count++;
+        is_floor = check_floor_plane(plane_cloud, coefficients, camera_to_map_transform, logger);
+        // check if the segment is represent the floor
+        if (is_floor) {
+            // RCLCPP_INFO(logger, "Detected floor plane, skipping");
+            *floor_plane_indices = *inliers;
+        }
         
         // If this is the largest plane so far, save it and the result of removing it
-    if (inliers->indices.size() > largest_plane_size) {
-        largest_plane_size = inliers->indices.size();
-        *largest_plane = *plane_cloud;
-        
-        // Save the cloud with this plane removed
-        extract.setNegative(true);
-        extract.filter(*with_largest_plane_removed);
-    }
+        else if (inliers->indices.size() > largest_plane_size) {
+            largest_plane_size = inliers->indices.size();
+            *largest_plane = *plane_cloud;
+            *largest_plane_indices = *inliers;
+            
+            // Save the cloud with this plane removed
+            // extract.setNegative(true);
+            // extract.filter(*with_largest_plane_removed);
+        }
 
         
         if (colorize_planes) {
             // Get color from our fixed set
             const std::array<uint8_t, 3>& color = DEFAULT_COLORS[(plane_count - 1) % DEFAULT_COLORS.size()];
-            uint8_t r = color[0];
-            uint8_t g = color[1];
-            uint8_t b = color[2];
+            uint8_t r = is_floor ? 255 : color[0];
+            uint8_t g = is_floor ? 255 : color[1];
+            uint8_t b = is_floor ? 0 : color[2];
             
             // RCLCPP_INFO(logger, "Coloring plane %d with RGB(%d,%d,%d)", plane_count, r, g, b);
             
@@ -430,6 +519,7 @@ PlaneSegmentationResult detect_and_remove_planes(
                 colored_plane->points[i].y = plane_cloud->points[i].y;
                 colored_plane->points[i].z = plane_cloud->points[i].z;
                 
+
                 // Set the RGB color
                 colored_plane->points[i].r = r;
                 colored_plane->points[i].g = g;
@@ -439,11 +529,7 @@ PlaneSegmentationResult detect_and_remove_planes(
             // Add this colored plane to our composite cloud
             *result.planes_cloud += *colored_plane;
         }
-        
-        // RCLCPP_INFO(logger, "Plane %d: extracted %lu points (%.1f%% of original)",
-        //            plane_count, inliers->indices.size(),
-        //            100.0f * inliers->indices.size() / input_cloud->size());
-        
+
         // Print plane equation: ax + by + cz + d = 0
         // RCLCPP_INFO(logger, "Plane equation: %.2fx + %.2fy + %.2fz + %.2f = 0",
         //            coefficients->values[0], coefficients->values[1],
@@ -451,13 +537,28 @@ PlaneSegmentationResult detect_and_remove_planes(
         
         // Update the working cloud for next iteration
         working_cloud = remaining_cloud;
+
+
     }
     
-    // Now that we've found all planes and identified the largest one,
+    // we found all planes and identified the largest one,
     // remove only the largest plane from the input cloud
     if (largest_plane_size > 0) {
+        
+
         *result.largest_plane_cloud = *largest_plane;
-        *result.remaining_cloud = *with_largest_plane_removed;
+        extract.setInputCloud(input_cloud);
+        extract.setIndices(largest_plane_indices);
+        extract.setNegative(true);
+        extract.filter(*result.remaining_cloud);
+
+        // if (floor_plane_indices->indices.size() > 0) {
+        //     // Remove the floor plane from the remaining cloud
+        //     extract.setInputCloud(result.remaining_cloud);
+        //     extract.setIndices(floor_plane_indices);
+        //     extract.setNegative(true);
+        //     extract.filter(*result.remaining_cloud);
+        // }
         // RCLCPP_INFO(logger, "Removed largest plane with %lu points. Remaining cloud has %lu points.",
         //            largest_plane_size, result.remaining_cloud->size());
     } else {
@@ -476,6 +577,7 @@ PlaneSegmentationResult detect_and_remove_planes(
     
     return result;
 }
+
 
 std::vector<ClusterFeatures> computeFPFHFeaturesGPU(
     const std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr>& clusters,

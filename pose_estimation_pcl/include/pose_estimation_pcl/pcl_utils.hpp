@@ -8,9 +8,12 @@
 #include <geometry_msgs/msg/transform_stamped.hpp>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
+
+#include <pcl/ModelCoefficients.h>
 #include <Eigen/Core>
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_broadcaster.h>
+
 
 // Add to pcl_utils.hpp
 namespace pcl_utils {
@@ -101,6 +104,7 @@ void visualizeNormals(
  * @param dist_threshold Distance threshold for plane fitting
  * @param max_iterations Maximum iterations for plane fitting
  * @param debug_time Whether to log execution time
+ * @param camera_to_map_transform Transform from camera to map frame
  * @return PlaneSegmentationResult Segmentation result with planes and remaining points
  */
 PlaneSegmentationResult detect_and_remove_planes(
@@ -112,7 +116,8 @@ PlaneSegmentationResult detect_and_remove_planes(
     int max_planes = 3,
     float dist_threshold = 0.02,
     int max_iterations = 100,
-    bool debug_time = false);
+    bool debug_time = false,
+    const Eigen::Matrix4f& camera_to_map_transform = Eigen::Matrix4f::Identity());
 
 /**
  * @brief Cluster a point cloud into separate objects
@@ -182,6 +187,22 @@ void saveToPCD(
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr loadModelPCD(
     const std::string& filename,
     const rclcpp::Logger& logger);
+
+
+/**
+     * Check if a detected plane is likely to be the floor using a pre-computed transform
+     * @param plane_cloud The point cloud representing the detected plane
+     * @param coefficients The plane coefficients (a, b, c, d in ax + by + cz + d = 0)
+     * @param camera_to_map_transform Pre-computed transform from camera_link to map frame
+     * @param logger ROS logger for output
+     * @return true if the plane is likely to be the floor
+     */
+bool check_floor_plane(
+    const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& plane_cloud,
+    const pcl::ModelCoefficients::Ptr& coefficients,
+    const Eigen::Matrix4f& camera_to_map_transform,
+    const rclcpp::Logger& logger);
+
 
 /**
  * @brief Compute FPFH features for each cluster

@@ -9,10 +9,10 @@ pose_estimation_pcl:
       debug_grapple : false
       save_to_pcd_ : false
       suffix_name_pcd : "_center_test"
-      debug_time : true
+      debug_time : false
 
     gen_icp:
-      fitness_threshold: 5e-1 # good threshold for the fitness score is 3e-4 for grapple, 1.5e-3 for docking
+      fitness_threshold: 5e-2 # good threshold for the fitness score is 3e-4 for grapple, 1.5e-3 for docking
       max_iteration : 75
       transformation_epsilon: 5e-3 # 1e-6
       max_correspondence_distance: 0.08 # 0.1 m default
@@ -20,7 +20,7 @@ pose_estimation_pcl:
       ransac_threshold: 0.1
 
     go_icp:
-      use_goicp : true
+      use_goicp : false
       mse_threshold: 5e-4 # 5e-4 for grapple, 4e-4 for docking
       dt_size: 50 # 25 for grapple, 50 for docking
       dt_expandFactor: 3.0 # lowering will increase orientation accuracy a lot, 4.0 for grapple

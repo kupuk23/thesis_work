@@ -21,6 +21,7 @@
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/transform_broadcaster.h>
+#include <tf2_eigen/tf2_eigen.hpp>
 
 #include "pose_estimation_pcl/pcl_utils.hpp"    // Our utility header
 #include "pose_estimation_pcl/ros_utils.hpp"    // Our ROS utility header
@@ -146,6 +147,11 @@ public:
             std::chrono::milliseconds(processing_period_ms_),
             std::bind(&PoseEstimationPCL::process_data, this),
             callback_group_processing_);
+
+        transform_update_timer_ = this->create_wall_timer(
+            std::chrono::milliseconds(50),  // 10 Hz
+            std::bind(&PoseEstimationPCL::update_transform, this),
+            callback_group_processing_);  // Use the same or different callback group
         
         // Initialize flags and mutex
         has_new_data_ = false;
@@ -155,6 +161,8 @@ public:
     }
 
 private:
+
+
 
     // Callback for receiving point cloud data (lightweight)
     void pointcloud_callback(const sensor_msgs::msg::PointCloud2::SharedPtr pointcloud_msg) {
@@ -461,7 +469,7 @@ Eigen::Matrix4f run_go_ICP(
         voxel_grid.setLeafSize(voxel_size_, voxel_size_, voxel_size_);
         voxel_grid.filter(*filtered_cloud);
         
-        // Filter by Z and X (matching the Python implementation)
+        // Filter by Z and X 
         pcl::PassThrough<pcl::PointXYZRGB> pass_z;
         pass_z.setInputCloud(filtered_cloud);
         pass_z.setFilterFieldName("z");
@@ -474,65 +482,71 @@ Eigen::Matrix4f run_go_ICP(
         pass_x.setFilterLimits(-FLT_MAX, 2.0);  // X < 2
         pass_x.filter(*filtered_cloud);
 
+        Eigen::Matrix4f current_transform;
+    {
+        std::lock_guard<std::mutex> lock(transform_mutex_);
+        current_transform = camera_to_map_transform_;  // This is your class member
+    }
+
         // remove largest plane (wall)
         auto segmentation_result = pcl_utils::detect_and_remove_planes(filtered_cloud, this->get_logger(), true, 
             min_plane_points_,  // min points per plane
             0.2,  // min remaining percent
             max_planes_,  // max planes
             plane_distance_threshold_,  // distance threshold
-            max_plane_iterations_, debug_time_);  // max iterations
+            max_plane_iterations_, debug_time_, current_transform);  // max iterations
 
         if (cluster_pc_){
             // cluster the pointclouds
-        auto clustering_result = pcl_utils::cluster_point_cloud(segmentation_result.remaining_cloud, cluster_tolerance_, min_cluster_size_, max_cluster_size_, debug_time_);
-        
-        
-        auto cluster_features = pcl_utils::computeFPFHFeatures(clustering_result.individual_clusters,
-            normal_radius_,  // normal radius - adjust based on your point cloud density
-            fpfh_radius_,  // feature radius - adjust based on your point cloud density
-            0,     // auto-detect thread count
-            visualize_normals_, debug_time_
-        );        
-        
-        auto matching_result = pcl_utils::findBestClusterByHistogram(
-            model_features,
-            cluster_features,
-            clustering_result.individual_clusters,
-            similarity_threshold_,
-            debug_time_
-        );
+            auto clustering_result = pcl_utils::cluster_point_cloud(segmentation_result.remaining_cloud, cluster_tolerance_, min_cluster_size_, max_cluster_size_, debug_time_);
+            
+            
+            auto cluster_features = pcl_utils::computeFPFHFeatures(clustering_result.individual_clusters,
+                normal_radius_,  // normal radius - adjust based on your point cloud density
+                fpfh_radius_,  // feature radius - adjust based on your point cloud density
+                0,     // auto-detect thread count
+                visualize_normals_, debug_time_
+            );        
+            
+            auto matching_result = pcl_utils::findBestClusterByHistogram(
+                model_features,
+                cluster_features,
+                clustering_result.individual_clusters,
+                similarity_threshold_,
+                debug_time_
+            );
 
-        // if result.best_matching_cluster is nullptr, return filtered_cloud
-        if (matching_result.best_matching_cluster == nullptr) {
-            RCLCPP_WARN(this->get_logger(), "No matching cluster found, returning filtered cloud");
-            object_detected_ = false;
-            return segmentation_result.remaining_cloud;
-        }
+            // if result.best_matching_cluster is nullptr, return filtered_cloud
+            if (matching_result.best_matching_cluster == nullptr) {
+                RCLCPP_WARN(this->get_logger(), "No matching cluster found, returning filtered cloud");
+                object_detected_ = false;
+                return segmentation_result.remaining_cloud;
+            }
 
-        // use the index from cluster_similarity with highest value, and return the cluster pointcloud
+            // use the index from cluster_similarity with highest value, and return the cluster pointcloud
 
 
-        // publish the similarity results to the array topic
-        ros_utils::publish_array(array_publisher_, matching_result.cluster_similarities);
+            // publish the similarity results to the array topic
+            ros_utils::publish_array(array_publisher_, matching_result.cluster_similarities);
 
-        if (save_debug_clouds_ && segmentation_result.planes_cloud->size() > 0) {
-            // publish the downsampled pointcloud
-            ros_utils::publish_debug_cloud(filtered_cloud, cloud_msg, cloud_debug_pub_, save_debug_clouds_);
-        
+            if (save_debug_clouds_ && segmentation_result.planes_cloud->size() > 0) {
+                // publish the downsampled pointcloud
+                ros_utils::publish_debug_cloud(filtered_cloud, cloud_msg, cloud_debug_pub_, save_debug_clouds_);
+            
 
-            // publish the detected planes
-            ros_utils::publish_debug_cloud(segmentation_result.planes_cloud, cloud_msg, plane_debug_pub_, save_debug_clouds_);
-            // publish the filtered planes
-            ros_utils::publish_debug_cloud(segmentation_result.remaining_cloud, cloud_msg, filtered_plane_debug_pub_, save_debug_clouds_);
-            // publish the clustered planes
-            ros_utils::publish_debug_cloud(clustering_result.colored_cloud, cloud_msg, clustered_plane_debug_pub_, save_debug_clouds_);
+                // publish the detected planes
+                ros_utils::publish_debug_cloud(segmentation_result.planes_cloud, cloud_msg, plane_debug_pub_, save_debug_clouds_);
+                // publish the filtered planes
+                ros_utils::publish_debug_cloud(segmentation_result.remaining_cloud, cloud_msg, filtered_plane_debug_pub_, save_debug_clouds_);
+                // publish the clustered planes
+                ros_utils::publish_debug_cloud(clustering_result.colored_cloud, cloud_msg, clustered_plane_debug_pub_, save_debug_clouds_);
 
-            ros_utils::publish_debug_cloud(matching_result.best_matching_cluster, cloud_msg, pre_processed_debug_pub, save_debug_clouds_);
-        }
-        object_detected_ = true;
-        
-        // return filtered_cloud;
-        return matching_result.best_matching_cluster;
+                ros_utils::publish_debug_cloud(matching_result.best_matching_cluster, cloud_msg, pre_processed_debug_pub, save_debug_clouds_);
+            }
+            object_detected_ = true;
+            
+            // return filtered_cloud;
+            return matching_result.best_matching_cluster;
         }
         
 
@@ -653,12 +667,52 @@ Eigen::Matrix4f run_go_ICP(
         return result;
     }
 
+    void update_transform() {
+        try {
+            // Try to look up the transform from camera_link to map
+            geometry_msgs::msg::TransformStamped transform_stamped;
+            transform_stamped = tf_buffer_->lookupTransform(
+                "map", "camera_link", 
+                rclcpp::Time(0),
+                rclcpp::Duration::from_seconds(1.0)
+            );
+            
+            // Convert the transform to Eigen matrix
+            Eigen::Affine3d transform_eigen = Eigen::Affine3d::Identity();
+            Eigen::Quaterniond q(
+                transform_stamped.transform.rotation.w,
+                transform_stamped.transform.rotation.x,
+                transform_stamped.transform.rotation.y,
+                transform_stamped.transform.rotation.z
+            );
+            transform_eigen.translate(Eigen::Vector3d(
+                transform_stamped.transform.translation.x,
+                transform_stamped.transform.translation.y,
+                transform_stamped.transform.translation.z
+            ));
+            transform_eigen.rotate(q);
+            
+            // Update the transform with thread safety
+            {
+                std::lock_guard<std::mutex> lock(transform_mutex_);
+                camera_to_map_transform_ = transform_eigen.matrix().cast<float>();
+                transform_initialized_ = true;
+            }
+            
+            // RCLCPP_DEBUG(this->get_logger(), "Updated camera_link to map transform");
+        }
+        catch (const tf2::TransformException &ex) {
+            RCLCPP_WARN(this->get_logger(), "Could not transform camera_link to map: %s", ex.what());
+        }
+    }
+
     // Node members
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloud_subscription_;
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr icp_result_publisher_;
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr goicp_result_publisher_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr cloud_debug_pub_;
     rclcpp::TimerBase::SharedPtr processing_timer_;
+    rclcpp::TimerBase::SharedPtr transform_update_timer_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr plane_debug_pub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr filtered_plane_debug_pub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr clustered_plane_debug_pub_;
@@ -670,6 +724,12 @@ Eigen::Matrix4f run_go_ICP(
     rclcpp::CallbackGroup::SharedPtr callback_group_subscription_;
     rclcpp::CallbackGroup::SharedPtr callback_group_processing_;
     OnSetParametersCallbackHandle::SharedPtr parameter_callback_handle_;
+
+
+    // tf frame-related variables
+    Eigen::Matrix4f camera_to_map_transform_ = Eigen::Matrix4f::Identity();
+    bool transform_initialized_ = false;
+    std::mutex transform_mutex_;  // To protect shared access to the transformation
 
     
     // General Parameters
@@ -708,7 +768,7 @@ Eigen::Matrix4f run_go_ICP(
     float normal_radius_;
     float fpfh_radius_;
     double similarity_threshold_;
-    bool cluster_pc_ = true;
+    bool cluster_pc_;
 
     // Plane segmentation parameters 
     double plane_distance_threshold_;
