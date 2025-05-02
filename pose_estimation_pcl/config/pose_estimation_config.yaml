@@ -2,7 +2,7 @@ pose_estimation_pcl:
   ros__parameters:
     general:
       processing_period_ms: 50
-      goicp_debug : false
+      goicp_debug : true
       save_debug_clouds : true
       voxel_size: 0.012
       object_frame: "docking_st"
@@ -20,7 +20,7 @@ pose_estimation_pcl:
       ransac_threshold: 0.1
 
     go_icp:
-      use_goicp : false
+      use_goicp : true
       mse_threshold: 5e-4 # 5e-4 for grapple, 4e-4 for docking
       dt_size: 50 # 25 for grapple, 50 for docking
       dt_expandFactor: 3.0 # lowering will increase orientation accuracy a lot, 4.0 for grapple
@@ -29,7 +29,7 @@ pose_estimation_pcl:
       cluster_tolerance: 0.03 #in meters, default is 0.03
       min_cluster_size: 150 #250
       max_cluster_size: 75000 #50000
-      cluster_pc: false
+      cluster_pc: true
 
     3d_decriptors:
       visualize_normals: false

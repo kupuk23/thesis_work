@@ -323,7 +323,7 @@ bool check_floor_plane(
             height_threshold =  centroid_map[2] + 0.05f; // floor height + offset
             
             if (below_camera) {
-                RCLCPP_INFO(logger, "Detected floor plane! Normal angle to Z: %.2f degrees", angle_degrees);
+                // RCLCPP_INFO(logger, "Detected floor plane! Normal angle to Z: %.2f degrees", angle_degrees);
                 return true;
             } else {
                 RCLCPP_INFO(logger, "Detected ceiling plane! Normal angle to Z: %.2f degrees", angle_degrees);
@@ -493,7 +493,6 @@ PlaneSegmentationResult detect_and_remove_planes(
         *result.largest_plane_cloud = *largest_plane;
         *result.remaining_cloud = *with_largest_plane_removed;
         // check floor_coeff, if it is not null, run filter floor clouds
-        cout << "floor_coeff size: " << floor_coeff->values.size() << endl;
         if (floor_coeff->values.size() == 4) {
             filter_floor_clouds(result.remaining_cloud, floor_coeff, camera_to_map_transform, height_threshold);
 

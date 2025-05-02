@@ -472,12 +472,6 @@ Eigen::Matrix4f run_go_ICP(
         voxel_grid.setLeafSize(voxel_size_, voxel_size_, voxel_size_);
         voxel_grid.filter(*filtered_cloud);
         
-        // Filter by Z and X 
-        pcl::PassThrough<pcl::PointXYZRGB> pass_z;
-        pass_z.setInputCloud(filtered_cloud);
-        pass_z.setFilterFieldName("z");
-        pass_z.setFilterLimits(-0.7, FLT_MAX);  // Z > -0.7
-        pass_z.filter(*filtered_cloud);
         
         pcl::PassThrough<pcl::PointXYZRGB> pass_x;
         pass_x.setInputCloud(filtered_cloud);
