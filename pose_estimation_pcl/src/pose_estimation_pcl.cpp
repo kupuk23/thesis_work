@@ -27,7 +27,10 @@
 #include "pose_estimation_pcl/ros_utils.hpp"    // Our ROS utility header
 #include "pose_estimation_pcl/go_icp_wrapper.hpp"  // Our Go-ICP wrapper
 
+#include "pose_estimation_pcl/cloud_preprocess.hpp"
+
 using namespace std::chrono_literals;
+
 
 
 class PoseEstimationPCL : public rclcpp::Node {
@@ -38,11 +41,15 @@ public:
         processing_period_ms_ = this->declare_parameter("general.processing_period_ms", 100);
         goicp_debug_ = this->declare_parameter("general.goicp_debug", false);
         save_debug_clouds_ = this->declare_parameter("general.save_debug_clouds", false);
-        voxel_size_ = this->declare_parameter("general.voxel_size", 0.05);
         object_frame_ = this->declare_parameter("general.object_frame", "grapple");
         save_to_pcd_ = this->declare_parameter("general.save_to_pcd", false);
         suffix_name_pcd_ = this->declare_parameter("general.suffix_name_pcd", "test");
         debug_time_ = this->declare_parameter("general.debug_time", false);
+
+        // Preprocessing params
+        voxel_size_ = this->declare_parameter("preprocess.voxel_size", 0.05);
+        max_depth_ = this->declare_parameter("preprocess.max_depth", 2.0);
+        cluster_pc_ = this->declare_parameter("preprocess.cluster_pc", true);
 
         // Gen ICP params
         gicp_fitness_threshold_ = this->declare_parameter("gen_icp.fitness_threshold", 0.05);
@@ -63,7 +70,7 @@ public:
         cluster_tolerance_ = this->declare_parameter("clustering.cluster_tolerance", 0.02);
         min_cluster_size_ = this->declare_parameter("clustering.min_cluster_size", 100);
         max_cluster_size_ = this->declare_parameter("clustering.max_cluster_size", 25000);
-        cluster_pc_ = this->declare_parameter("clustering.cluster_pc", true);
+        
 
         
         // 3D Descriptor parameters
@@ -77,6 +84,22 @@ public:
         max_plane_iterations_ = this->declare_parameter("plane_detection.max_plane_iterations", 100);
         min_plane_points_ = this->declare_parameter("plane_detection.min_plane_points", 800);
         max_planes_ = this->declare_parameter("plane_detection.max_planes", 3);
+
+        // // Create preprocessor with the segmenter and clusterer
+        // plane_segmentation_ = std::make_shared<PlaneSegmentation>(
+        //     this->get_logger(), 
+        //     loadPlaneSegmentationConfig());
+            
+        // cloud_clusterer_ = std::make_shared<CloudClustering>(
+        //     this->get_logger(), 
+        //     loadCloudClustererConfig());
+            
+        // Initialize the preprocessor from cloud_preprocess.hpp
+        preprocessor_ = std::make_shared<pose_estimation::PointCloudPreprocess>(
+            this->get_logger(),
+            loadPreprocessorConfig()
+        );
+
 
         array_publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>("array_topic", 10);
 
@@ -163,7 +186,14 @@ public:
 
 private:
 
-
+    pose_estimation::PointCloudPreprocess::Config loadPreprocessorConfig() {
+        pose_estimation::PointCloudPreprocess::Config config;
+        config.voxel_size = this->get_parameter("preprocess.voxel_size").as_double();
+        config.x_max = this->get_parameter("preprocess.max_depth").as_double();
+        config.enable_plane_removal = true;  // hardcode this or get from parameter
+        config.enable_clustering = this->get_parameter("preprocess.cluster_pc").as_bool();
+        return config;
+    }
 
     // Callback for receiving point cloud data (lightweight)
     void pointcloud_callback(const sensor_msgs::msg::PointCloud2::SharedPtr pointcloud_msg) {
@@ -464,20 +494,7 @@ Eigen::Matrix4f run_go_ICP(
         const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud, 
         const sensor_msgs::msg::PointCloud2::SharedPtr& cloud_msg) {
         
-        pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
-
-        // Downsample using voxel grid
-        pcl::VoxelGrid<pcl::PointXYZRGB> voxel_grid;
-        voxel_grid.setInputCloud(input_cloud);
-        voxel_grid.setLeafSize(voxel_size_, voxel_size_, voxel_size_);
-        voxel_grid.filter(*filtered_cloud);
-        
-        
-        pcl::PassThrough<pcl::PointXYZRGB> pass_x;
-        pass_x.setInputCloud(filtered_cloud);
-        pass_x.setFilterFieldName("x");
-        pass_x.setFilterLimits(-FLT_MAX, 4);  // X < 2
-        pass_x.filter(*filtered_cloud);
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_cloud = preprocessor_->process(input_cloud);
 
         Eigen::Matrix4f current_transform;
     {
@@ -569,7 +586,18 @@ Eigen::Matrix4f run_go_ICP(
         return segmentation_result.remaining_cloud;
     }
 
+    // PlaneSegmentation::Config loadPlaneSegmentationConfig() {
+    //     PlaneSegmentation::Config config;
+    //     config.plane_distance_threshold = this->get_parameter("plane_detection.plane_distance_threshold").as_double();
+    //     config.max_plane_iterations = this->get_parameter("plane_detection.max_plane_iterations").as_int();
+    //     config.min_plane_points = this->get_parameter("plane_detection.min_plane_points").as_int();
+    //     config.max_planes = this->get_parameter("plane_detection.max_planes").as_int();
+    //     return config;
+    // }
+
+
     
+
     // Parameter callback function to handle dynamic updates
     rcl_interfaces::msg::SetParametersResult parametersCallback(
         const std::vector<rclcpp::Parameter>& parameters) {
@@ -594,8 +622,7 @@ Eigen::Matrix4f run_go_ICP(
             goicp_debug_ = param.as_bool();
         } else if (param.get_name() == "general.save_debug_clouds") {
             save_debug_clouds_ = param.as_bool();
-        } else if (param.get_name() == "general.voxel_size") {
-            voxel_size_ = param.as_double();
+        
         } else if (param.get_name() == "general.object_frame") {
             object_frame_ = param.as_string();
             model_features = pcl_utils::loadAndComputeModelFeatures(
@@ -611,6 +638,15 @@ Eigen::Matrix4f run_go_ICP(
             suffix_name_pcd_ = param.as_string();
         } else if (param.get_name() == "general.debug_time") {
             debug_time_ = param.as_bool();
+
+        } else if (param.get_name() == "preprocess.voxel_size") {
+            voxel_size_ = param.as_double();
+        } else if (param.get_name() == "preprocess.max_depth") {
+            max_depth_ = param.as_double();
+        } else if (param.get_name() == "preprocess.cluster_pc") {
+            cluster_pc_ = param.as_bool();
+
+
         } else if (param.get_name() == "go_icp.use_goicp") {
             use_goicp_ = param.as_bool();
         } else if (param.get_name() == "go_icp.mse_threshold") {
@@ -640,9 +676,7 @@ Eigen::Matrix4f run_go_ICP(
             min_cluster_size_ = param.as_int();
         } else if (param.get_name() == "clustering.max_cluster_size") {
             max_cluster_size_ = param.as_int();
-        } else if (param.get_name() == "clustering.cluster_pc") {
-            cluster_pc_ = param.as_bool();
-
+        
         } else if (param.get_name() == "3d_decriptors.visualize_normals") {
             visualize_normals_ = param.as_bool();
         } else if (param.get_name() == "3d_decriptors.normal_radius") {
@@ -708,6 +742,9 @@ Eigen::Matrix4f run_go_ICP(
         }
     }
 
+    std::shared_ptr<pose_estimation::PointCloudPreprocess> preprocessor_;
+    
+
     // Node members
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloud_subscription_;
     rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr icp_result_publisher_;
@@ -737,6 +774,7 @@ Eigen::Matrix4f run_go_ICP(
     
     // General Parameters
     double voxel_size_;
+    double max_depth_;
     bool save_debug_clouds_;
     std::string object_frame_;
     int processing_period_ms_;

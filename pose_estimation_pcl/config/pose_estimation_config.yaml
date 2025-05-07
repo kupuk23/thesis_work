@@ -4,12 +4,17 @@ pose_estimation_pcl:
       processing_period_ms: 50
       goicp_debug : true
       save_debug_clouds : true
-      voxel_size: 0.012
       object_frame: "docking_st"
       debug_grapple : false
       save_to_pcd_ : false
       suffix_name_pcd : "_center_test"
       debug_time : false
+
+    preprocess:
+      voxel_size: 0.012 # 0.012 for grapple, 0.01 for docking
+      max_depth: 2.0 # in meter
+      cluster_pc: false
+
 
     gen_icp:
       fitness_threshold: 5e-2 # good threshold for the fitness score is 3e-4 for grapple, 1.5e-3 for docking
@@ -29,7 +34,7 @@ pose_estimation_pcl:
       cluster_tolerance: 0.03 #in meters, default is 0.03
       min_cluster_size: 150 #250
       max_cluster_size: 75000 #50000
-      cluster_pc: false
+      
 
     3d_decriptors:
       visualize_normals: false
