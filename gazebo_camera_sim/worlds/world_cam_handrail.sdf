@@ -123,8 +123,8 @@
           </anchors>
         </gz-gui>
 
-        <sim_time>true</sim_time>
-        <real_time>true</real_time>
+        <!-- <sim_time>false</sim_time>
+        <real_time>true</real_time> -->
         <real_time_factor>true</real_time_factor>
         <iterations>true</iterations>
       </plugin>

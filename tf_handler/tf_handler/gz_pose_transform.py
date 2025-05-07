@@ -5,6 +5,7 @@ from rclpy.node import Node
 from geometry_msgs.msg import PoseArray, PoseStamped, TransformStamped
 from sensor_msgs.msg import PointCloud2
 from tf2_ros import Buffer, TransformListener, TransformBroadcaster
+from tf2_msgs.msg import TFMessage
 
 
 class GazeboPoseExtractor(Node):
@@ -21,13 +22,13 @@ class GazeboPoseExtractor(Node):
             PoseArray, "/world/iss_world/pose/info", self.world_pose_callback, 10
         )
 
+        self.gz_tf_sub = self.create_subscription(
+            TFMessage, "/tf_gz", self.tf_gz_cb, 10
+        )
+
         # Create a publisher for the extracted handrail pose
         self.handrail_pose_publisher = self.create_publisher(
             PoseStamped, "/iss_world/handrail_pose", 10
-        )
-
-        self.pointcloud_subscribe = self.create_subscription(
-            PointCloud2, "/camera/points", self.pointcloud_callback, 10
         )
 
         # Set up the transform broadcaster
@@ -40,6 +41,30 @@ class GazeboPoseExtractor(Node):
         self.timestamp = None
 
         self.get_logger().info("Gazebo Pose Extractor Node has been initialized")
+
+    def tf_gz_cb(self, msg: TFMessage):
+        """
+        Callback function for the Gazebo TF messages
+        Args:
+            msg: TFMessage containing the transforms
+        """
+        try:
+            if len(msg.transforms) == 0:
+                self.get_logger().info("No tf received")
+                return
+
+            for tf in msg.transforms:
+                if tf.header.child_frame_id == "camera_link":
+                    # publish the transform to the robot_base_link
+                    transform = TransformStamped()
+                    transform.header.stamp = tf.header.stamp
+                    transform.header.frame_id = "robot_base_imu"
+                    transform.child_frame_id = "camera_link"
+                    transform.transform = tf.transform
+                    self.tf_broadcaster.sendTransform(transform)
+
+        except Exception as e:
+            self.get_logger().warn(f"Error broadcasting transform: {e}")
 
     def pointcloud_callback(self, msg):
         self.timestamp = msg.header.stamp
@@ -55,7 +80,7 @@ class GazeboPoseExtractor(Node):
             if len(msg.poses) == 0:
                 self.get_logger().info("No poses received")
                 return
-            
+
             if self.timestamp is None:
                 self.get_logger().info("No timestamp received")
                 return

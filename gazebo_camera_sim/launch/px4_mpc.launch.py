@@ -43,7 +43,7 @@ def launch_setup(context):
             executable="create",
             arguments=args,
             output="screen",
-            parameters=[{"use_sim_time": True}],
+            parameters=[{"use_sim_time": LaunchConfiguration("use_sim_time")}],
         )
 
     # Get the spawn_robot argument value
@@ -119,13 +119,6 @@ def generate_launch_description():
         }.items(),
     )
 
-    tf_world_publisher = Node(
-        package="tf2_ros",
-        executable="static_transform_publisher",
-        name="world_to_odom_broadcaster",
-        arguments=["0", "0", "0", "0", "0", "0", "map", "odom"],
-        output="screen",
-    )
 
     # Launch rviz
     rviz_node = Node(
@@ -137,7 +130,7 @@ def generate_launch_description():
         ],
         condition=IfCondition(LaunchConfiguration("rviz")),
         parameters=[
-            {"use_sim_time": True},
+            {"use_sim_time": LaunchConfiguration("use_sim_time")},
         ],
     )
 
@@ -151,7 +144,7 @@ def generate_launch_description():
         parameters=[
             {
                 "robot_description": Command(["xacro", " ", urdf_file_path]),
-                "use_sim_time": True,
+                "use_sim_time": LaunchConfiguration("use_sim_time"),
             },
         ],
         remappings=[("/tf", "tf"), ("/tf_static", "tf_static")],
@@ -165,8 +158,9 @@ def generate_launch_description():
             "/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock",  # [ means the message type is from gazebo
             "/cmd_vel@geometry_msgs/msg/Twist@gz.msgs.Twist",  # @ means the message type is bi directional
             "/odom@nav_msgs/msg/Odometry@gz.msgs.Odometry",
-            "/tf@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V",
-            "/world/iss_world/pose/info@geometry_msgs/msg/PoseArray@gz.msgs.Pose_V",
+            "/tf@tf2_msgs/msg/TFMessage@gz.msgs.Pose_V",
+            "/world/default/dynamic_pose/info@geometry_msgs/msg/PoseArray@gz.msgs.Pose_V",
+            # "/world/iss_world/pose/info@geometry_msgs/msg/PoseArray@gz.msgs.Pose_V",
             # "/camera/image@sensor_msgs/msg/Image@gz.msgs.Image",
             "/camera/camera_info@sensor_msgs/msg/CameraInfo@gz.msgs.CameraInfo",
             "/camera/depth_image@sensor_msgs/msg/Image@gz.msgs.Image",
@@ -175,8 +169,9 @@ def generate_launch_description():
         ],
         output="screen",
         parameters=[
-            {"use_sim_time": True},
+            {"use_sim_time": LaunchConfiguration("use_sim_time")},
         ],
+        # remappings=[("/tf", "tf_gz")],  # Remap tf to tf_gz
     )
 
     # Node to bridge camera image with image_transport and compressed_image_transport
@@ -194,12 +189,19 @@ def generate_launch_description():
             },
         ],
     )
+    tf_world_publisher = Node(
+        package="tf2_ros",
+        executable="static_transform_publisher",
+        name="world_to_odom_broadcaster",
+        arguments=["0", "0", "0", "0", "0", "0", "map", "odom"],
+        output="screen",
+    )
 
     tf_camera_link_pub = Node(
     package='tf2_ros',
     executable='static_transform_publisher',
     name='spacecraft_to_camera_tf',
-    arguments=['0.189', '0.0', '0.478', '0.0', '0.0', '0.0', 'base_link', 'camera_link']
+    arguments=['0.09', '0.0', '0.51', '0.0', '0.0', '0.0', 'robot_base_imu', 'camera_link']
 )
     # add perception pipeline with config file
     
@@ -251,8 +253,9 @@ def generate_launch_description():
     launchDescriptionObject.add_action(gz_bridge_node)
     launchDescriptionObject.add_action(gz_image_bridge_node)
     launchDescriptionObject.add_action(relay_camera_info_node)
-    launchDescriptionObject.add_action(tf_world_publisher)
+    # launchDescriptionObject.add_action(tf_broadcaster)
     launchDescriptionObject.add_action(pose_estimation_node)
     launchDescriptionObject.add_action(tf_camera_link_pub)
+    # launchDescriptionObject.add_action(tf_world_publisher)
 
     return launchDescriptionObject

@@ -20,7 +20,7 @@ pose_estimation_pcl:
       ransac_threshold: 0.1
 
     go_icp:
-      use_goicp : true
+      use_goicp : false
       mse_threshold: 5e-4 # 5e-4 for grapple, 4e-4 for docking
       dt_size: 50 # 25 for grapple, 50 for docking
       dt_expandFactor: 3.0 # lowering will increase orientation accuracy a lot, 4.0 for grapple
@@ -29,7 +29,7 @@ pose_estimation_pcl:
       cluster_tolerance: 0.03 #in meters, default is 0.03
       min_cluster_size: 150 #250
       max_cluster_size: 75000 #50000
-      cluster_pc: true
+      cluster_pc: false
 
     3d_decriptors:
       visualize_normals: false

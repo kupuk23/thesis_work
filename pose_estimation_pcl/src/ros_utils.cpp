@@ -43,13 +43,13 @@ void publish_registration_results(
     pose_publisher->publish(aligned_pose);
     
     // Broadcast the transformation
-    // broadcast_transform(
-    //     tf_broadcaster,
-    //     transform,
-    //     cloud_msg->header.stamp,
-    //     cloud_msg->header.frame_id,
-    //     object_frame + suffix
-    // );
+    broadcast_transform(
+        tf_broadcaster,
+        transform,
+        cloud_msg->header.stamp,
+        cloud_msg->header.frame_id,
+        object_frame + suffix
+    );
 }
 
 void broadcast_transform(

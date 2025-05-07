@@ -396,7 +396,7 @@ Eigen::Matrix4f run_go_ICP(
     Eigen::Matrix4f alignment_transform = goicp_wrapper_->registerPointClouds(
         model_cloud_,
         preprocessed_cloud,
-        2000,  // Max target points 
+        5000,  // Max target points 
         goicp_debug_,
         goicp_dt_size_,
         goicp_expand_factor_,
@@ -476,7 +476,7 @@ Eigen::Matrix4f run_go_ICP(
         pcl::PassThrough<pcl::PointXYZRGB> pass_x;
         pass_x.setInputCloud(filtered_cloud);
         pass_x.setFilterFieldName("x");
-        pass_x.setFilterLimits(-FLT_MAX, 2.0);  // X < 2
+        pass_x.setFilterLimits(-FLT_MAX, 4);  // X < 2
         pass_x.filter(*filtered_cloud);
 
         Eigen::Matrix4f current_transform;

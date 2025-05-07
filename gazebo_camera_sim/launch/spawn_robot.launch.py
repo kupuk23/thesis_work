@@ -43,7 +43,7 @@ def launch_setup(context):
             executable="create",
             arguments=args,
             output="screen",
-            parameters=[{"use_sim_time": True}],
+            parameters=[{"use_sim_time": LaunchConfiguration("use_sim_time")}],
         )
 
     # Get the spawn_robot argument value
@@ -89,7 +89,7 @@ def generate_launch_description():
 
     use_sim_time_arg = DeclareLaunchArgument(
         "use_sim_time",
-        default_value="true",
+        default_value="false",
         description="Use simulation time.",
     )
 
@@ -135,6 +135,9 @@ def generate_launch_description():
         executable="static_transform_publisher",
         name="world_to_odom_broadcaster",
         arguments=["0", "0", "0", "0", "0", "0", "map", "odom"],
+        parameters=[
+            {"use_sim_time": LaunchConfiguration("use_sim_time")},
+        ],
         output="screen",
     )
 
@@ -142,6 +145,9 @@ def generate_launch_description():
             package='tf2_ros',
             executable='static_transform_publisher',
             name='spacecraft_to_camera_tf',
+            parameters=[
+            {"use_sim_time": LaunchConfiguration("use_sim_time")},
+        ],
             arguments=['0.2', '0.0', '0.25', '0.0', '0.0', '0.0', 'base_link', 'camera_link']
         )
 
@@ -155,7 +161,7 @@ def generate_launch_description():
         ],
         condition=IfCondition(LaunchConfiguration("rviz")),
         parameters=[
-            {"use_sim_time": True},
+            {"use_sim_time": LaunchConfiguration("use_sim_time")},
         ],
     )
 
@@ -169,7 +175,7 @@ def generate_launch_description():
         parameters=[
             {
                 "robot_description": Command(["xacro", " ", urdf_file_path]),
-                "use_sim_time": True,
+                "use_sim_time": LaunchConfiguration("use_sim_time"),
             },
         ],
         remappings=[("/tf", "tf"), ("/tf_static", "tf_static")],
@@ -194,7 +200,7 @@ def generate_launch_description():
         ],
         output="screen",
         parameters=[
-            {"use_sim_time": True},
+            {"use_sim_time": LaunchConfiguration("use_sim_time")},
         ],
     )
 
@@ -241,6 +247,9 @@ def generate_launch_description():
         package="tf_handler",
         executable="gz_pose_transform",
         name="gz_pose_transform",
+        parameters=[
+            {"use_sim_time": LaunchConfiguration("use_sim_time")},
+        ],
         output="screen",
     )
 
@@ -265,7 +274,7 @@ def generate_launch_description():
     launchDescriptionObject.add_action(spawn_robot_arg)
     launchDescriptionObject.add_action(world_launch)
     launchDescriptionObject.add_action(rviz_node)
-    launchDescriptionObject.add_action(tf_broadcaster)
+    # launchDescriptionObject.add_action(tf_broadcaster)
     launchDescriptionObject.add_action(robot_state_publisher_node)
     launchDescriptionObject.add_action(gz_bridge_node)
     launchDescriptionObject.add_action(gz_image_bridge_node)
