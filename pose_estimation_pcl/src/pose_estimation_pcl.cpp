@@ -514,7 +514,7 @@ Eigen::Matrix4f run_go_ICP(
     }
 
         plane_segmentation_->setTransform(current_transform);
-        // auto segmentation_result = plane_segmentation_->getLastResult();
+        auto segmentation_result = plane_segmentation_->getLastResult();
 
         // remove largest plane (wall)
         // auto segmentation_result = pcl_utils::detect_and_remove_planes(filtered_cloud, this->get_logger(), true, 
