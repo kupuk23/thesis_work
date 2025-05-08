@@ -43,7 +43,7 @@ pose_estimation_pcl:
       similarity_threshold : 0.5 #0.5
     
     plane_detection:
-      plane_distance_threshold: 0.02
-      max_plane_iterations: 100
+      distance_threshold: 0.02
+      max_iterations: 100
       min_plane_points: 500
       max_planes: 3

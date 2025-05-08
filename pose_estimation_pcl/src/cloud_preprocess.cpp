@@ -1,4 +1,5 @@
 #include "pose_estimation_pcl/cloud_preprocess.hpp"
+#include "pose_estimation_pcl/plane_segmentation.hpp"
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/passthrough.h>
 #include <cfloat>  // For FLT_MAX
@@ -8,8 +9,9 @@ namespace pose_estimation {
 // Constructor implementation
 PointCloudPreprocess::PointCloudPreprocess(
     rclcpp::Logger logger,
-    const Config& config)
-    : logger_(logger), config_(config)
+    const Config& config,
+    std::shared_ptr<PlaneSegmentation> plane_segmenter)
+    : logger_(logger), config_(config), plane_segmenter_(plane_segmenter)
 {
     RCLCPP_INFO(logger_, "Point cloud preprocessor initialized");
 }
@@ -32,11 +34,13 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr PointCloudPreprocess::process(
     auto filtered_cloud = applyPassthroughFilters(downsampled_cloud);
     
     // // Step 3: Plane detection and removal (if enabled and segmenter exists)
-    // if (config_.enable_plane_removal && plane_segmenter_) {
-    //     // This would be implemented with your plane segmentation class
-    //     // filtered_cloud = plane_segmenter_->removeMainPlanes(filtered_cloud);
-    //     RCLCPP_DEBUG(logger_, "Plane removal skipped - segmenter not initialized");
-    // }
+
+    if (plane_segmenter_){
+        filtered_cloud = plane_segmenter_->removeMainPlanes(filtered_cloud);
+    } else {
+        RCLCPP_DEBUG(logger_, "Plane segmentation skipped - segmenter not initialized");
+    }
+
     
     // // Step 4: Clustering (if enabled and clusterer exists)
     // if (config_.enable_clustering && cloud_clusterer_) {
@@ -60,10 +64,10 @@ const PointCloudPreprocess::Config& PointCloudPreprocess::getConfig() const {
     return config_;
 }
 
-// // Get the plane segmenter
-// std::shared_ptr<PlaneSegmentation> PointCloudPreprocess::getPlaneSegmentation() const {
-//     return plane_segmenter_;
-// }
+// Get the plane segmenter
+std::shared_ptr<PlaneSegmentation> PointCloudPreprocess::getPlaneSegmentation() const {
+    return plane_segmenter_;
+}
 
 // // Get the cloud clusterer
 // std::shared_ptr<CloudClustering> PointCloudPreprocess::getCloudClustering() const {

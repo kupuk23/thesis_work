@@ -28,6 +28,7 @@
 #include "pose_estimation_pcl/go_icp_wrapper.hpp"  // Our Go-ICP wrapper
 
 #include "pose_estimation_pcl/cloud_preprocess.hpp"
+#include "pose_estimation_pcl/plane_segmentation.hpp"
 
 using namespace std::chrono_literals;
 
@@ -80,25 +81,25 @@ public:
         similarity_threshold_ = this->declare_parameter<double>("3d_decriptors.similarity_threshold", 0.6);
 
         // Plane segmentation parameters
-        plane_distance_threshold_ = this->declare_parameter("plane_detection.plane_distance_threshold", 0.01);
-        max_plane_iterations_ = this->declare_parameter("plane_detection.max_plane_iterations", 100);
+        distance_threshold_ = this->declare_parameter("plane_detection.distance_threshold", 0.01);
+        max_iterations_ = this->declare_parameter("plane_detection.max_iterations", 100);
         min_plane_points_ = this->declare_parameter("plane_detection.min_plane_points", 800);
         max_planes_ = this->declare_parameter("plane_detection.max_planes", 3);
 
-        // // Create preprocessor with the segmenter and clusterer
-        // plane_segmentation_ = std::make_shared<PlaneSegmentation>(
-        //     this->get_logger(), 
-        //     loadPlaneSegmentationConfig());
             
         // cloud_clusterer_ = std::make_shared<CloudClustering>(
         //     this->get_logger(), 
         //     loadCloudClustererConfig());
             
         // Initialize the preprocessor from cloud_preprocess.hpp
+        plane_segmentation_ = std::make_shared<pose_estimation::PlaneSegmentation>(
+            this->get_logger(), 
+            loadPlaneSegmentationConfig());
+
         preprocessor_ = std::make_shared<pose_estimation::PointCloudPreprocess>(
             this->get_logger(),
-            loadPreprocessorConfig()
-        );
+            loadPreprocessorConfig(),
+            plane_segmentation_);  // Pass the segmenter to the preprocessor
 
 
         array_publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>("array_topic", 10);
@@ -186,6 +187,7 @@ public:
 
 private:
 
+    
     pose_estimation::PointCloudPreprocess::Config loadPreprocessorConfig() {
         pose_estimation::PointCloudPreprocess::Config config;
         config.voxel_size = this->get_parameter("preprocess.voxel_size").as_double();
@@ -193,6 +195,15 @@ private:
         config.enable_plane_removal = true;  // hardcode this or get from parameter
         config.enable_clustering = this->get_parameter("preprocess.cluster_pc").as_bool();
         return config;
+    }
+
+    pose_estimation::PlaneSegmentation::Config loadPlaneSegmentationConfig() {
+        pose_estimation::PlaneSegmentation::Config segment_config;
+        segment_config.distance_threshold = this->get_parameter("plane_detection.distance_threshold").as_double();
+        segment_config.max_iterations = this->get_parameter("plane_detection.max_iterations").as_int();
+        segment_config.min_plane_points = this->get_parameter("plane_detection.min_plane_points").as_int();
+        segment_config.max_planes = this->get_parameter("plane_detection.max_planes").as_int();
+        return segment_config;
     }
 
     // Callback for receiving point cloud data (lightweight)
@@ -502,13 +513,16 @@ Eigen::Matrix4f run_go_ICP(
         current_transform = camera_to_map_transform_;  // This is your class member
     }
 
+        plane_segmentation_->setTransform(current_transform);
+        // auto segmentation_result = plane_segmentation_->getLastResult();
+
         // remove largest plane (wall)
-        auto segmentation_result = pcl_utils::detect_and_remove_planes(filtered_cloud, this->get_logger(), true, 
-            min_plane_points_,  // min points per plane
-            0.2,  // min remaining percent
-            max_planes_,  // max planes
-            plane_distance_threshold_,  // distance threshold
-            max_plane_iterations_, debug_time_, current_transform);  // max iterations
+        // auto segmentation_result = pcl_utils::detect_and_remove_planes(filtered_cloud, this->get_logger(), true, 
+        //     min_plane_points_,  // min points per plane
+        //     0.2,  // min remaining percent
+        //     max_planes_,  // max planes
+        //     distance_threshold_,  // distance threshold
+        //     max_iterations_, debug_time_, current_transform);  // max iterations
 
         if (cluster_pc_){
             // cluster the pointclouds
@@ -586,14 +600,6 @@ Eigen::Matrix4f run_go_ICP(
         return segmentation_result.remaining_cloud;
     }
 
-    // PlaneSegmentation::Config loadPlaneSegmentationConfig() {
-    //     PlaneSegmentation::Config config;
-    //     config.plane_distance_threshold = this->get_parameter("plane_detection.plane_distance_threshold").as_double();
-    //     config.max_plane_iterations = this->get_parameter("plane_detection.max_plane_iterations").as_int();
-    //     config.min_plane_points = this->get_parameter("plane_detection.min_plane_points").as_int();
-    //     config.max_planes = this->get_parameter("plane_detection.max_planes").as_int();
-    //     return config;
-    // }
 
 
     
@@ -686,10 +692,10 @@ Eigen::Matrix4f run_go_ICP(
         } else if (param.get_name() == "3d_decriptors.similarity_threshold") {
             similarity_threshold_ = param.as_double();
             
-        } else if (param.get_name() == "plane_detection.plane_distance_threshold") {
-            plane_distance_threshold_ = param.as_double();
-        } else if (param.get_name() == "plane_detection.max_plane_iterations") {
-            max_plane_iterations_ = param.as_int();
+        } else if (param.get_name() == "plane_detection.distance_threshold") {
+            distance_threshold_ = param.as_double();
+        } else if (param.get_name() == "plane_detection.max_iterations") {
+            max_iterations_ = param.as_int();
         } else if (param.get_name() == "plane_detection.min_plane_points") {
             min_plane_points_ = param.as_int();
         } else if (param.get_name() == "plane_detection.max_planes") {
@@ -742,8 +748,10 @@ Eigen::Matrix4f run_go_ICP(
         }
     }
 
+
     std::shared_ptr<pose_estimation::PointCloudPreprocess> preprocessor_;
     
+    std::shared_ptr<pose_estimation::PlaneSegmentation> plane_segmentation_;
 
     // Node members
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloud_subscription_;
@@ -812,8 +820,8 @@ Eigen::Matrix4f run_go_ICP(
     bool cluster_pc_;
 
     // Plane segmentation parameters 
-    double plane_distance_threshold_;
-    int max_plane_iterations_;
+    double distance_threshold_;
+    int max_iterations_;
     int min_plane_points_;
     int max_planes_;
     bool remove_planes_;

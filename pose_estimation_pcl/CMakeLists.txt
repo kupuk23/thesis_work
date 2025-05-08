@@ -58,6 +58,7 @@ add_executable(pose_estimation_pcl
   src/ros_utils.cpp
   src/go_icp_wrapper.cpp
   src/cloud_preprocess.cpp
+  src/plane_segmentation.cpp
   # src/go_icp_registration.cpp
 )
 
