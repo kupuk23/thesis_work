@@ -48,8 +48,8 @@ public:
      * @param config Configuration parameters
      */
     PlaneSegmentation(
-        rclcpp::Logger logger,
-        const Config& config);
+        const Config& config,
+    rclcpp::Logger logger = rclcpp::get_logger("plane_segmentation"));
 
     /**
      * @brief Set the camera to map transform

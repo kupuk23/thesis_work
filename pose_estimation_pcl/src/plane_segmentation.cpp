@@ -14,9 +14,9 @@
 namespace pose_estimation {
 
 PlaneSegmentation::PlaneSegmentation(
-    rclcpp::Logger logger,
-    const Config& config)
-    : logger_(logger), config_(config)
+    const Config& config,
+    rclcpp::Logger logger)
+    :  config_(config), logger_(logger)
 {
     RCLCPP_INFO(logger_, "Plane segmentation initialized");
 }

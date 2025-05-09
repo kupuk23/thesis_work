@@ -726,6 +726,33 @@ HistogramMatchingResult findBestClusterByHistogram(
     return result;
 }
 
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr loadCloudFromFile(
+    const std::string& object_name,
+    const rclcpp::Logger& logger) {
+    
+    std::shared_ptr<pcl::PointCloud<pcl::PointXYZRGB>> model_cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
+
+    // Determine file path based on object name
+    std::string model_path;
+    if (object_name == "grapple") {
+        model_path = "/home/tafarrel/o3d_logs/grapple_fixture_v2.pcd";
+    } else if (object_name == "handrail") {
+        model_path = "/home/tafarrel/o3d_logs/handrail_pcd_down.pcd";
+    } else if (object_name == "docking_st") {
+        model_path = "/home/tafarrel/o3d_logs/astrobee_dock_ds.pcd";
+    } else {
+        RCLCPP_ERROR(logger, "Unknown object name: %s", object_name.c_str());
+        return model_cloud;  // Return empty features
+    }
+    
+    // Load model point cloud
+    model_cloud = loadModelPCD(model_path, logger);
+    if (model_cloud->empty()) {
+        RCLCPP_ERROR(logger, "Failed to load model for %s", object_name.c_str());
+    }
+    return model_cloud;
+}
+
 pcl_utils::ClusterFeatures loadAndComputeModelFeatures(
     const std::string& object_name,
     float normal_radius,

@@ -8,10 +8,13 @@ namespace pose_estimation {
 
 // Constructor implementation
 PointCloudPreprocess::PointCloudPreprocess(
-    rclcpp::Logger logger,
+    
     const Config& config,
-    std::shared_ptr<PlaneSegmentation> plane_segmenter, bool debug_time)
-    : logger_(logger), config_(config), plane_segmenter_(plane_segmenter), debug_time_(debug_time)
+    std::shared_ptr<PlaneSegmentation> plane_segmenter,
+    std::shared_ptr<CloudClustering> cloud_clusterer,
+    bool debug_time,
+    rclcpp::Logger logger)
+    : config_(config), plane_segmenter_(plane_segmenter), cloud_clusterer_(cloud_clusterer) ,debug_time_(debug_time), logger_(logger)
 {
     RCLCPP_INFO(logger_, "Point cloud preprocessor initialized");
 }
@@ -33,27 +36,29 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr PointCloudPreprocess::process(
     auto downsampled_cloud = downsampleCloud(input_cloud);
     
     // Step 2: Apply passthrough filters
-    auto ds_cloud = applyPassthroughFilters(downsampled_cloud);
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_cloud = ds_cloud;
+    auto filtered_cloud = applyPassthroughFilters(downsampled_cloud);
 
-    if (ds_cloud->empty()) {
+    if (filtered_cloud->empty()) {
         RCLCPP_WARN(logger_, "Downsampled cloud is empty after passthrough filter");
-        return ds_cloud;
+        filtered_cloud = downsampled_cloud;  // Fallback to downsampled cloud
     }
     
     // // Step 3: Plane detection and removal (if enabled and segmenter exists)
 
-    if (plane_segmenter_){
-        auto filtered_cloud = plane_segmenter_->removeMainPlanes(ds_cloud);
-    } else {    
-        RCLCPP_DEBUG(logger_, "Plane segmentation skipped - segmenter not initialized");
-    }
+    // define filtered_cloud
+    // pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_cloud(new pcl::PointCloud<pcl::PointXYZRGB>(*ds_cloud));
+    
+    // if (plane_segmenter_){
+    //     filtered_cloud = plane_segmenter_->removeMainPlanes(filtered_cloud);
+    // } else {    
+    //     RCLCPP_DEBUG(logger_, "Plane segmentation skipped - segmenter not initialized");
+    // }
 
     
-    // // Step 4: Clustering (if enabled and clusterer exists)
+    // // // Step 4: Clustering (if enabled and clusterer exists)
     // if (config_.enable_clustering && cloud_clusterer_) {
     //     // This would be implemented with your clustering class
-    //     // filtered_cloud = cloud_clusterer_->extractMainCluster(filtered_cloud);
+    //     filtered_cloud = cloud_clusterer_->extractMainCluster(filtered_cloud);
     //     RCLCPP_DEBUG(logger_, "Clustering skipped - clusterer not initialized");
     // }
     

@@ -2,6 +2,7 @@
 #define CLOUD_PREPROCESS_HPP
 
 #include <pose_estimation_pcl/plane_segmentation.hpp>
+#include <pose_estimation_pcl/clustering.hpp>
 
 
 #include <rclcpp/rclcpp.hpp>
@@ -15,6 +16,7 @@
 namespace pose_estimation {
 
 class PlaneSegmentation;
+class CloudClustering;
 
 /**
  * @brief Main class for preprocessing point clouds for pose estimation
@@ -46,11 +48,11 @@ public:
      * @brief Constructor with logger and optional configuration
      */
     PointCloudPreprocess(
-        rclcpp::Logger logger,
         const Config& config,
         std::shared_ptr<PlaneSegmentation> plane_segmenter,
-        bool debug_time = false);
-        // std::shared_ptr<CloudClustering> cloud_clusterer);
+        std::shared_ptr<CloudClustering> cloud_clusterer,
+        bool debug_time = false,
+    rclcpp::Logger logger = rclcpp::get_logger("point_cloud_preprocess"));
     
     /**
      * @brief Process a point cloud using the configured pipeline
@@ -76,10 +78,10 @@ public:
      */
     std::shared_ptr<PlaneSegmentation> getPlaneSegmentation() const;
     
-    // /**
-    //  * @brief Get the cloud clusterer
-    //  */
-    // std::shared_ptr<CloudClustering> getCloudClustering() const;
+    /**
+     * @brief Get the cloud clusterer
+     */
+    std::shared_ptr<CloudClustering> getCloudClustering() const;
     
 private:
     // Preprocessing methods
@@ -93,6 +95,7 @@ private:
     Config config_;
     rclcpp::Logger logger_;
     std::shared_ptr<PlaneSegmentation> plane_segmenter_ = nullptr;
+    std::shared_ptr<CloudClustering> cloud_clusterer_ = nullptr;
     bool debug_time_ = false;
     // std::shared_ptr<CloudClustering> cloud_clusterer_;
 };

@@ -29,6 +29,7 @@
 
 #include "pose_estimation_pcl/cloud_preprocess.hpp"
 #include "pose_estimation_pcl/plane_segmentation.hpp"
+#include "pose_estimation_pcl/clustering.hpp"
 
 using namespace std::chrono_literals;
 
@@ -87,19 +88,17 @@ public:
         max_planes_ = this->declare_parameter("plane_detection.max_planes", 3);
 
             
-        // cloud_clusterer_ = std::make_shared<CloudClustering>(
-        //     this->get_logger(), 
-        //     loadCloudClustererConfig());
+        cloud_clusterer_ = std::make_shared<pose_estimation::CloudClustering>(
+            loadCloudClustererConfig());
             
         // Initialize the preprocessor from cloud_preprocess.hpp
         plane_segmentation_ = std::make_shared<pose_estimation::PlaneSegmentation>(
-            this->get_logger(), 
             loadPlaneSegmentationConfig());
 
         preprocessor_ = std::make_shared<pose_estimation::PointCloudPreprocess>(
-            this->get_logger(),
+
             loadPreprocessorConfig(),
-            plane_segmentation_, debug_time_);  // Pass the segmenter to the preprocessor
+            plane_segmentation_, cloud_clusterer_ ,debug_time_);  // Pass the segmenter to the preprocessor
 
 
         array_publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>("array_topic", 10);
@@ -154,18 +153,12 @@ public:
         array_publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>(
             "/pose_estimation/cluster_similarities", 10);
         
-
-        
-        // Load model cloud
-        model_features = pcl_utils::loadAndComputeModelFeatures(
-            object_frame_,
-            normal_radius_,
-            fpfh_radius_,
-            0,  // Auto-detect thread count
-            visualize_normals_,
-            model_cloud_,
-            this->get_logger()
+        model_cloud_ = pcl_utils::loadCloudFromFile(
+            object_frame_
         );
+
+        cloud_clusterer_->setModel(model_cloud_);
+
 
         // Initialize processing timer in separate callback group
         processing_timer_ = this->create_wall_timer(
@@ -188,6 +181,17 @@ public:
 private:
 
     
+    pose_estimation::CloudClustering::Config loadCloudClustererConfig() {
+        pose_estimation::CloudClustering::Config config;
+        config.cluster_tolerance = this->get_parameter("clustering.cluster_tolerance").as_double();
+        config.min_cluster_size = this->get_parameter("clustering.min_cluster_size").as_int();
+        config.max_cluster_size = this->get_parameter("clustering.max_cluster_size").as_int();
+        config.normal_radius = this->get_parameter("3d_decriptors.normal_radius").as_double();
+        config.fpfh_radius = this->get_parameter("3d_decriptors.fpfh_radius").as_double();
+        config.similarity_threshold = this->get_parameter("3d_decriptors.similarity_threshold").as_double();
+        return config;
+    }
+
     pose_estimation::PointCloudPreprocess::Config loadPreprocessorConfig() {
         pose_estimation::PointCloudPreprocess::Config config;
         config.voxel_size = this->get_parameter("preprocess.voxel_size").as_double();
@@ -437,7 +441,7 @@ Eigen::Matrix4f run_go_ICP(
     Eigen::Matrix4f alignment_transform = goicp_wrapper_->registerPointClouds(
         model_cloud_,
         preprocessed_cloud,
-        5000,  // Max target points 
+        4000,  // Max target points 
         goicp_debug_,
         goicp_dt_size_,
         goicp_expand_factor_,
@@ -504,80 +508,45 @@ Eigen::Matrix4f run_go_ICP(
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr preprocess_pointcloud(
         const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud, 
         const sensor_msgs::msg::PointCloud2::SharedPtr& cloud_msg) {
-        
-        pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_cloud = preprocessor_->process(input_cloud);
 
         Eigen::Matrix4f current_transform;
     {
         std::lock_guard<std::mutex> lock(transform_mutex_);
         current_transform = camera_to_map_transform_;  // This is your class member
     }
-
+        
         plane_segmentation_->setTransform(current_transform);
+
+
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_cloud = preprocessor_->process(input_cloud);      
+
+        auto segmented_cloud = plane_segmentation_->removeMainPlanes(filtered_cloud);
         auto segmentation_result = plane_segmentation_->getLastResult();
 
-        // remove largest plane (wall)
-        // auto segmentation_result = pcl_utils::detect_and_remove_planes(filtered_cloud, this->get_logger(), true, 
-        //     min_plane_points_,  // min points per plane
-        //     0.2,  // min remaining percent
-        //     max_planes_,  // max planes
-        //     distance_threshold_,  // distance threshold
-        //     max_iterations_, debug_time_, current_transform);  // max iterations
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr best_cluster = segmented_cloud;
+        
 
         if (cluster_pc_){
-            // cluster the pointclouds
-            auto clustering_result = pcl_utils::cluster_point_cloud(segmentation_result.remaining_cloud, cluster_tolerance_, min_cluster_size_, max_cluster_size_, debug_time_);
-            
-            
-            auto cluster_features = pcl_utils::computeFPFHFeatures(clustering_result.individual_clusters,
-                normal_radius_,  // normal radius - adjust based on your point cloud density
-                fpfh_radius_,  // feature radius - adjust based on your point cloud density
-                0,     // auto-detect thread count
-                visualize_normals_, debug_time_
-            );        
-            
-            auto matching_result = pcl_utils::findBestClusterByHistogram(
-                model_features,
-                cluster_features,
-                clustering_result.individual_clusters,
-                similarity_threshold_,
-                debug_time_
-            );
+            best_cluster = cloud_clusterer_->findBestCluster(segmented_cloud);
+            auto colored_clusters = cloud_clusterer_->getColoredClustersCloud();
 
             // if result.best_matching_cluster is nullptr, return filtered_cloud
-            if (matching_result.best_matching_cluster == nullptr) {
+            if (best_cluster == nullptr) {
                 RCLCPP_WARN(this->get_logger(), "No matching cluster found, returning filtered cloud");
                 object_detected_ = false;
-                return segmentation_result.remaining_cloud;
+                return segmented_cloud;
             }
-
-            // use the index from cluster_similarity with highest value, and return the cluster pointcloud
-
 
             // publish the similarity results to the array topic
-            ros_utils::publish_array(array_publisher_, matching_result.cluster_similarities);
+            // ros_utils::publish_array(array_publisher_, matching_result.cluster_similarities);
 
             if (save_debug_clouds_ && segmentation_result.planes_cloud->size() > 0) {
-                // publish the downsampled pointcloud
-                ros_utils::publish_debug_cloud(filtered_cloud, cloud_msg, cloud_debug_pub_, save_debug_clouds_);
-            
-
-                // publish the detected planes
-                ros_utils::publish_debug_cloud(segmentation_result.planes_cloud, cloud_msg, plane_debug_pub_, save_debug_clouds_);
-                // publish the filtered planes
-                ros_utils::publish_debug_cloud(segmentation_result.largest_plane_cloud, cloud_msg, largest_plane_debug_pub_, save_debug_clouds_);
-                ros_utils::publish_debug_cloud(segmentation_result.remaining_cloud, cloud_msg, filtered_plane_debug_pub_, save_debug_clouds_);
                 // publish the clustered planes
-                ros_utils::publish_debug_cloud(clustering_result.colored_cloud, cloud_msg, clustered_plane_debug_pub_, save_debug_clouds_);
+                ros_utils::publish_debug_cloud(colored_clusters, cloud_msg, clustered_plane_debug_pub_, save_debug_clouds_);
 
-                ros_utils::publish_debug_cloud(matching_result.best_matching_cluster, cloud_msg, pre_processed_debug_pub, save_debug_clouds_);
-                
-
+                ros_utils::publish_debug_cloud(best_cluster, cloud_msg, pre_processed_debug_pub, save_debug_clouds_);
             }
-            object_detected_ = true;
             
-            // return filtered_cloud;
-            return matching_result.best_matching_cluster;
         }
         
 
@@ -589,15 +558,18 @@ Eigen::Matrix4f run_go_ICP(
 
             // publish the detected planes
             ros_utils::publish_debug_cloud(segmentation_result.planes_cloud, cloud_msg, plane_debug_pub_, save_debug_clouds_);
-            // publish the filtered planes
+            // publish the largest detected plane
             ros_utils::publish_debug_cloud(segmentation_result.largest_plane_cloud, cloud_msg, largest_plane_debug_pub_, save_debug_clouds_);
-            ros_utils::publish_debug_cloud(segmentation_result.remaining_cloud, cloud_msg, filtered_plane_debug_pub_, save_debug_clouds_);
+            // publish the segmented pointcloud
+            ros_utils::publish_debug_cloud(segmented_cloud, cloud_msg, filtered_plane_debug_pub_, save_debug_clouds_);
+            // output of the preprocessing pipeline
+            ros_utils::publish_debug_cloud(best_cluster, cloud_msg, pre_processed_debug_pub, save_debug_clouds_);
             
         }
         object_detected_ = true;
         
         // return filtered_cloud;
-        return segmentation_result.remaining_cloud;
+        return best_cluster;
     }
 
 
@@ -631,15 +603,8 @@ Eigen::Matrix4f run_go_ICP(
         
         } else if (param.get_name() == "general.object_frame") {
             object_frame_ = param.as_string();
-            model_features = pcl_utils::loadAndComputeModelFeatures(
-                object_frame_,
-                normal_radius_,
-                fpfh_radius_,
-                0,  // Auto-detect thread count
-                visualize_normals_,
-                model_cloud_,
-                this->get_logger()
-            );
+            model_cloud_ = pcl_utils::loadCloudFromFile(object_frame_);
+            cloud_clusterer_->setModel(model_cloud_);
         } else if (param.get_name() == "general.suffix_name_pcd") {
             suffix_name_pcd_ = param.as_string();
         } else if (param.get_name() == "general.debug_time") {
@@ -752,6 +717,8 @@ Eigen::Matrix4f run_go_ICP(
     std::shared_ptr<pose_estimation::PointCloudPreprocess> preprocessor_;
     
     std::shared_ptr<pose_estimation::PlaneSegmentation> plane_segmentation_;
+
+    std::shared_ptr<pose_estimation::CloudClustering> cloud_clusterer_;
 
     // Node members
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr pointcloud_subscription_;

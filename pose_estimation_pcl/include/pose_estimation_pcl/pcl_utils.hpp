@@ -72,6 +72,17 @@ struct ClusterFeatures {
     ClusterFeatures() : fpfh_features(new pcl::PointCloud<pcl::FPFHSignature33>()) {}
 };
 
+
+/**
+ * @brief load a point cloud from a file
+ * @param filename Path to the file
+ * @param logger Logger for output messages
+ * @return Point cloud loaded from the file
+ * **/
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr loadCloudFromFile(
+    const std::string& filename,
+    const rclcpp::Logger& logger = rclcpp::get_logger("load_model_pcd"));
+
 /**
  * @brief Visualize point cloud with normals for debugging
  * 
@@ -186,7 +197,7 @@ void saveToPCD(
  */
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr loadModelPCD(
     const std::string& filename,
-    const rclcpp::Logger& logger);
+    const rclcpp::Logger& logger = rclcpp::get_logger("load_model_pcd"));
 
 
 /**
