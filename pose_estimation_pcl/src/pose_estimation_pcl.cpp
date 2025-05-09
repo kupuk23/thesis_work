@@ -99,7 +99,7 @@ public:
         preprocessor_ = std::make_shared<pose_estimation::PointCloudPreprocess>(
             this->get_logger(),
             loadPreprocessorConfig(),
-            plane_segmentation_);  // Pass the segmenter to the preprocessor
+            plane_segmentation_, debug_time_);  // Pass the segmenter to the preprocessor
 
 
         array_publisher_ = this->create_publisher<std_msgs::msg::Float32MultiArray>("array_topic", 10);

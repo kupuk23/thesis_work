@@ -10,8 +10,8 @@ namespace pose_estimation {
 PointCloudPreprocess::PointCloudPreprocess(
     rclcpp::Logger logger,
     const Config& config,
-    std::shared_ptr<PlaneSegmentation> plane_segmenter)
-    : logger_(logger), config_(config), plane_segmenter_(plane_segmenter)
+    std::shared_ptr<PlaneSegmentation> plane_segmenter, bool debug_time)
+    : logger_(logger), config_(config), plane_segmenter_(plane_segmenter), debug_time_(debug_time)
 {
     RCLCPP_INFO(logger_, "Point cloud preprocessor initialized");
 }
@@ -27,17 +27,25 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr PointCloudPreprocess::process(
 
     RCLCPP_DEBUG(logger_, "Processing point cloud with %zu points", input_cloud->size());
     
+    // Start timing
+    auto start_time = std::chrono::high_resolution_clock::now();
     // Step 1: Downsample the cloud
     auto downsampled_cloud = downsampleCloud(input_cloud);
     
     // Step 2: Apply passthrough filters
-    auto filtered_cloud = applyPassthroughFilters(downsampled_cloud);
+    auto ds_cloud = applyPassthroughFilters(downsampled_cloud);
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_cloud = ds_cloud;
+
+    if (ds_cloud->empty()) {
+        RCLCPP_WARN(logger_, "Downsampled cloud is empty after passthrough filter");
+        return ds_cloud;
+    }
     
     // // Step 3: Plane detection and removal (if enabled and segmenter exists)
 
     if (plane_segmenter_){
-        filtered_cloud = plane_segmenter_->removeMainPlanes(filtered_cloud);
-    } else {
+        auto filtered_cloud = plane_segmenter_->removeMainPlanes(ds_cloud);
+    } else {    
         RCLCPP_DEBUG(logger_, "Plane segmentation skipped - segmenter not initialized");
     }
 
@@ -50,6 +58,13 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr PointCloudPreprocess::process(
     // }
     
     RCLCPP_DEBUG(logger_, "Processing complete, output cloud has %zu points", filtered_cloud->size());
+    
+    // end time
+    auto end_time = std::chrono::high_resolution_clock::now();
+    double execution_time = std::chrono::duration<double>(end_time - start_time).count();
+    if (debug_time_) {
+        RCLCPP_INFO(logger_, "Point cloud preprocessing executed in %.3f seconds", execution_time);
+    }
     return filtered_cloud;
 }
 

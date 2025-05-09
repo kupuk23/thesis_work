@@ -48,7 +48,8 @@ public:
     PointCloudPreprocess(
         rclcpp::Logger logger,
         const Config& config,
-        std::shared_ptr<PlaneSegmentation> plane_segmenter);
+        std::shared_ptr<PlaneSegmentation> plane_segmenter,
+        bool debug_time = false);
         // std::shared_ptr<CloudClustering> cloud_clusterer);
     
     /**
@@ -92,6 +93,7 @@ private:
     Config config_;
     rclcpp::Logger logger_;
     std::shared_ptr<PlaneSegmentation> plane_segmenter_ = nullptr;
+    bool debug_time_ = false;
     // std::shared_ptr<CloudClustering> cloud_clusterer_;
 };
 
