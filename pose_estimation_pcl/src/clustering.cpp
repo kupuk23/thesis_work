@@ -1,4 +1,6 @@
 #include "pose_estimation_pcl/clustering.hpp"
+#include "pose_estimation_pcl/pcl_utils.hpp"
+
 #include <pcl/segmentation/extract_clusters.h>
 #include <pcl/features/normal_3d_omp.h>
 #include <pcl/features/fpfh_omp.h>
@@ -239,18 +241,7 @@ void CloudClustering::performClustering(const pcl::PointCloud<pcl::PointXYZRGB>:
         clusters_.reserve(cluster_indices.size());
         
         // Define some colors for visualization
-        const std::vector<std::array<uint8_t, 3>> colors = {
-            {255, 0, 0},     // Red
-            {0, 255, 0},     // Green
-            {0, 0, 255},     // Blue
-            {255, 255, 0},   // Yellow
-            {255, 0, 255},   // Magenta
-            {0, 255, 255},   // Cyan
-            {255, 128, 0},   // Orange
-            {128, 0, 255},   // Purple
-            {0, 128, 255},   // Light Blue
-            {255, 0, 128}    // Pink
-        };
+        const std::vector<std::array<uint8_t, 3>> colors = pcl_utils::DEFAULT_COLORS;
         
         int j = 0;
         for (const auto& indices : cluster_indices) {
@@ -360,17 +351,29 @@ CloudClustering::ClusterFeatures CloudClustering::computeCloudFeatures(
         pcl::PointCloud<pcl::FPFHSignature33>::Ptr fpfhs(new pcl::PointCloud<pcl::FPFHSignature33>());
         fpfh.compute(*fpfhs);
 
-        // Calculate average FPFH histogram
+        // Calculate average FPFH histogram with proper normalization
         std::vector<float> avg_histogram(33, 0.0f);
+
         for (const auto& fpfh_point : fpfhs->points) {
+            // First normalize this individual histogram
+            float point_sum = 0.0f;
             for (int i = 0; i < 33; i++) {
-                avg_histogram[i] += fpfh_point.histogram[i];
+                point_sum += fpfh_point.histogram[i];
+            }
+            
+            if (point_sum > 0) {  // Avoid division by zero
+                for (int i = 0; i < 33; i++) {
+                    // Add normalized value to average
+                    avg_histogram[i] += fpfh_point.histogram[i] / point_sum;
+                }
             }
         }
-        
-        // Normalize the average histogram
-        for (int i = 0; i < 33; i++) {
-            avg_histogram[i] /= static_cast<float>(fpfhs->size());
+
+        // Finalize the average
+        if (!fpfhs->empty()) {
+            for (int i = 0; i < 33; i++) {
+                avg_histogram[i] /= static_cast<float>(fpfhs->size());
+            }
         }
 
         // Fill the result structure
