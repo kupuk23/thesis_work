@@ -55,6 +55,7 @@ void publish_empty_pose(
  * @brief Publish registration results
  * 
  * @param transform The final transformation matrix
+ * @param tf_buffer TF2 buffer for transformation lookups
  * @param cloud_msg The original point cloud message (for timestamp and frame_id)
  * @param pose_publisher Publisher for the aligned pose
  * @param tf_broadcaster Transform broadcaster
@@ -64,6 +65,7 @@ void publish_empty_pose(
  */
 void publish_registration_results(
     const Eigen::Matrix4f& transform,
+    tf2_ros::Buffer* tf_buffer,
     const sensor_msgs::msg::PointCloud2::SharedPtr& cloud_msg,
     const rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr& pose_publisher,
     std::shared_ptr<tf2_ros::TransformBroadcaster>& tf_broadcaster,
@@ -86,6 +88,22 @@ geometry_msgs::msg::Pose matrix_to_pose(const Eigen::Matrix4f& transform);
  * @return Eigen::Matrix4f 4x4 transformation matrix
  */
 Eigen::Matrix4f pose_to_matrix(const geometry_msgs::msg::Pose& pose);
+
+
+
+/**
+ * Looks up a transform between two frames using tf2.
+ *
+ * @param tf_buffer The tf2 buffer to use for lookups
+ * @param target_frame The target frame ID
+ * @param source_frame The source frame ID
+ * @return The transformation as an Eigen::Matrix4f, identity if lookup fails
+ */
+Eigen::Matrix4f lookup_transformation(
+    tf2_ros::Buffer* tf_buffer,
+    const std::string& target_frame,
+    const std::string& source_frame);
+
 
 /**
  * @brief Transform object pose from map frame to camera frame

@@ -419,7 +419,7 @@ Eigen::Matrix4f performRegistration(
         run_goicp = false;
 
         // Publish and broadcast results
-        ros_utils::publish_registration_results(final_transformation, cloud_msg, 
+        ros_utils::publish_registration_results(final_transformation, tf_buffer_.get(), cloud_msg, 
             icp_result_publisher_, tf_broadcaster_, object_frame_, "_icp");
         
     }
@@ -462,7 +462,7 @@ Eigen::Matrix4f run_go_ICP(
 
     
     // Publish Go-ICP result
-    ros_utils::publish_registration_results(alignment_transform, cloud_msg, 
+    ros_utils::publish_registration_results(alignment_transform, tf_buffer_.get(),cloud_msg, 
         goicp_result_publisher_, 
         tf_broadcaster_, 
         object_frame_, "_goicp");
@@ -675,41 +675,18 @@ Eigen::Matrix4f run_go_ICP(
     }
 
     void update_transform() {
-        try {
-            // Try to look up the transform from camera_link to map
-            geometry_msgs::msg::TransformStamped transform_stamped;
-            transform_stamped = tf_buffer_->lookupTransform(
-                "map", "camera_link", 
-                rclcpp::Time(0),
-                rclcpp::Duration::from_seconds(1.0)
-            );
-            
-            // Convert the transform to Eigen matrix
-            Eigen::Affine3d transform_eigen = Eigen::Affine3d::Identity();
-            Eigen::Quaterniond q(
-                transform_stamped.transform.rotation.w,
-                transform_stamped.transform.rotation.x,
-                transform_stamped.transform.rotation.y,
-                transform_stamped.transform.rotation.z
-            );
-            transform_eigen.translate(Eigen::Vector3d(
-                transform_stamped.transform.translation.x,
-                transform_stamped.transform.translation.y,
-                transform_stamped.transform.translation.z
-            ));
-            transform_eigen.rotate(q);
-            
+        Eigen::Matrix4f transform = ros_utils::lookup_transformation(
+        tf_buffer_.get(),  // Get raw pointer from shared_ptr
+        "map",             // Target frame
+        "camera_link"      // Source frame
+    );
+    
+        // Check if a valid transform was found (non-identity matrix)
+        if ((transform - Eigen::Matrix4f::Identity()).squaredNorm() > 1e-6) {
             // Update the transform with thread safety
-            {
-                std::lock_guard<std::mutex> lock(transform_mutex_);
-                camera_to_map_transform_ = transform_eigen.matrix().cast<float>();
-                transform_initialized_ = true;
-            }
-            
-            // RCLCPP_DEBUG(this->get_logger(), "Updated camera_link to map transform");
-        }
-        catch (const tf2::TransformException &ex) {
-            RCLCPP_WARN(this->get_logger(), "Could not transform camera_link to map: %s", ex.what());
+            std::lock_guard<std::mutex> lock(transform_mutex_);
+            camera_to_map_transform_ = transform;
+            transform_initialized_ = true;
         }
     }
 

@@ -12,6 +12,55 @@
 
 namespace ros_utils {
     
+
+Eigen::Matrix4f lookup_transformation(
+    tf2_ros::Buffer* tf_buffer,
+    const std::string& target_frame,
+    const std::string& source_frame)
+{
+    // Create default identity transform
+    Eigen::Matrix4f transform_matrix = Eigen::Matrix4f::Identity();
+    
+    // Create logger for local use
+    auto logger = rclcpp::get_logger("lookup_transformation");
+    
+    // Set default timeout
+    const auto timeout = rclcpp::Duration::from_seconds(1.0);
+    
+    try {
+        // Look up the transform
+        geometry_msgs::msg::TransformStamped transform_stamped = 
+            tf_buffer->lookupTransform(target_frame, source_frame, rclcpp::Time(0), timeout);
+        
+        // Convert to Eigen::Matrix4f
+        Eigen::Affine3d transform_eigen = Eigen::Affine3d::Identity();
+        Eigen::Quaterniond q(
+            transform_stamped.transform.rotation.w,
+            transform_stamped.transform.rotation.x,
+            transform_stamped.transform.rotation.y,
+            transform_stamped.transform.rotation.z
+        );
+        transform_eigen.translate(Eigen::Vector3d(
+            transform_stamped.transform.translation.x,
+            transform_stamped.transform.translation.y,
+            transform_stamped.transform.translation.z
+        ));
+        transform_eigen.rotate(q);
+        
+        // Convert to float matrix
+        transform_matrix = transform_eigen.matrix().cast<float>();
+    }
+    catch (const tf2::TransformException &ex) {
+        RCLCPP_WARN(logger, "Could not transform %s to %s: %s", 
+            source_frame.c_str(), target_frame.c_str(), ex.what());
+        
+        return Eigen::Matrix4f::Identity();
+    }
+    
+    return transform_matrix;
+}
+
+
 void publish_debug_cloud(
     const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,
     const sensor_msgs::msg::PointCloud2::SharedPtr& cloud_msg,
@@ -28,17 +77,28 @@ void publish_debug_cloud(
 
 void publish_registration_results(
     const Eigen::Matrix4f& transform,
+    tf2_ros::Buffer* tf_buffer,
     const sensor_msgs::msg::PointCloud2::SharedPtr& cloud_msg,
     const rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr& pose_publisher,
     std::shared_ptr<tf2_ros::TransformBroadcaster>& tf_broadcaster,
     const std::string& object_frame,
     const std::string& suffix) {
     
-    // Publish the transformation as a pose
+    // Get the transform from camera to map using our lookup_transformation function
+    Eigen::Matrix4f camera_to_map = lookup_transformation(
+        tf_buffer,
+        "map",                          // target frame
+        cloud_msg->header.frame_id      // source frame (camera_link)
+    );
+    
+    // Apply the camera-to-map transform to the object's transform to get object in map coordinates
+    Eigen::Matrix4f object_in_map = camera_to_map * transform;
+    
+    // Publish the transformation as a pose with respect to the map frame
     geometry_msgs::msg::PoseStamped aligned_pose;
     aligned_pose.header.stamp = cloud_msg->header.stamp;
-    aligned_pose.header.frame_id = cloud_msg->header.frame_id;
-    aligned_pose.pose = matrix_to_pose(transform);
+    aligned_pose.header.frame_id = "map";  
+    aligned_pose.pose = matrix_to_pose(object_in_map);
     
     pose_publisher->publish(aligned_pose);
     
