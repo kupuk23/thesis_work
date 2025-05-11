@@ -84,21 +84,21 @@ void publish_registration_results(
     const std::string& object_frame,
     const std::string& suffix) {
     
-    // Get the transform from camera to map using our lookup_transformation function
-    Eigen::Matrix4f camera_to_map = lookup_transformation(
-        tf_buffer,
-        "map",                          // target frame
-        cloud_msg->header.frame_id      // source frame (camera_link)
-    );
+    // // Get the transform from camera to map using our lookup_transformation function
+    // Eigen::Matrix4f camera_to_map = lookup_transformation(
+    //     tf_buffer,
+    //     "map",                          // target frame
+    //     cloud_msg->header.frame_id      // source frame (camera_link)
+    // );
     
-    // Apply the camera-to-map transform to the object's transform to get object in map coordinates
-    Eigen::Matrix4f object_in_map = camera_to_map * transform;
+    // // Apply the camera-to-map transform to the object's transform to get object in map coordinates
+    // Eigen::Matrix4f object_in_map = camera_to_map * transform;
     
     // Publish the transformation as a pose with respect to the map frame
     geometry_msgs::msg::PoseStamped aligned_pose;
     aligned_pose.header.stamp = cloud_msg->header.stamp;
     aligned_pose.header.frame_id = "map";  
-    aligned_pose.pose = matrix_to_pose(object_in_map);
+    aligned_pose.pose = matrix_to_pose(transform);
     
     pose_publisher->publish(aligned_pose);
     
