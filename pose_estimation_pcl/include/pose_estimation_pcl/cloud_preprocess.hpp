@@ -41,7 +41,7 @@ public:
         float voxel_size = 0.05f;
         
         // Passthrough filter parameters
-        float x_max = 2.0f; 
+        float x_max = 3.0f; 
     };
     
     /**

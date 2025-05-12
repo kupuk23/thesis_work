@@ -97,7 +97,7 @@ void publish_registration_results(
     // Publish the transformation as a pose with respect to the map frame
     geometry_msgs::msg::PoseStamped aligned_pose;
     aligned_pose.header.stamp = cloud_msg->header.stamp;
-    aligned_pose.header.frame_id = "map";  
+    aligned_pose.header.frame_id = cloud_msg->header.frame_id;  
     aligned_pose.pose = matrix_to_pose(transform);
     
     pose_publisher->publish(aligned_pose);
