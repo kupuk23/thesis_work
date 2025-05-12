@@ -4,7 +4,7 @@ pose_estimation_pcl:
       processing_period_ms: 50
       goicp_debug : true
       save_debug_clouds : true
-      object_frame: "docking_st"
+      object_frame: "custom_docking_st"
       debug_grapple : false
       save_to_pcd_ : false
       suffix_name_pcd : "_center_test"

@@ -1,5 +1,5 @@
 #include "pose_estimation_pcl/clustering.hpp"
-#include "pose_estimation_pcl/pcl_utils.hpp"
+#include "pose_estimation_pcl/utils/pcl_utils.hpp"
 
 #include <pcl/segmentation/extract_clusters.h>
 #include <pcl/features/normal_3d_omp.h>

@@ -1,5 +1,5 @@
 #include "pose_estimation_pcl/plane_segmentation.hpp"
-#include "pose_estimation_pcl/pcl_utils.hpp"
+#include "pose_estimation_pcl/utils/pcl_utils.hpp"
 
 
 #include <pcl/segmentation/sac_segmentation.h>

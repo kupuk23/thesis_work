@@ -1,4 +1,4 @@
-#include "pose_estimation_pcl/pcl_utils.hpp"
+#include "pose_estimation_pcl/utils/pcl_utils.hpp"
 // #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/io/pcd_io.h>
 #include <Eigen/Geometry>
@@ -740,6 +740,8 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr loadCloudFromFile(
         model_path = "/home/tafarrel/o3d_logs/handrail_pcd_down.pcd";
     } else if (object_name == "docking_st") {
         model_path = "/home/tafarrel/o3d_logs/astrobee_dock_ds.pcd";
+    } else if (object_name == "custom_docking_st") {
+        model_path = "/home/tafarrel/o3d_logs/custom_docking_st.pcd";
     } else {
         RCLCPP_ERROR(logger, "Unknown object name: %s", object_name.c_str());
         return model_cloud;  // Return empty features

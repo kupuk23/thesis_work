@@ -54,8 +54,8 @@ add_definitions(
 # Create the executable - include both source files directly
 add_executable(pose_estimation_pcl 
   src/pose_estimation_pcl.cpp
-  src/pcl_utils.cpp
-  src/ros_utils.cpp
+  src/utils/pcl_utils.cpp
+  src/utils/ros_utils.cpp
   src/go_icp_wrapper.cpp
   src/cloud_preprocess.cpp
   src/plane_segmentation.cpp
@@ -65,6 +65,7 @@ add_executable(pose_estimation_pcl
 # Add include directories
 target_include_directories(pose_estimation_pcl PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/utils>
   $<INSTALL_INTERFACE:include>
   ${GoICP_INCLUDE_DIRS}
 )

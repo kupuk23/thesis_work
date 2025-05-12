@@ -23,8 +23,8 @@
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_eigen/tf2_eigen.hpp>
 
-#include "pose_estimation_pcl/pcl_utils.hpp"    // Our utility header
-#include "pose_estimation_pcl/ros_utils.hpp"    // Our ROS utility header
+#include "pose_estimation_pcl/utils/pcl_utils.hpp"    // Our utility header
+#include "pose_estimation_pcl/utils/ros_utils.hpp"    // Our ROS utility header
 #include "pose_estimation_pcl/go_icp_wrapper.hpp"  // Our Go-ICP wrapper
 
 #include "pose_estimation_pcl/cloud_preprocess.hpp"

@@ -252,7 +252,8 @@
           </geometry>
         </visual>
       </link>
-      <pose>-2 0 0.3 0 0 3.14</pose>
+      <!-- <pose>-2 0 0.3 0 0 3.14</pose> -->
+      <pose>-2 0.1 0.1 0 0 3.14</pose>
     </model>
 
     <!-- Spawn astrobee dock -->
@@ -278,7 +279,7 @@
         <enable_wind>false</enable_wind>
       </link>
       <!~~ <pose>-3.2 3.5 1 0 0 0</pose> ~~>
-    <pose>-2 0 0.6 0 0 1.57</pose>
+    <pose>-2 0 0.9 0 0 1.57</pose>
     <self_collide>false</self_collide>
   </model>-->
 
@@ -333,7 +334,7 @@
       <collision name='cardboard_box_collision'>
         <geometry>
           <mesh>
-            <scale>0.6 0.6 0.6</scale>
+            <scale>0.4 0.4 0.4</scale>
             <uri>file:///cardboard_box/meshes/cardboard_box.dae</uri>
           </mesh>
         </geometry>
@@ -341,7 +342,7 @@
       <visual name='cardboard_box_visual'>
         <geometry>
           <mesh>
-            <scale>0.6 0.6 0.6</scale>
+            <scale>0.4 0.4 0.4</scale>
             <uri>file:///cardboard_box/meshes/cardboard_box.dae</uri>
           </mesh>
         </geometry>
@@ -349,7 +350,7 @@
       <enable_wind>false</enable_wind>
     </link>
     <static>true</static>
-    <pose>-2.4 0 0.8 0.5 0 -1.57</pose>
+    <pose>-2.5 0.3 0.9 0.5 0 -1.57</pose>
     <self_collide>false</self_collide>
   </model>
 
