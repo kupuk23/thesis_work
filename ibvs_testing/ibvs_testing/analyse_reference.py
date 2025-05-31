@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
-image_path = "/home/tafarrel/ros2_ws/src/thesis_work/ibvs_testing/ibvs_testing/reference.jpg"
+image_path = "/home/tafarrel/discower_ws/src/px4_mpvs/px4_mpvs/resource/docked_image.jpg"
 
 def detect_blobs(image_path, min_contour_area=1000):
      # Read the image
@@ -40,7 +40,8 @@ def detect_blobs(image_path, min_contour_area=1000):
     
     params.filterByArea = True
     params.minArea = 100
-    params.filterByCircularity = False
+    params.filterByCircularity = True
+    params.minCircularity = 0.9
     params.filterByConvexity = False
     params.filterByInertia = False
 

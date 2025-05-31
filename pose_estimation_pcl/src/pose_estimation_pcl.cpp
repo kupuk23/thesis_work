@@ -230,7 +230,85 @@ private:
             RCLCPP_ERROR(this->get_logger(), "Error in pointcloud callback: %s", e.what());
         }
     }
-    
+    bool run_point_to_plane_icp(
+        const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& source_cloud,
+        const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& target_cloud,
+        const Eigen::Matrix4f& initial_transform,
+        Eigen::Matrix4f& result_transform,
+        float& fitness_score) {
+        
+        // Create pointclouds with normals
+        pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr source_with_normals(new pcl::PointCloud<pcl::PointXYZRGBNormal>());
+        pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr target_with_normals(new pcl::PointCloud<pcl::PointXYZRGBNormal>());
+        
+        // Estimate normals for source and target
+        pcl::NormalEstimation<pcl::PointXYZRGB, pcl::Normal> normal_estimation;
+        pcl::search::KdTree<pcl::PointXYZRGB>::Ptr search_tree(new pcl::search::KdTree<pcl::PointXYZRGB>());
+        normal_estimation.setSearchMethod(search_tree);
+        normal_estimation.setRadiusSearch(0.05); // Adjust based on your cloud density
+        
+        // Compute normals for target cloud
+        pcl::PointCloud<pcl::Normal>::Ptr target_normals(new pcl::PointCloud<pcl::Normal>());
+        normal_estimation.setInputCloud(target_cloud);
+        normal_estimation.compute(*target_normals);
+        
+        // Compute normals for source cloud
+        pcl::PointCloud<pcl::Normal>::Ptr source_normals(new pcl::PointCloud<pcl::Normal>());
+        normal_estimation.setInputCloud(source_cloud);
+        normal_estimation.compute(*source_normals);
+        
+        // Combine points and normals
+        pcl::concatenateFields(*target_cloud, *target_normals, *target_with_normals);
+        pcl::concatenateFields(*source_cloud, *source_normals, *source_with_normals);
+        
+        // Create point-to-plane ICP
+        pcl::IterativeClosestPointWithNormals<pcl::PointXYZRGBNormal, pcl::PointXYZRGBNormal> icp;
+        
+        // Set ICP parameters
+        icp.setInputSource(source_with_normals);
+        icp.setInputTarget(target_with_normals);
+        icp.setMaximumIterations(gicp_max_iterations_);
+        icp.setTransformationEpsilon(gicp_transformation_epsilon_);
+        icp.setMaxCorrespondenceDistance(gicp_max_correspondence_distance_);
+        icp.setEuclideanFitnessEpsilon(gicp_euclidean_fitness_epsilon_);
+        icp.setRANSACOutlierRejectionThreshold(gicp_ransac_outlier_threshold_);
+        
+        // Use point to plane error
+        icp.setUseSymmetricObjective(false);
+        
+        // Align using provided initial transform
+        pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr aligned_cloud(new pcl::PointCloud<pcl::PointXYZRGBNormal>());
+        icp.align(*aligned_cloud, initial_transform);
+        
+        // Get results
+        bool converged = icp.hasConverged();
+        fitness_score = icp.getFitnessScore();
+        result_transform = icp.getFinalTransformation();
+        
+        // Special handling for z-axis symmetry
+        if (converged) {
+            // Extract just rotation component
+            Eigen::Matrix3f rotation_matrix = result_transform.block<3,3>(0,0);
+            
+            // Fix z-axis to always point upward
+            Eigen::Vector3f z_axis = rotation_matrix.col(2);
+            
+            // If z-axis points downward, flip the frame
+            if (z_axis.z() < 0) {
+                RCLCPP_INFO(this->get_logger(), "Correcting z-axis direction in point-to-plane ICP result");
+                
+                // Rotate 180 degrees around x or y axis
+                Eigen::Matrix3f correction;
+                correction = Eigen::AngleAxisf(M_PI, Eigen::Vector3f::UnitX()).toRotationMatrix();
+                
+                result_transform.block<3,3>(0,0) = rotation_matrix * correction;
+            }
+        }
+        
+        return converged;
+}
+
+
     // Run GICP registration with a given initial transformation
     bool run_gicp(
         const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& source_cloud,
@@ -243,7 +321,7 @@ private:
         
         gicp.setInputSource(source_cloud);
         gicp.setInputTarget(target_cloud);
-        gicp.setUseReciprocalCorrespondences(false);
+        gicp.setUseReciprocalCorrespondences(true);
         
         // Set GICP parameters
         gicp.setMaximumIterations(gicp_max_iterations_);
@@ -309,7 +387,7 @@ void process_data() {
         // Check if cloud is empty
         if (preprocessed_cloud->size() < 100) {
             RCLCPP_INFO(this->get_logger(), "Scene point cloud is empty, skipping registration");
-            ros_utils::publish_empty_pose(icp_result_publisher_ ,cloud_msg);
+            // ros_utils::publish_empty_pose(icp_result_publisher_ ,cloud_msg);
             tracking_initialized_ = false;
             return;
         }
@@ -453,8 +531,6 @@ Eigen::Matrix4f run_go_ICP(
     float goicp_error = goicp_wrapper_->getLastError();
     float goicp_time = goicp_wrapper_->getLastRegistrationTime();
 
-    /// print the rotation matrix
-    Eigen::Matrix3f rotation_matrix = alignment_transform.block<3, 3>(0, 0);
     // cout << "Rotation matrix: " << endl << rotation_matrix << endl;
     if (debug_time_) RCLCPP_INFO(this->get_logger(), 
         "Go-ICP completed in %.3f seconds with error: %.5f", 
@@ -485,10 +561,7 @@ Eigen::Matrix4f run_go_ICP(
     
     if (gen_icp_converged) {
         RCLCPP_INFO(this->get_logger(), "GICP refinement converged with score: %f", gicp_score);
-        // extract rotation matrix from final_transformation
-        Eigen::Matrix3f rotation_matrix = final_transformation.block<3, 3>(0, 0);
-        // cout << "Final rotation matrix: " << endl << rotation_matrix << endl;
-
+ 
     } else {
         RCLCPP_WARN(this->get_logger(), "GICP refinement failed, using Go-ICP result directly");
         final_transformation = alignment_transform;
@@ -749,9 +822,6 @@ Eigen::Matrix4f run_go_ICP(
     double gicp_max_correspondence_distance_;
     double gicp_euclidean_fitness_epsilon_;
     double gicp_ransac_outlier_threshold_;
-
-    // 3D descriptor parameters 
-    pcl_utils::ClusterFeatures model_features;
     
     //clustering parameters
     double cluster_tolerance_;

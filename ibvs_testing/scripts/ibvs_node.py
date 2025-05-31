@@ -264,7 +264,7 @@ class IBVSController(Node):
         # Compute velocity command
         v = -self.lambda_gain * np.dot(L_pinv, error)
 
-        # convert the image velocity axis to robot velocity axis, x -> z, y -> x,  z -> x
+        # convert the image velocity axis to robot velocity axis, z_pixel -> x , -x_pixel -> y,  -y_pixel -> z
         v = np.array([v[2], -v[0], -v[1], v[5], -v[3], -v[4]])
 
         # Create and publish twist message

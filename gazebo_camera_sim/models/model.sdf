@@ -2,7 +2,7 @@
 <sdf version="1.9">
     <model name="kth_freeflyer">
         <link name="base_link">
-            
+
             <gravity>true</gravity>
             <inertial>
                 <pose>0 0 0.2 0 -0 0</pose>
@@ -40,6 +40,32 @@
                     </friction>
                 </surface>
             </collision>
+
+            <collision name="docking_guide_collision">
+                <pose>0.18 0 0.325 0 1.57 0</pose>
+                <geometry>
+                    <mesh>
+                        <scale>1 1 1</scale>
+                        <uri>file:///cone_female/cone_female.dae</uri>
+                    </mesh>
+                </geometry>
+                <surface>
+                    <contact>
+                        <ode>
+                            <kp>100000</kp>
+                            <kd>100000</kd>
+                        </ode>
+                    </contact>
+                    <friction>
+                        <ode>
+                            <mu>0</mu>
+                            <mu2>0</mu2>
+                            <fdir1>0 0 1</fdir1>
+                        </ode>
+                    </friction>
+                </surface>
+            </collision>
+
             <visual name="base_link_visual">
                 <!-- <pose>0 0 0 0 0 0</pose> -->
                 <pose>0 0 0 0 0 0</pose>
@@ -501,7 +527,7 @@
                         <height>480</height>
                     </image>
                     <clip>
-                        <near>0.29999999999999999</near>
+                        <near>0.05</near>
                         <far>15</far>
                     </clip>
                     <noise>
@@ -644,7 +670,11 @@
         </plugin>
 
 
+
+
     </model>
+
+
 </sdf>
 
 <!-- symlink this to ~/.gz/fuel/fuel.gazebosim.org/proque/models/kth_freeflyer/1 -->

@@ -137,11 +137,11 @@ Visualization Manager:
           Value: true
         camera_link:
           Value: true
+        custom_docking_st_goicp:
+          Value: true
+        custom_docking_st_icp:
+          Value: true
         dummy_link:
-          Value: true
-        grapple:
-          Value: true
-        handrail:
           Value: true
         map:
           Value: true
@@ -154,10 +154,6 @@ Visualization Manager:
       Show Names: false
       Tree:
         map:
-          grapple:
-            {}
-          handrail:
-            {}
           odom:
             dummy_link:
               base_link:
@@ -175,6 +171,10 @@ Visualization Manager:
                 camera_infra2_frame:
                   camera_infra2_optical_frame:
                     {}
+                custom_docking_st_goicp:
+                  {}
+                custom_docking_st_icp:
+                  {}
       Update Interval: 0
       Value: true
     - Class: rviz_default_plugins/Image
@@ -260,7 +260,7 @@ Visualization Manager:
         Durability Policy: Volatile
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /planes_pc
+        Value: /pre_processed_pc
       Use Fixed Frame: true
       Use rainbow: true
       Value: true
@@ -286,18 +286,18 @@ Visualization Manager:
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0.3026582896709442
-        Y: -0.7129808664321899
-        Z: 0.08627472817897797
+        X: 0.12464384734630585
+        Y: -0.3353613018989563
+        Z: 0.023848339915275574
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.570000410079956
+      Pitch: 0.5050004720687866
       Target Frame: camera_color_optical_frame
       Value: Orbit (rviz_default_plugins)
-      Yaw: 0.3636399209499359
+      Yaw: 0.9686396718025208
     Saved: ~
 Window Geometry:
   Displays:

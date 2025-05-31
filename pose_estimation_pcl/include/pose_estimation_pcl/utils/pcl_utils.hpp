@@ -32,45 +32,6 @@ const std::vector<std::array<uint8_t, 3>> DEFAULT_COLORS = {
     {255, 0, 128}   // Pink
 };
 
-// Structure to hold clustering results
-struct ClusteringResult {
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_cloud;
-    std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr> individual_clusters;
-    
-    ClusteringResult() 
-        : colored_cloud(new pcl::PointCloud<pcl::PointXYZRGB>()) 
-    {}
-};
-
-// Structure to hold histogram matching results
-struct HistogramMatchingResult {
-    std::vector<float> cluster_similarities;
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr best_matching_cluster;
-    
-    HistogramMatchingResult() 
-        : best_matching_cluster(nullptr) {}
-};
-
-// Structure to hold plane segmentation results
-struct PlaneSegmentationResult {
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr remaining_cloud;
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr planes_cloud;
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr largest_plane_cloud;
-    
-    PlaneSegmentationResult()
-        : remaining_cloud(new pcl::PointCloud<pcl::PointXYZRGB>()),
-          planes_cloud(new pcl::PointCloud<pcl::PointXYZRGB>()),
-          largest_plane_cloud(new pcl::PointCloud<pcl::PointXYZRGB>())
-    {}
-};
-
-// Structure to hold FPFH features and their average
-struct ClusterFeatures {
-    pcl::PointCloud<pcl::FPFHSignature33>::Ptr fpfh_features; // local features
-    pcl::FPFHSignature33 average_fpfh; // global average features
-    
-    ClusterFeatures() : fpfh_features(new pcl::PointCloud<pcl::FPFHSignature33>()) {}
-};
 
 
 /**
@@ -100,71 +61,6 @@ void visualizeNormals(
     int point_size = 3,
     const std::string& window_name = "Cloud with Normals",
     bool blocking = true);
-
-
-
-/**
- * @brief Detect and remove planes from point cloud
- * 
- * @param input_cloud Input point cloud
- * @param logger ROS logger for output
- * @param colorize_planes Whether to color the planes
- * @param min_plane_points Minimum points to consider a plane
- * @param min_remaining_percent Minimum percentage of points to remain
- * @param max_planes Maximum number of planes to extract
- * @param dist_threshold Distance threshold for plane fitting
- * @param max_iterations Maximum iterations for plane fitting
- * @param debug_time Whether to log execution time
- * @param camera_to_map_transform Transform from camera to map frame
- * @return PlaneSegmentationResult Segmentation result with planes and remaining points
- */
-PlaneSegmentationResult detect_and_remove_planes(
-    const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,
-    const rclcpp::Logger& logger,
-    bool colorize_planes = true,
-    size_t min_plane_points = 800,
-    float min_remaining_percent = 0.2,
-    int max_planes = 3,
-    float dist_threshold = 0.02,
-    int max_iterations = 100,
-    bool debug_time = false,
-    const Eigen::Matrix4f& camera_to_map_transform = Eigen::Matrix4f::Identity());
-
-/**
- * @brief Cluster a point cloud into separate objects
- * 
- * @param input_cloud Input point cloud
- * @param cluster_tolerance Distance tolerance for clustering
- * @param min_cluster_size Minimum points per cluster
- * @param max_cluster_size Maximum points per cluster
- * @param debug_time Whether to log execution time
- * @param logger ROS logger for output
- * @return ClusteringResult Clustered point cloud
- */
-ClusteringResult cluster_point_cloud(
-    const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,
-    double cluster_tolerance = 0.02,
-    int min_cluster_size = 100,
-    int max_cluster_size = 25000,
-    bool debug_time = false,
-    const rclcpp::Logger& logger = rclcpp::get_logger("cluster_point_cloud"));
-
-/**
- * @brief Run GICP registration
- * 
- * @param source_cloud Source point cloud
- * @param target_cloud Target point cloud
- * @param initial_transform Initial transformation
- * @param result_transform Output transformation
- * @param fitness_score Output fitness score
- * @return bool True if registration converged
- */
-bool runGICP(
-    const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& source_cloud,
-    const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& target_cloud,
-    const Eigen::Matrix4f& initial_transform,
-    Eigen::Matrix4f& result_transform,
-    float& fitness_score);
 
 
 /**
@@ -199,85 +95,6 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr loadModelPCD(
     const std::string& filename,
     const rclcpp::Logger& logger = rclcpp::get_logger("load_model_pcd"));
 
-
-/**
-     * Check if a detected plane is likely to be the floor using a pre-computed transform
-     * @param plane_cloud The point cloud representing the detected plane
-     * @param coefficients The plane coefficients (a, b, c, d in ax + by + cz + d = 0)
-     * @param camera_to_map_transform Pre-computed transform from camera_link to map frame
-     * @param logger ROS logger for output
-     * @return true if the plane is likely to be the floor
-     */
-bool check_floor_plane(
-    const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& plane_cloud,
-    const pcl::ModelCoefficients::Ptr& coefficients,
-    const Eigen::Matrix4f& camera_to_map_transform,
-    float& height_threshold,
-    const rclcpp::Logger& logger);
-
-
-/**
- * @brief Compute FPFH features for each cluster
- * 
- * @param clusters Vector of point clouds, one for each cluster
- * @param normal_radius Radius for normal estimation
- * @param feature_radius Radius for FPFH feature computation
- * @param num_threads Number of threads to use (0 = auto-detect)
- * @param visualize_normals Whether to visualize normals
- * @param debug_time Whether to log execution time
- * @param logger Logger for output messages
- * @return std::vector<ClusterFeatures> Vector of features for each cluster
- */
-std::vector<ClusterFeatures> computeFPFHFeatures(
-    const std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr>& clusters,
-    float normal_radius = 0.03,
-    float feature_radius = 0.5,
-    int num_threads = 0,
-    bool visualize_normals = false,
-    bool debug_time = false,
-    const rclcpp::Logger& logger = rclcpp::get_logger("fpfh_computation"));
-
-/**
- * @brief Find the best matching cluster to the model using histogram matching
- * 
- * This function compares the average FPFH histograms between the model and scene clusters
- * to identify which cluster most likely contains the target object.
- * 
- * @param model_features FPFH features of the model
- * @param cluster_features Vector of FPFH features for each cluster
- * @param similarity_threshold Minimum similarity score to consider a match valid
- * @param debug_time Whether to log execution time
- * @param logger ROS logger for output messages
- * @return int Index of the best matching cluster or -1 if no match found
- */
-HistogramMatchingResult findBestClusterByHistogram(
-    const ClusterFeatures& model_features,
-    const std::vector<ClusterFeatures>& cluster_features,
-    const std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr>& cluster_clouds,
-    float similarity_threshold = 0.7,
-    bool debug_time = false,
-    const rclcpp::Logger& logger = rclcpp::get_logger("histogram_matcher"));
-
-/**
- * @brief Load a model from PCD file and compute its FPFH features
- * 
- * @param object_name The name of the object (grapple, handrail, or docking_st)
- * @param normal_radius Radius for normal estimation
- * @param feature_radius Radius for FPFH feature computation
- * @param num_threads Number of threads to use (0 for auto)
- * @param visualize_normals Whether to visualize normals
- * @param model_cloud_out Output point cloud of the model
- * @param logger ROS logger for output messages
- * @return ClusterFeatures containing the computed features
- */
-ClusterFeatures loadAndComputeModelFeatures(
-    const std::string& object_name,
-    float normal_radius,
-    float feature_radius,
-    int num_threads,
-    bool visualize_normals,
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr& model_cloud_out,
-    const rclcpp::Logger& logger);
 
 } // namespace pcl_utils
 

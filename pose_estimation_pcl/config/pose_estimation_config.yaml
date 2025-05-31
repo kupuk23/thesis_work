@@ -13,22 +13,22 @@ pose_estimation_pcl:
     preprocess:
       voxel_size: 0.012 # 0.012 for grapple, 0.01 for docking
       max_depth: 2.0 # in meter
-      cluster_pc: true
+      cluster_pc: false
 
 
     gen_icp:
-      fitness_threshold: 5e-2 # good threshold for the fitness score is 3e-4 for grapple, 1.5e-3 for docking
-      max_iteration : 75
-      transformation_epsilon: 5e-3 # 1e-6
-      max_correspondence_distance: 0.08 # 0.1 m default
-      fitness_epsilon: 5e-4 # 5e-4
+      fitness_threshold: 5e-2 # good threshold for the fitness score is 3e-4 for grapple, 5e-2 for docking
+      max_iteration : 150 
+      transformation_epsilon: 5e-3 # 1e-6 for grapple, 5e-3 for docking
+      max_correspondence_distance: 0.4 # 0.1 m default, 0.3 for custom_docking (for rotational motion error)
+      euclidean_fitness_epsilon: 5e-4 # 5e-4
       ransac_threshold: 0.1
 
     go_icp:
       use_goicp : false
-      mse_threshold: 5e-4 # 5e-4 for grapple, 4e-4 for docking
+      mse_threshold: 4e-4 # 5e-4 for grapple, 4e-4 for docking
       dt_size: 50 # 25 for grapple, 50 for docking
-      dt_expandFactor: 3.0 # lowering will increase orientation accuracy a lot, 4.0 for grapple
+      dt_expandFactor: 3.0 # lowering will increase orientation accuracy a lot, 4.0 for grapple, 3.0 for docking
 
     clustering:
       cluster_tolerance: 0.03 #in meters, default is 0.03
