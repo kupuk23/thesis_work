@@ -201,7 +201,7 @@ def generate_launch_description():
     package='tf2_ros',
     executable='static_transform_publisher',
     name='spacecraft_to_camera_tf',
-    arguments=['0.09', '0.0', '0.51', '0.0', '0.0', '0.0', 'robot_base_imu', 'camera_link']
+    arguments=['-0.09', '0.0', '0.58', '3.14', '0.0', '0.0', 'robot_base_imu', 'camera_link']
 )
     # add perception pipeline with config file
     
