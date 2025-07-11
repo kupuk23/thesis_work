@@ -39,6 +39,9 @@ class PoseEstimationPCL : public rclcpp::Node {
 public:
     PoseEstimationPCL() : Node("pose_estimation_pcl") {
         // Initialize parameters
+
+        // Frame definition
+        camera_frame_ = this->declare_parameter("general.camera_frame", "camera_link");
         // General parameters
         processing_period_ms_ = this->declare_parameter("general.processing_period_ms", 100);
         goicp_debug_ = this->declare_parameter("general.goicp_debug", false);
@@ -751,7 +754,7 @@ Eigen::Matrix4f run_go_ICP(
         Eigen::Matrix4f transform = ros_utils::lookup_transformation(
         tf_buffer_.get(),  // Get raw pointer from shared_ptr
         "map",             // Target frame
-        "camera_link"      // Source frame
+        camera_frame_    // Source frame
     );
     
         // Check if a valid transform was found (non-identity matrix)
@@ -798,6 +801,7 @@ Eigen::Matrix4f run_go_ICP(
 
     
     // General Parameters
+    std::string camera_frame_;
     double voxel_size_;
     double max_depth_;
     bool save_debug_clouds_;
