@@ -23,11 +23,6 @@
 #include <pcl/visualization/pcl_visualizer.h>
 
 
-#include <pcl/gpu/octree/octree.hpp>
-#include <pcl/gpu/segmentation/gpu_extract_clusters.h>
-#include <pcl/gpu/containers/device_array.h>
-#include <pcl/gpu/features/features.hpp>
-
 
 namespace pcl_utils {
 

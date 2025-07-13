@@ -18,6 +18,7 @@ find_package(ament_cmake REQUIRED)
 # find_package(gz-transport13 REQUIRED)
 # find_package(gz-msgs10 REQUIRED)
 
+find_package(topic_tools REQUIRED)
 find_package(rclpy REQUIRED)
 find_package(geometry_msgs REQUIRED)
 
