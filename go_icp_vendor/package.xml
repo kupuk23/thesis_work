@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>go_icp_vendor</name>
+  <version>1.3.0</version>
+  <description>Vendor package that builds and installs the upstream Go-ICP library for ROS 2.</description>
+
+  <maintainer email="kupuk23@gmail.com">Tafarrel</maintainer>
+  <license>GPL-3.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <!-- Go-ICP itself has no external deps, but add any you need here -->
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

@@ -10,6 +10,11 @@
   <depend>geometry_msgs</depend>
   <buildtool_depend>ament_cmake</buildtool_depend>
   <exec_depend>camera_description</exec_depend>
+  <exec_depend>topic_tools</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>image_transport</exec_depend>
+  <exec_depend>cv_bridge</exec_depend>
+  
   
   <!-- OPTIONAL FOR GAZEBO SIM -->
   <!-- <exec_depend>ros_gz_sim</exec_depend>

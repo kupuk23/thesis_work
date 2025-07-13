@@ -6,7 +6,8 @@ endif()
 project(pose_estimation_pcl)
 
 # Add optimization flags
-set(-O3;-use_fast_math)
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -use_fast_math")
+
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -25,8 +26,7 @@ find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(tf2_eigen REQUIRED)
-find_package(go_icp REQUIRED)
-
+find_package(go_icp_vendor REQUIRED)
 
 # uncomment the following section in order to fill in
 # further dependencies manually.
@@ -36,9 +36,7 @@ find_package(go_icp REQUIRED)
 include_directories(
   include
   ${PCL_INCLUDE_DIRS}
-  ${EIGEN3_INCLUDE_DIRS}
-  # ${CUDA_INCLUDE_DIRS}
-)
+  ${EIGEN3_INCLUDE_DIRS})
 
 # Add link directories
 link_directories(
@@ -67,7 +65,7 @@ target_include_directories(pose_estimation_pcl PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/utils>
   $<INSTALL_INTERFACE:include>
-  ${GoICP_INCLUDE_DIRS}
+  
 )
 
 
@@ -81,10 +79,11 @@ ament_target_dependencies(pose_estimation_pcl
   tf2_ros
   tf2_geometry_msgs
   tf2_eigen
+  go_icp_vendor
 )
 
 
-target_link_libraries(pose_estimation_pcl ${PCL_LIBRARIES} go_icp) #${CUDA_LIBRARIES} 
+target_link_libraries(pose_estimation_pcl ${PCL_LIBRARIES} go_icp_vendor::go_icp) #${CUDA_LIBRARIES} 
 
 
 # Install executables

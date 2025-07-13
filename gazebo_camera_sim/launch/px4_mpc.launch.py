@@ -249,7 +249,7 @@ def generate_launch_description():
 
     launchDescriptionObject.add_action(rviz_launch_arg)
     launchDescriptionObject.add_action(use_sim_time_arg)
-    # launchDescriptionObject.add_action(rviz_node)
+    launchDescriptionObject.add_action(rviz_node)
     launchDescriptionObject.add_action(gz_bridge_node)
     launchDescriptionObject.add_action(gz_image_bridge_node)
     launchDescriptionObject.add_action(relay_camera_info_node)
