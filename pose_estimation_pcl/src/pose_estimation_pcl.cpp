@@ -42,7 +42,9 @@ public:
 
         // Frame definition
         camera_frame_ = this->declare_parameter("general.camera_frame", "camera_link");
+        
         // General parameters
+        pcd_dir_ = this->declare_parameter("general.pcd_dir", "/home/tafarrel/o3d_logs/");
         processing_period_ms_ = this->declare_parameter("general.processing_period_ms", 100);
         goicp_debug_ = this->declare_parameter("general.goicp_debug", false);
         save_debug_clouds_ = this->declare_parameter("general.save_debug_clouds", false);
@@ -670,6 +672,10 @@ Eigen::Matrix4f run_go_ICP(
                 std::chrono::milliseconds(processing_period_ms_),
                 std::bind(&PoseEstimationPCL::process_data, this),
                 callback_group_processing_);
+        } else if (param.get_name() == "general.pcd_dir_") {
+            pcd_dir_ = param.as_bool();
+        } else if (param.get_name() == "general.camera_frame") {
+            camera_frame_ = param.as_string();
         } else if (param.get_name() == "general.save_to_pcd") {
             save_to_pcd_ = param.as_bool();
         } else if (param.get_name() == "general.goicp_debug") {
@@ -801,6 +807,7 @@ Eigen::Matrix4f run_go_ICP(
 
     
     // General Parameters
+    std::string pcd_dir_;
     std::string camera_frame_;
     double voxel_size_;
     double max_depth_;

@@ -1,6 +1,8 @@
 pose_estimation_pcl:
   ros__parameters:
     general:
+      camera_frame_ : "camera_link"
+      pcd_dir_: "/home/tafarrel/o3d_logs/"
       processing_period_ms: 50
       goicp_debug : true
       save_debug_clouds : true

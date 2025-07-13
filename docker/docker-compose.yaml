@@ -1,6 +1,3 @@
-# ----------  docker-compose.yml  ----------
-version: "3.9"
-
 services:
   ros_mpc:
     # ----- build or pull the image -----
