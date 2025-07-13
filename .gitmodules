@@ -5,5 +5,5 @@
 
 
 [submodule "go_icp_vendor/src/go_icp_ws"]
-	path = go_icp_vendor/src/go_icp_ws
+	path = go_icp_vendor/src/go_icp_src
 	url = https://github.com/yangjiaolong/Go-ICP.git
