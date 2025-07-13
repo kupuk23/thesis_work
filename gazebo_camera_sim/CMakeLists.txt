@@ -10,12 +10,14 @@ endif()
 find_package(ament_cmake REQUIRED)
 # uncomment the following section in order to fill in
 # further dependencies manually.
-find_package(ros_gz_sim REQUIRED)
-find_package(gz-plugin2 REQUIRED COMPONENTS register)
-find_package(gz-common5 REQUIRED)
-find_package(gz-cmake3 REQUIRED)
-find_package(gz-transport13 REQUIRED)
-find_package(gz-msgs10 REQUIRED)
+# OPTIONAL FOR GAZEBO SIMULATION
+# find_package(ros_gz_sim REQUIRED)
+# find_package(gz-plugin2 REQUIRED COMPONENTS register)
+# find_package(gz-common5 REQUIRED)
+# find_package(gz-cmake3 REQUIRED)
+# find_package(gz-transport13 REQUIRED)
+# find_package(gz-msgs10 REQUIRED)
+
 find_package(rclpy REQUIRED)
 find_package(geometry_msgs REQUIRED)
 

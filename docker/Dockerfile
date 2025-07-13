@@ -5,6 +5,27 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     ros-humble-rqt-runtime-monitor
 
+
+# INSTALL GAZEBO HARMONIC
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl gnupg lsb-release ca-certificates
+
+RUN curl -fsSL https://packages.osrfoundation.org/gazebo.gpg \
+    -o /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) \
+    signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] \
+    http://packages.osrfoundation.org/gazebo/ubuntu-stable \
+    $(lsb_release -cs) main" \
+    | tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
+
+RUN apt-get update && apt-get install -y\
+    gz-harmonic
+
+
+ENV GZ_VERSION=harmonic     
+
+
+
 # Set up ROS 2 environment variables
 ENV ROS_DISTRO=humble
 

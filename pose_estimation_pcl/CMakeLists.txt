@@ -6,7 +6,7 @@ endif()
 project(pose_estimation_pcl)
 
 # Add optimization flags
-set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-O3;-use_fast_math)
+set(-O3;-use_fast_math)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -19,8 +19,8 @@ find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(pcl_conversions REQUIRED)
 find_package(Threads REQUIRED)
-find_package(CUDA REQUIRED)
-find_package(PCL REQUIRED COMPONENTS common io filters segmentation sample_consensus cuda_common cuda_features cuda_segmentation cuda_sample_consensus)
+# find_package(CUDA REQUIRED)
+find_package(PCL REQUIRED COMPONENTS common io filters segmentation sample_consensus)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
@@ -37,7 +37,7 @@ include_directories(
   include
   ${PCL_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIRS}
-  ${CUDA_INCLUDE_DIRS}
+  # ${CUDA_INCLUDE_DIRS}
 )
 
 # Add link directories
@@ -84,7 +84,7 @@ ament_target_dependencies(pose_estimation_pcl
 )
 
 
-target_link_libraries(pose_estimation_pcl ${PCL_LIBRARIES} ${CUDA_LIBRARIES} go_icp) 
+target_link_libraries(pose_estimation_pcl ${PCL_LIBRARIES} go_icp) #${CUDA_LIBRARIES} 
 
 
 # Install executables
