@@ -4,6 +4,6 @@
 	branch = humble
 
 
-[submodule "go_icp_vendor/src/go_icp_ws"]
+[submodule "go_icp_vendor/src/go_icp_src"]
 	path = go_icp_vendor/src/go_icp_src
 	url = https://github.com/yangjiaolong/Go-ICP.git
