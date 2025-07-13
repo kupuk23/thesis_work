@@ -3,11 +3,6 @@
 	url = https://github.com/ros-perception/perception_pcl.git
 	branch = humble
 
-[submodule "pose_estimation_pcl"]
-	path = pose_estimation_pcl
-	url =
-
-
 
 [submodule "go_icp_vendor/src/go_icp_ws"]
 	path = go_icp_vendor/src/go_icp_ws
