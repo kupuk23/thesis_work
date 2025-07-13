@@ -254,7 +254,7 @@ def generate_launch_description():
     launchDescriptionObject.add_action(gz_image_bridge_node)
     launchDescriptionObject.add_action(relay_camera_info_node)
     # launchDescriptionObject.add_action(tf_broadcaster)
-    launchDescriptionObject.add_action(pose_estimation_node)
+    # launchDescriptionObject.add_action(pose_estimation_node)
     launchDescriptionObject.add_action(tf_camera_link_pub)
     # launchDescriptionObject.add_action(tf_world_publisher)
 
