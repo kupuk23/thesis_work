@@ -1,0 +1,45 @@
+# ----------  docker-compose.yml  ----------
+version: "3.9"
+
+services:
+  ros_mpc:
+    # ----- build or pull the image -----
+    # If you built the image already, replace the block below with:
+    #    image: ros-mpc:humble
+    build:
+      context: .
+      dockerfile: Dockerfile      # the one from the previous step
+    container_name: ros_mpc_dev
+
+    # ----- networking -----
+    network_mode: host            # shares the host’s LAN + DDS multicast
+
+    # ----- GUI / RViz -----
+    environment:
+      - DISPLAY=${DISPLAY}        # pass your X-server display
+      - QT_X11_NO_MITSHM=1        # avoids a common Qt shared-memory error
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+      # GPU support (only matters if you keep the 'runtime: nvidia' line below)
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw  # X socket
+      # Optional: mount your workspace from the host
+      # - ./ws:/root/ws:rw
+
+    # Uncomment ONE of the following GPU options if you have NVIDIA drivers:
+    # Option A (works with Docker ≥ 19.03 + nvidia-docker2)
+    #runtime: nvidia
+    #
+    # Option B (newer Compose syntax; no effect on non-NVIDIA hosts)
+    #deploy:
+    #  resources:
+    #    reservations:
+    #      devices:
+    #        - capabilities: ["gpu"]
+
+    stdin_open: true   # `-i`  → keep STDIN open
+    tty: true          # `-t`  → get a usable bash prompt
+    command: /bin/bash
+# ----------  end docker-compose.yml  ----------
