@@ -1,10 +1,5 @@
-[submodule "px4-mpc"]
-	path = px4-mpc
-	url = git@github.com:kupuk23/px4-mpc.git
 [submodule "perception_pcl"]
 	path = perception_pcl
 	url = https://github.com/ros-perception/perception_pcl.git
 	branch = jazzy
-[submodule "px4-offboard"]
-	path = px4-offboard
-	url = https://github.com/Jaeyoung-Lim/px4-offboard
+
