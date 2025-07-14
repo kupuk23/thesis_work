@@ -11,8 +11,8 @@
 #include <random>
 
 // Go-ICP includes
-// #include <go_icp_ros/jly_goicp.h>
-#include <go_icp/jly_goicp.h>
+#include <go_icp_ros/jly_goicp.h>
+// #include <go_icp/jly_goicp.h>
 
 namespace go_icp {
 

@@ -5,7 +5,6 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     ros-humble-rqt-runtime-monitor
 
-
 # INSTALL GAZEBO HARMONIC
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl gnupg lsb-release ca-certificates
@@ -20,7 +19,6 @@ RUN curl -fsSL https://packages.osrfoundation.org/gazebo.gpg \
 
 RUN apt-get update && apt-get install -y\
     gz-harmonic
-
 
 ENV GZ_VERSION=harmonic     
 
@@ -57,13 +55,11 @@ RUN rosdep update && \
 
 RUN . /opt/ros/humble/setup.sh \
     && colcon build --symlink-install \
-    && colcon build --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo --packages-select pose_estimation_pcl --symlink-install --parallel-workers $(nproc)
+    && colcon build --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+    --packages-select go_icp_vendor pose_estimation_pcl --symlink-install --parallel-workers $(nproc)
 
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
-
-
-# Build the workspace
 
 
 
