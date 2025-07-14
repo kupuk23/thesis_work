@@ -24,8 +24,6 @@ RUN apt-get update && apt-get install -y\
 
 ENV GZ_VERSION=harmonic     
 
-
-
 # Set up ROS 2 environment variables
 ENV ROS_DISTRO=humble
 
@@ -39,6 +37,7 @@ RUN git clone https://github.com/DISCOWER/px4-mpc.git --recurse-submodules \
     && git clone https://github.com/kupuk23/px4-mpvs.git --recurse-submodules \
     && git clone https://github.com/DISCOWER/px4_msgs.git \
     && git clone https://github.com/Jaeyoung-Lim/px4-offboard.git
+
 
 WORKDIR /root/ros2_ws/src
 RUN git clone https://github.com/kupuk23/thesis_work.git --recurse-submodules 

@@ -22,7 +22,7 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw  # X socket
-      # Optional: mount your workspace from the host
+      # SHARE O3D_logs folder
       # - ./ws:/root/ws:rw
 
     # Uncomment ONE of the following GPU options if you have NVIDIA drivers:
