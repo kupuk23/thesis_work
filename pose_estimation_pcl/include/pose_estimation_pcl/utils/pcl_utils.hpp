@@ -36,12 +36,13 @@ const std::vector<std::array<uint8_t, 3>> DEFAULT_COLORS = {
 
 /**
  * @brief load a point cloud from a file
- * @param filename Path to the file
+ * @param object_name Path to the file
  * @param logger Logger for output messages
  * @return Point cloud loaded from the file
  * **/
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr loadCloudFromFile(
-    const std::string& filename,
+    const std::string& object_name,
+    const std::string& pcd_dir_,
     const rclcpp::Logger& logger = rclcpp::get_logger("load_model_pcd"));
 
 /**

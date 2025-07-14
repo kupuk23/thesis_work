@@ -29,11 +29,11 @@ Eigen::Matrix4f GoICPWrapper::registerPointClouds(
     pcl::PointCloud<pcl::PointXYZ>::Ptr scene_xyz = convertRGBtoXYZ(scene_cloud);
 
     // 2. Downsample scene cloud if necessary (for performance)
-    pcl::PointCloud<pcl::PointXYZ>::Ptr scene_downsampled = downsamplePointCloud(scene_xyz, max_scene_points);
+    // pcl::PointCloud<pcl::PointXYZ>::Ptr scene_downsampled = downsamplePointCloud(scene_xyz, max_scene_points);
     
-    if (debug) {
-        std::cout << "After downsampling - Scene points: " << scene_downsampled->size() << std::endl;
-    }
+    // if (debug) {
+    //     std::cout << "After downsampling - Scene points: " << scene_downsampled->size() << std::endl;
+    // }
 
     // 3. Normalize point clouds
     pcl::PointCloud<pcl::PointXYZ>::Ptr model_normalized(new pcl::PointCloud<pcl::PointXYZ>());
@@ -41,7 +41,7 @@ Eigen::Matrix4f GoICPWrapper::registerPointClouds(
     Eigen::Vector3f model_centroid, scene_centroid;
     float max_scale;
 
-    normalizePointCloud(scene_downsampled, model_xyz, scene_normalized, model_normalized,
+    normalizePointCloud(scene_xyz, model_xyz, scene_normalized, model_normalized,
         scene_centroid, model_centroid, max_scale);
     last_normalization_scale_ = max_scale;
 

@@ -140,6 +140,7 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr loadModelPCD(
 
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr loadCloudFromFile(
     const std::string& object_name,
+    const std::string& pcd_dir_,
     const rclcpp::Logger& logger) {
     
     std::shared_ptr<pcl::PointCloud<pcl::PointXYZRGB>> model_cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
@@ -147,13 +148,11 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr loadCloudFromFile(
     // Determine file path based on object name
     std::string model_path;
     if (object_name == "grapple") {
-        model_path = "/home/tafarrel/o3d_logs/grapple_fixture_v2.pcd";
+        model_path = pcd_dir_ + "/grapple_fixture_v2.pcd";
     } else if (object_name == "handrail") {
-        model_path = "/home/tafarrel/o3d_logs/handrail_pcd_down.pcd";
-    } else if (object_name == "docking_st") {
-        model_path = "/home/tafarrel/o3d_logs/astrobee_dock_ds.pcd";
+        model_path = pcd_dir_ + "/handrail_pcd_down.pcd";
     } else if (object_name == "custom_docking_st") {
-        model_path = "/home/tafarrel/o3d_logs/custom_docking_st_v3.pcd";
+        model_path = pcd_dir_ + "/custom_docking_st_v6_origin.pcd";
     } else {
         RCLCPP_ERROR(logger, "Unknown object name: %s", object_name.c_str());
         return model_cloud;  // Return empty features

@@ -6,7 +6,7 @@ endif()
 project(pose_estimation_pcl)
 
 # Add optimization flags
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -use_fast_math")
+# set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -use_fast_math")
 
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -83,7 +83,7 @@ ament_target_dependencies(pose_estimation_pcl
 )
 
 
-target_link_libraries(pose_estimation_pcl ${PCL_LIBRARIES} go_icp_vendor::go_icp) #${CUDA_LIBRARIES} 
+target_link_libraries(pose_estimation_pcl ${PCL_LIBRARIES} go_icp_vendor::go_icp_ros) #${CUDA_LIBRARIES} 
 
 
 # Install executables
