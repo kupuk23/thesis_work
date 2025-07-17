@@ -1,12 +1,13 @@
 services:
-  ros_mpc:
+  ros-mpvs:
     # ----- build or pull the image -----
     # If you built the image already, replace the block below with:
     #    image: ros-mpc:humble
-    build:
-      context: .
-      dockerfile: Dockerfile      # the one from the previous step
-    container_name: ros_mpc_dev
+    image: ros-mpvs:humble
+    container_name: mpvs_humble
+
+      
+    working_dir: $home/
 
     # ----- networking -----
     network_mode: host            # shares the host’s LAN + DDS multicast
@@ -15,7 +16,6 @@ services:
     environment:
       - DISPLAY=${DISPLAY}        # pass your X-server display
       - QT_X11_NO_MITSHM=1        # avoids a common Qt shared-memory error
-      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
       - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
       # GPU support (only matters if you keep the 'runtime: nvidia' line below)
       - NVIDIA_DRIVER_CAPABILITIES=all
@@ -23,6 +23,7 @@ services:
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw  # X socket
       # SHARE O3D_logs folder
+      - /home/tafarrel/o3d_logs:$home/o3d_files:r
       # - ./ws:/root/ws:rw
 
     # Uncomment ONE of the following GPU options if you have NVIDIA drivers:
