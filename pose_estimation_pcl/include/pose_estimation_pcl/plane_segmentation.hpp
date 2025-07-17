@@ -89,22 +89,26 @@ private:
      * @param plane_cloud Cloud containing the plane points
      * @param coefficients Plane coefficients
      * @param height_threshold Output parameter for floor height threshold
+     * @param offset Offset to apply to the height threshold
      * @return True if the plane is the floor, false otherwise
      */
     bool checkFloorPlane(
         const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& plane_cloud,
         const pcl::ModelCoefficients::Ptr& coefficients,
-        float& height_threshold);
+        float& height_threshold,
+        float offset = 0.15f);
 
     /**
      * @brief Filter points that are close to the floor
      * @param cloud Cloud to filter (in-place)
-     * @param coefficients Floor plane coefficients
+     * @param plane_axis axis to filter along
+     * @param plane_direction Direction of the plane normal
      * @param height_threshold Height threshold for filtering
      */
-    void filterFloorClouds(
+    void filterCloudsByPlane(
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,
-        const pcl::ModelCoefficients::Ptr& coefficients,
+        const std::string& plane_axis,
+        const std::string& plane_direction,
         const float height_threshold);
 
     rclcpp::Logger logger_;

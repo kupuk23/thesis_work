@@ -152,7 +152,7 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr loadCloudFromFile(
     } else if (object_name == "handrail") {
         model_path = pcd_dir_ + "/handrail_pcd_down.pcd";
     } else if (object_name == "custom_docking_st") {
-        model_path = pcd_dir_ + "/custom_docking_st_v6_origin.pcd";
+        model_path = pcd_dir_ + "/custom_docking_st_v7.pcd";
     } else {
         RCLCPP_ERROR(logger, "Unknown object name: %s", object_name.c_str());
         return model_cloud;  // Return empty features

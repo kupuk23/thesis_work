@@ -40,8 +40,9 @@ public:
     {
         // Initialize parameters
 
-        // Frame definition
+        // Frame and topic name definition
         camera_frame_ = this->declare_parameter("general.camera_frame", "camera_link");
+        pc_topic_ = this->declare_parameter("general.pc_topic", "/camera/points");
 
         // General parameters
         pcd_dir_ = this->declare_parameter("general.pcd_dir", "/home/tafarrel/o3d_logs/");
@@ -127,7 +128,7 @@ public:
 
         // Initialize publishers and subscribers
         pointcloud_subscription_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-            "/camera/points", 10,
+            pc_topic_, 10,
             std::bind(&PoseEstimationPCL::pointcloud_callback, this, std::placeholders::_1),
             subscription_options);
 
@@ -675,6 +676,15 @@ private:
             {
                 pcd_dir_ = param.as_bool();
             }
+            else if (param.get_name() == "general.pc_topic")
+            {
+                pc_topic_ = param.as_string();
+                // Recreate the subscription with the new topic
+                // pointcloud_subscription_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
+                //     pc_topic_, 10,
+                //     std::bind(&PoseEstimationPCL::pointcloud_callback, this, std::placeholders::_1),
+                //     subscription_options);
+            }
             else if (param.get_name() == "general.camera_frame")
             {
                 camera_frame_ = param.as_string();
@@ -852,6 +862,7 @@ private:
     rclcpp::CallbackGroup::SharedPtr callback_group_subscription_;
     rclcpp::CallbackGroup::SharedPtr callback_group_processing_;
     OnSetParametersCallbackHandle::SharedPtr parameter_callback_handle_;
+    
 
     // tf frame-related variables
     Eigen::Matrix4f camera_to_map_transform_ = Eigen::Matrix4f::Identity();
@@ -861,6 +872,7 @@ private:
     // General Parameters
     std::string pcd_dir_;
     std::string camera_frame_;
+    std::string pc_topic_;
     double voxel_size_;
     double max_depth_;
     bool save_debug_clouds_;
