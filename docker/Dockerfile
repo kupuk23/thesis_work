@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git build-essential cmake pkg-config \
     python3-venv python3-dev \
     ca-certificates \
-    nano gedit
+    nano gedit gdb
 
 # # INSTALL GAZEBO HARMONIC IF NEEDED
 # RUN apt-get update && apt-get install -y --no-install-recommends \

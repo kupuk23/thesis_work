@@ -37,7 +37,7 @@ namespace pose_estimation
     }
 
     float PlaneSegmentation::measureFloorDist(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud,
-                                             float eps_deg) // angular tolerance
+                                              float eps_deg) // angular tolerance
     {
         auto temp = removeMainPlanes(input_cloud, Eigen::Vector3f(0, 0, 1), eps_deg, true);
         return floor_height_;
@@ -46,9 +46,8 @@ namespace pose_estimation
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr PlaneSegmentation::removeMainPlanes(
         const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud,
         const Eigen::Vector3f &axis, // e.g. (0,0,1) for floor
-        float eps_deg,                // angular tolerance
-        bool measuring_dist
-    )
+        float eps_deg,               // angular tolerance
+        bool measuring_dist)
     {
         // only run when the camera_to_map_transform_ is not zeros
         if (camera_to_map_transform_.isZero())
@@ -91,6 +90,9 @@ namespace pose_estimation
         seg.setAxis(axis);                       // Set the axis to consider for plane detection
         seg.setEpsAngle(eps_deg * M_PI / 180.f); // Set angular tolerance
 
+        RCLCPP_INFO(logger_, "Plane segmentation started with axis: [%f, %f, %f] and eps_angle: %.2f degrees",
+                    axis.x(), axis.y(), axis.z(), eps_deg);
+
         int plane_count = 0;
         size_t remaining_points = working_cloud->size();
 
@@ -100,9 +102,18 @@ namespace pose_estimation
                remaining_points > config_.min_plane_points)
         {
 
-            // Segment the next planar component
-            seg.setInputCloud(working_cloud);
-            seg.segment(*inliers, *coefficients);
+            try
+            {
+                // Segment the next planar component
+                seg.setInputCloud(working_cloud);
+                seg.segment(*inliers, *coefficients);
+            }
+            catch (const std::exception &e)
+            {
+                RCLCPP_ERROR(logger_, "Error during plane segmentation: %s", e.what());
+                break;
+            }
+            
 
             if (inliers->indices.size() < config_.min_plane_points)
             {
@@ -157,6 +168,9 @@ namespace pose_estimation
                 // Add this colored plane to our composite cloud
                 *last_result_.planes_cloud += *colored_plane;
             }
+
+            auto indices_size = inliers->indices.size();
+            RCLCPP_INFO(logger_, "Plane %d found with %zu points", plane_count, indices_size);
 
             // TODO :cek if condition ini, matiin full debug biar gampang ceknya. ini kebaca false terus
             if (inliers->indices.size() > largest_plane_size)

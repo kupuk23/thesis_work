@@ -6,10 +6,11 @@
             "type": "cppdbg",
             "request": "launch",
             "miDebuggerServerAddress": "localhost:3000",
-            "cwd": "/",
+            "cwd": "${workspaceFolder}",
             "externalConsole": true,
-            "program": "/home/px4_space/tafarrel_ws/install/pose_estimation_pcl/lib/pose_estimation_pcl/pose_estimation_pcl",
-            "miDebuggerPath": "/usr/bin/gdb",    // <<< THIS LINE fixes the error
+            "program": "${workspaceFolder}/install/pose_estimation_pcl/lib/pose_estimation_pcl/pose_estimation_pcl",
+            "miDebuggerPath": "/usr/bin/gdb",
+            "MIMode": "gdb"
         },
         {
             "name": "C++ Debugger",
