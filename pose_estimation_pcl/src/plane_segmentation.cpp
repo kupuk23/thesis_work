@@ -107,22 +107,27 @@ namespace pose_estimation
                 // Segment the next planar component
                 seg.setInputCloud(working_cloud);
                 seg.segment(*inliers, *coefficients);
+                extract.setInputCloud(working_cloud);
+                extract.setIndices(inliers);
             }
             catch (const std::exception &e)
             {
                 RCLCPP_ERROR(logger_, "Error during plane segmentation: %s", e.what());
                 break;
             }
-            
 
             if (inliers->indices.size() < config_.min_plane_points)
             {
                 RCLCPP_DEBUG(logger_, "No more significant planes found");
                 break;
             }
+            else if (inliers->indices.empty())
+            {
+                RCLCPP_DEBUG(logger_, "No inliers found, breaking plane detection");
+                break;
+            }
 
-            extract.setInputCloud(working_cloud);
-            extract.setIndices(inliers);
+            
 
             // Get the points in the plane
             pcl::PointCloud<pcl::PointXYZRGB>::Ptr plane_cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
@@ -170,7 +175,7 @@ namespace pose_estimation
             }
 
             auto indices_size = inliers->indices.size();
-            RCLCPP_INFO(logger_, "Plane %d found with %zu points", plane_count, indices_size);
+            // RCLCPP_INFO(logger_, "Plane %d found with %zu points", plane_count, indices_size);
 
             // TODO :cek if condition ini, matiin full debug biar gampang ceknya. ini kebaca false terus
             if (inliers->indices.size() > largest_plane_size)
@@ -183,11 +188,11 @@ namespace pose_estimation
 
                 // if we are looking for a floor plane, append the floor coefficients and check for the highest floor, then get the height threshold
                 if (getPlaneDistance(
-                        plane_cloud, coefficients, dist_threshold, axis, 0.14f)) // 0.14f is the offset for floor height
+                        plane_cloud, coefficients, dist_threshold, axis, 0.17f)) // 0.14f is the offset for floor height
                 {
                     highest_floor = dist_threshold > highest_floor ? dist_threshold : highest_floor; // Store the highest floor
                     floor_height_ = highest_floor;
-                    RCLCPP_INFO(logger_, "floor plane found at height: %.2f", floor_height_);
+                    // RCLCPP_INFO(logger_, "floor plane found at height: %.2f", floor_height_);
                 }
             }
 
@@ -318,6 +323,7 @@ namespace pose_estimation
         // Set filter limits based on direction - ternary operator for efficiency
         if (plane_direction == "up")
         {
+            RCLCPP_INFO(logger_, "Filtering points above threshold: %.2f", dist_threshold);
             pass.setFilterLimits(dist_threshold, std::numeric_limits<float>::max());
         }
         else

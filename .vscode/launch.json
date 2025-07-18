@@ -6,19 +6,17 @@
             "type": "cppdbg",
             "request": "launch",
             "miDebuggerServerAddress": "localhost:3000",
-            "cwd": "${workspaceFolder}",
+            "cwd": "/",
             "externalConsole": true,
-            "program": "${workspaceFolder}/install/pose_estimation_pcl/lib/pose_estimation_pcl/pose_estimation_pcl",
-            "miDebuggerPath": "/usr/bin/gdb",
-            "MIMode": "gdb"
+            "program": "/home/tafarrel/ros2_ws/install/pose_estimation_pcl/lib/pose_estimation_pcl/pose_estimation_pcl"
         },
         {
             "name": "C++ Debugger",
             "request": "launch",
             "type": "cppdbg",
             "miDebuggerServerAddress": "localhost:3000",
-            "cwd": "/",
-            "program": "/home/px4_space/tafarrel_ws/install/pose_estimation_pcl/lib/pose_estimation_pcl/pose_estimation_pcl"
+            "cwd": "/", 
+            "program": "/home/tafarrel/ros2_ws/install/pose_estimation_pcl/lib/pose_estimation_pcl/pose_estimation_pcl"
         }
     ]
 }

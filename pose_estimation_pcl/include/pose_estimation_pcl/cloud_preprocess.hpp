@@ -42,7 +42,7 @@ public:
         float voxel_size = 0.05f;
         
         // Passthrough filter parameters
-        float x_max = 3.0f; 
+        float x_max = 0.0f; 
     };
     
     /**
@@ -69,6 +69,11 @@ public:
      * @brief Set a new configuration
      */
     void setConfig(const Config& config);
+
+     /**
+     * @brief Set a camera transformation matrix
+     */
+    void setTransform(const Eigen::Matrix4f& transform);
     
     /**
      * @brief Get the current configuration
@@ -100,7 +105,7 @@ private:
     std::shared_ptr<PlaneSegmentation> plane_segmenter_ = nullptr;
     std::shared_ptr<CloudClustering> cloud_clusterer_ = nullptr;
     bool debug_time_ = false;
-    // std::shared_ptr<CloudClustering> cloud_clusterer_;
+    Eigen::Matrix4f camera_to_map_transform_ = Eigen::Matrix4f::Identity();
 };
 
 } // namespace pose_estimation

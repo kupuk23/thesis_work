@@ -598,17 +598,20 @@ private:
         }
 
         plane_segmentation_->setTransform(current_transform);
+        preprocessor_->setTransform(current_transform);
 
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr preprocessed_cloud = preprocessor_->process(input_cloud, floor_height);
 
-        // if (floor_height <= -50.0f)
-        // {
-        //     floor_height = plane_segmentation_->measureFloorDist(preprocessed_cloud, 10.0f);
-        //     // RCLCPP_INFO(this->get_logger(), "floor plane found at height: %.2f", floor_height);
-        // }
+        if (floor_height <= -50.0f)
+        {
+            floor_height = plane_segmentation_->measureFloorDist(preprocessed_cloud, 10.0f);
+            RCLCPP_INFO(this->get_logger(), "measureFloorDist found at height: %.2f", floor_height);
+        }
 
-        auto segmented_cloud_wall = plane_segmentation_->removeMainPlanes(preprocessed_cloud, Eigen::Vector3f(0, 0, 1), 10.0f); // Remove floors
-        // auto segmented_cloud_wall = plane_segmentation_->removeMainPlanes(preprocessed_cloud, Eigen::Vector3f(1, 0, 0), 10.0f); // Remove walls
+        // auto segmented_cloud_wall = plane_segmentation_->removeMainPlanes(preprocessed_cloud, Eigen::Vector3f(0, 0, 1), 10.0f); // Remove floors
+        auto segmented_cloud_wall = plane_segmentation_->removeMainPlanes(preprocessed_cloud, Eigen::Vector3f(1, 0, 0), 10.0f); // Remove walls
+        
+        
         auto segmentation_result = plane_segmentation_->getLastResult();
 
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr best_cluster = segmented_cloud_wall;

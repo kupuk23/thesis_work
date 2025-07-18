@@ -124,6 +124,9 @@
         "syncstream": "cpp",
         "core": "cpp",
         "numericaldiff": "cpp",
-        "specialfunctions": "cpp"
+        "specialfunctions": "cpp",
+        "expected": "cpp",
+        "spanstream": "cpp",
+        "stdfloat": "cpp"
     }
 }

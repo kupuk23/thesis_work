@@ -2,6 +2,7 @@
 #include "pose_estimation_pcl/plane_segmentation.hpp"
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/passthrough.h>
+#include <pcl/common/transforms.h>
 #include <cfloat> // For FLT_MAX
 
 namespace pose_estimation
@@ -77,6 +78,11 @@ namespace pose_estimation
         return filtered_cloud;
     }
 
+    void PointCloudPreprocess::setTransform(const Eigen::Matrix4f &transform)
+    {
+        camera_to_map_transform_ = transform;
+    }
+
     // Set a new configuration
     void PointCloudPreprocess::setConfig(const Config &config)
     {
@@ -124,25 +130,36 @@ namespace pose_estimation
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr PointCloudPreprocess::applyPassthroughFilters(
         const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud, const float floor_height)
     {
+
+        // Transform the entire point cloud to map frame in one operation
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_in_map_frame(new pcl::PointCloud<pcl::PointXYZRGB>());
+        pcl::transformPointCloud(*input_cloud, *cloud_in_map_frame, camera_to_map_transform_);
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_cloud_x(new pcl::PointCloud<pcl::PointXYZRGB>);
 
         // Filter by X coordinate (forward distance)
         pcl::PassThrough<pcl::PointXYZRGB> pass_x;
-        pass_x.setInputCloud(input_cloud);
+        pass_x.setInputCloud(cloud_in_map_frame);
         pass_x.setFilterFieldName("x");
-        pass_x.setFilterLimits(-FLT_MAX, config_.x_max); // Keep points within x_max
-        pass_x.filter(*filtered_cloud);
+        pass_x.setFilterLimits(-config_.x_max, std::numeric_limits<float>::max()); // Keep points within x_max
+        pass_x.filter(*filtered_cloud_x);
+
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_cloud_z(new pcl::PointCloud<pcl::PointXYZRGB>);
 
         pcl::PassThrough<pcl::PointXYZRGB> pass_z;
         // Filter by Z coordinate (height)
-        pass_z.setInputCloud(filtered_cloud);
+        pass_z.setInputCloud(filtered_cloud_x);
         pass_z.setFilterFieldName("z");
         pass_z.setFilterLimits(floor_height, FLT_MAX); // Keep points above floor_height
-        pass_z.filter(*filtered_cloud);
-
+        pass_z.filter(*filtered_cloud_z);
 
         RCLCPP_DEBUG(logger_, "Passthrough filter reduced cloud from %zu to %zu points",
-                     input_cloud->size(), filtered_cloud->size());
+                     input_cloud->size(), filtered_cloud_z->size());
+
+        
+        // Transform back to camera frame
+        pcl::transformPointCloud(*filtered_cloud_z, *filtered_cloud, camera_to_map_transform_.inverse());
 
         return filtered_cloud;
     }
