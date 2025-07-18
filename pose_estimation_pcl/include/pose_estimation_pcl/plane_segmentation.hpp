@@ -7,116 +7,146 @@
 #include <pcl/ModelCoefficients.h>
 #include <Eigen/Geometry>
 #include <memory>
+#include <cfloat> // For FLT_MAX
 
-namespace pose_estimation {
-
-/**
- * @brief Result structure for plane segmentation
- */
-struct PlaneSegmentationResult {
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr remaining_cloud;
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr planes_cloud;
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr largest_plane_cloud;
-
-    PlaneSegmentationResult() {
-        remaining_cloud.reset(new pcl::PointCloud<pcl::PointXYZRGB>());
-        planes_cloud.reset(new pcl::PointCloud<pcl::PointXYZRGB>());
-        largest_plane_cloud.reset(new pcl::PointCloud<pcl::PointXYZRGB>());
-    }
-};
-
-/**
- * @brief Class for segmenting and removing planes from point clouds
- */
-class PlaneSegmentation {
-public:
-    /**
-     * @brief Configuration for plane segmentation
-     */
-    struct Config {
-        bool colorize_planes = true;
-        size_t min_plane_points = 1000;
-        float min_remaining_percent = 0.1f;
-        int max_planes = 3;
-        float distance_threshold = 0.02f;
-        int max_iterations = 1000;
+namespace pose_estimation
+{
+    enum class PlaneType
+    {
+        FLOOR,
+        CEILING,
+        WALL_X, // Wall aligned with X axis
+        WALL_Y, // Wall aligned with Y axis
+        UNKNOWN
     };
 
     /**
-     * @brief Constructor with logger
-     * @param logger ROS2 logger
-     * @param config Configuration parameters
+     * @brief Result structure for plane segmentation
      */
-    PlaneSegmentation(
-        const Config& config,
-    rclcpp::Logger logger = rclcpp::get_logger("plane_segmentation"));
+    struct PlaneSegmentationResult
+    {
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr remaining_cloud;
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr planes_cloud;
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr largest_plane_cloud;
+
+        PlaneSegmentationResult()
+        {
+            remaining_cloud.reset(new pcl::PointCloud<pcl::PointXYZRGB>());
+            planes_cloud.reset(new pcl::PointCloud<pcl::PointXYZRGB>());
+            largest_plane_cloud.reset(new pcl::PointCloud<pcl::PointXYZRGB>());
+        }
+    };
 
     /**
-     * @brief Set the camera to map transform
-     * @param transform The transformation matrix
+     * @brief Class for segmenting and removing planes from point clouds
      */
-    void setTransform(const Eigen::Matrix4f& transform);
+    class PlaneSegmentation
+    {
+    public:
+        /**
+         * @brief Configuration for plane segmentation
+         */
+        struct Config
+        {
+            bool colorize_planes = true;
+            size_t min_plane_points = 1000;
+            float min_remaining_percent = 0.1f;
+            int max_planes = 3;
+            float distance_threshold = 0.02f;
+            int max_iterations = 1000;
+        };
 
-    /**
-     * @brief Update configuration parameters
-     * @param config New configuration
-     */
-    void setConfig(const Config& config);
+        /**
+         * @brief Constructor with logger
+         * @param logger ROS2 logger
+         * @param config Configuration parameters
+         */
+        PlaneSegmentation(
+            const Config &config,
+            rclcpp::Logger logger = rclcpp::get_logger("plane_segmentation"));
 
-    /**
-     * @brief Get current configuration
-     * @return Current configuration
-     */
-    const Config& getConfig() const;
+        /**
+         * @brief Set the camera to map transform
+         * @param transform The transformation matrix
+         */
+        void setTransform(const Eigen::Matrix4f &transform);
 
-    /**
-     * @brief Detect and remove planes from a point cloud
-     * @param input_cloud Input point cloud
-     * @return Result containing remaining cloud, planes cloud, largest plane cloud
-     */
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr removeMainPlanes(
-        const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud);
+        /**
+         * @brief Update configuration parameters
+         * @param config New configuration
+         */
+        void setConfig(const Config &config);
 
-    /**
-     * @brief Get the full segmentation result from the last operation
-     * @return PlaneSegmentationResult with all cloud components
-     */
-    const PlaneSegmentationResult& getLastResult() const;
+        /**
+         * @brief Get current configuration
+         * @return Current configuration
+         */
+        const Config &getConfig() const;
 
-private:
-    /**
-     * @brief Check if a plane is a floor plane
-     * @param plane_cloud Cloud containing the plane points
-     * @param coefficients Plane coefficients
-     * @param height_threshold Output parameter for floor height threshold
-     * @param offset Offset to apply to the height threshold
-     * @return True if the plane is the floor, false otherwise
-     */
-    bool checkFloorPlane(
-        const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& plane_cloud,
-        const pcl::ModelCoefficients::Ptr& coefficients,
-        float& height_threshold,
-        float offset = 0.15f);
+        /**
+         * @brief Detect and remove planes from a point cloud
+         * @param input_cloud Input point cloud
+         * @param axis Axis to consider for plane detection (default is Y axis)
+         * @param eps_deg Maximum angle deviation in degrees for plane detection
+         * @return Result containing remaining cloud, planes cloud, largest plane cloud
+         */
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr removeMainPlanes(
+            const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud,
+            const Eigen::Vector3f &axis = Eigen::Vector3f(0, 1, 0), // Default to Y axis (walls in front of camera)
+            float eps_deg = 5.0f,
+            bool measuring_dist = false);
 
-    /**
-     * @brief Filter points that are close to the floor
-     * @param cloud Cloud to filter (in-place)
-     * @param plane_axis axis to filter along
-     * @param plane_direction Direction of the plane normal
-     * @param height_threshold Height threshold for filtering
-     */
-    void filterCloudsByPlane(
-        pcl::PointCloud<pcl::PointXYZRGB>::Ptr& cloud,
-        const std::string& plane_axis,
-        const std::string& plane_direction,
-        const float height_threshold);
+        /**
+         * @brief Get the full segmentation result from the last operation
+         * @return PlaneSegmentationResult with all cloud components
+         */
+        const PlaneSegmentationResult &getLastResult() const;
 
-    rclcpp::Logger logger_;
-    Config config_;
-    Eigen::Matrix4f camera_to_map_transform_ = Eigen::Matrix4f::Zero();
-    PlaneSegmentationResult last_result_;
-    bool debug_time_ = false;
-};
+        /**
+         * @brief Measure the distance to the floor plane
+         * @param input_cloud Input point cloud
+         * @param eps_deg Angular tolerance in degrees
+         * @return Estimated distance to the floor plane
+         */
+        float measureFloorDist(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud,
+                               float eps_deg);
+
+    private:
+        /**
+         * @brief Check if a plane is a floor plane
+         * @param plane_cloud Cloud containing the plane points
+         * @param coefficients Plane coefficients
+         * @param dist_threshold Output parameter for floor height threshold
+         * @param offset Offset to apply to the height threshold
+         * @return True if the plane is the floor, false otherwise
+         */
+        bool getPlaneDistance(
+            const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &plane_cloud,
+            const pcl::ModelCoefficients::Ptr &coefficients,
+            float &dist_threshold,
+            const Eigen::Vector3f &plane_axis,
+            float offset = 0.15f);
+
+        /**
+         * @brief Filter points that are close to the floor
+         * @param cloud Cloud to filter (in-place)
+         * @param plane_axis axis to filter along
+         * @param plane_direction Direction of the plane normal
+         * @param dist_threshold Height threshold for filtering
+         */
+        void filterCloudsByPlane(
+            pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud,
+            const std::string &plane_axis,
+            const std::string &plane_direction,
+            const float dist_threshold);
+
+        rclcpp::Logger logger_;
+        Config config_;
+        Eigen::Matrix4f camera_to_map_transform_ = Eigen::Matrix4f::Zero();
+        float floor_height_ = -FLT_MAX; // Height of the floor plane
+        PlaneSegmentationResult last_result_;
+        bool debug_time_ = false;
+    };
 
 } // namespace pose_estimation
 

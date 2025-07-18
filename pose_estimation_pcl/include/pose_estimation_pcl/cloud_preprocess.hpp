@@ -11,6 +11,7 @@
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/filters/passthrough.h>
 #include <memory>
+#include <cfloat> // For FLT_MAX
 
 
 namespace pose_estimation {
@@ -61,7 +62,8 @@ public:
      * @return pcl::PointCloud<pcl::PointXYZRGB>::Ptr Processed point cloud
      */
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr process(
-        const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud);
+        const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,
+        const float floor_height = -FLT_MAX);
     
     /**
      * @brief Set a new configuration
@@ -89,8 +91,9 @@ private:
         const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud);
         
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr applyPassthroughFilters(
-        const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud);
-    
+        const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& input_cloud,
+        const float floor_height);
+
     // Class members
     Config config_;
     rclcpp::Logger logger_;

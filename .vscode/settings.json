@@ -121,6 +121,9 @@
         "netfwd": "cpp",
         "latch": "cpp",
         "scoped_allocator": "cpp",
-        "syncstream": "cpp"
+        "syncstream": "cpp",
+        "core": "cpp",
+        "numericaldiff": "cpp",
+        "specialfunctions": "cpp"
     }
 }

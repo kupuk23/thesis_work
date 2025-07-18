@@ -590,6 +590,7 @@ private:
         const sensor_msgs::msg::PointCloud2::SharedPtr &cloud_msg)
     {
 
+        
         Eigen::Matrix4f current_transform;
         {
             std::lock_guard<std::mutex> lock(transform_mutex_);
@@ -598,24 +599,31 @@ private:
 
         plane_segmentation_->setTransform(current_transform);
 
-        pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_cloud = preprocessor_->process(input_cloud);
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr preprocessed_cloud = preprocessor_->process(input_cloud, floor_height);
 
-        auto segmented_cloud = plane_segmentation_->removeMainPlanes(filtered_cloud);
+        // if (floor_height <= -50.0f)
+        // {
+        //     floor_height = plane_segmentation_->measureFloorDist(preprocessed_cloud, 10.0f);
+        //     // RCLCPP_INFO(this->get_logger(), "floor plane found at height: %.2f", floor_height);
+        // }
+
+        auto segmented_cloud_wall = plane_segmentation_->removeMainPlanes(preprocessed_cloud, Eigen::Vector3f(0, 0, 1), 10.0f); // Remove floors
+        // auto segmented_cloud_wall = plane_segmentation_->removeMainPlanes(preprocessed_cloud, Eigen::Vector3f(1, 0, 0), 10.0f); // Remove walls
         auto segmentation_result = plane_segmentation_->getLastResult();
 
-        pcl::PointCloud<pcl::PointXYZRGB>::Ptr best_cluster = segmented_cloud;
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr best_cluster = segmented_cloud_wall;
 
         if (cluster_pc_)
         {
-            best_cluster = cloud_clusterer_->findBestCluster(segmented_cloud);
+            best_cluster = cloud_clusterer_->findBestCluster(segmented_cloud_wall);
             auto colored_clusters = cloud_clusterer_->getColoredClustersCloud();
 
-            // if result.best_matching_cluster is nullptr, return filtered_cloud
+            // if result.best_matching_cluster is nullptr, return preprocessed_cloud
             if (best_cluster == nullptr)
             {
                 RCLCPP_WARN(this->get_logger(), "No matching cluster found, returning filtered cloud");
                 object_detected_ = false;
-                return segmented_cloud;
+                return segmented_cloud_wall;
             }
 
             // publish the similarity results to the array topic
@@ -634,20 +642,20 @@ private:
         if (save_debug_clouds_ && segmentation_result.planes_cloud->size() > 0)
         {
             // publish the downsampled pointcloud
-            ros_utils::publish_debug_cloud(filtered_cloud, cloud_msg, cloud_debug_pub_, save_debug_clouds_);
+            ros_utils::publish_debug_cloud(preprocessed_cloud, cloud_msg, cloud_debug_pub_, save_debug_clouds_);
 
             // publish the detected planes
             ros_utils::publish_debug_cloud(segmentation_result.planes_cloud, cloud_msg, plane_debug_pub_, save_debug_clouds_);
             // publish the largest detected plane
             ros_utils::publish_debug_cloud(segmentation_result.largest_plane_cloud, cloud_msg, largest_plane_debug_pub_, save_debug_clouds_);
             // publish the segmented pointcloud
-            ros_utils::publish_debug_cloud(segmented_cloud, cloud_msg, filtered_plane_debug_pub_, save_debug_clouds_);
+            ros_utils::publish_debug_cloud(segmented_cloud_wall, cloud_msg, filtered_plane_debug_pub_, save_debug_clouds_);
             // output of the preprocessing pipeline
             ros_utils::publish_debug_cloud(best_cluster, cloud_msg, pre_processed_debug_pub, save_debug_clouds_);
         }
         object_detected_ = true;
 
-        // return filtered_cloud;
+        // return preprocessed_cloud;
         return best_cluster;
     }
 
@@ -914,6 +922,7 @@ private:
     int min_plane_points_;
     int max_planes_;
     bool remove_planes_;
+    float floor_height = -FLT_MAX; // Default floor height, can be adjusted
 
     // TF2 buffer and listener
     std::shared_ptr<tf2_ros::Buffer> tf_buffer_;

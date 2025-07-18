@@ -36,10 +36,20 @@ namespace pose_estimation
         return config_;
     }
 
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr PlaneSegmentation::removeMainPlanes(
-        const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud)
+    float PlaneSegmentation::measureFloorDist(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud,
+                                             float eps_deg) // angular tolerance
     {
+        auto temp = removeMainPlanes(input_cloud, Eigen::Vector3f(0, 0, 1), eps_deg, true);
+        return floor_height_;
+    }
 
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr PlaneSegmentation::removeMainPlanes(
+        const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud,
+        const Eigen::Vector3f &axis, // e.g. (0,0,1) for floor
+        float eps_deg,                // angular tolerance
+        bool measuring_dist
+    )
+    {
         // only run when the camera_to_map_transform_ is not zeros
         if (camera_to_map_transform_.isZero())
         {
@@ -63,19 +73,23 @@ namespace pose_estimation
 
         // Plane segmentation setup
         pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients());
-        pcl::ModelCoefficients::Ptr floor_coeff(new pcl::ModelCoefficients());
+        pcl::ModelCoefficients::Ptr largest_coeff(new pcl::ModelCoefficients());
         pcl::PointIndices::Ptr inliers(new pcl::PointIndices());
         pcl::SACSegmentation<pcl::PointXYZRGB> seg;
-        float height_threshold = 0.0f;
+        float dist_threshold = 0.0f;
         pcl::ExtractIndices<pcl::PointXYZRGB> extract;
         bool is_floor = false;
+        float highest_floor = -std::numeric_limits<float>::max();
 
         // Configure plane segmentation
         seg.setOptimizeCoefficients(true);
-        seg.setModelType(pcl::SACMODEL_PLANE);
+        seg.setModelType(pcl::SACMODEL_PERPENDICULAR_PLANE);
         seg.setMethodType(pcl::SAC_RANSAC);
         seg.setDistanceThreshold(config_.distance_threshold);
         seg.setMaxIterations(config_.max_iterations);
+
+        seg.setAxis(axis);                       // Set the axis to consider for plane detection
+        seg.setEpsAngle(eps_deg * M_PI / 180.f); // Set angular tolerance
 
         int plane_count = 0;
         size_t remaining_points = working_cloud->size();
@@ -144,21 +158,23 @@ namespace pose_estimation
                 *last_result_.planes_cloud += *colored_plane;
             }
 
-            // Check if this is a floor plane
-            is_floor = checkFloorPlane(plane_cloud, coefficients, height_threshold, 0.15f);
-
-            // If floor plane, save coefficients
-            if (is_floor)
-            {
-                floor_coeff->values = coefficients->values;
-            }
-            // If this is the largest non-floor plane, save it
-            else if (inliers->indices.size() > largest_plane_size)
+            // TODO :cek if condition ini, matiin full debug biar gampang ceknya. ini kebaca false terus
+            if (inliers->indices.size() > largest_plane_size)
             {
                 largest_plane_size = inliers->indices.size();
                 *largest_plane = *plane_cloud;
+                *largest_coeff = *coefficients;
                 extract.setNegative(true);
                 extract.filter(*with_largest_plane_removed);
+
+                // if we are looking for a floor plane, append the floor coefficients and check for the highest floor, then get the height threshold
+                if (getPlaneDistance(
+                        plane_cloud, coefficients, dist_threshold, axis, 0.14f)) // 0.14f is the offset for floor height
+                {
+                    highest_floor = dist_threshold > highest_floor ? dist_threshold : highest_floor; // Store the highest floor
+                    floor_height_ = highest_floor;
+                    RCLCPP_INFO(logger_, "floor plane found at height: %.2f", floor_height_);
+                }
             }
 
             // Update the working cloud for next iteration
@@ -170,21 +186,36 @@ namespace pose_estimation
         // remove only the largest plane from the input cloud
         if (largest_plane_size > 0)
         {
-            *last_result_.largest_plane_cloud = *largest_plane;
-            *last_result_.remaining_cloud = *with_largest_plane_removed;
-
-            // If we found a floor plane, filter points close to the floor
-            if (floor_coeff->values.size() == 4)
             {
-                filterCloudsByPlane(last_result_.remaining_cloud, "z", "up", height_threshold);
+                *last_result_.largest_plane_cloud = *largest_plane;
+                *last_result_.remaining_cloud = *with_largest_plane_removed;
+
+                // If we found a floor plane, filter points close to the floor
+                if (axis == Eigen::Vector3f(0, 1, 0))
+                {
+                    getPlaneDistance(
+                        last_result_.largest_plane_cloud, largest_coeff, dist_threshold, axis, 0.2f);
+                    filterCloudsByPlane(last_result_.remaining_cloud, "y", "up", dist_threshold);
+                }
+                else if (axis == Eigen::Vector3f(1, 0, 0))
+                {
+                    getPlaneDistance(
+                        last_result_.largest_plane_cloud, largest_coeff, dist_threshold, axis, 0.14f);
+                    filterCloudsByPlane(last_result_.remaining_cloud, "x", "up", dist_threshold);
+                }
+                else if (axis == Eigen::Vector3f(0, 0, 1) && !measuring_dist)
+                {
+                    filterCloudsByPlane(last_result_.remaining_cloud, "z", "up", highest_floor);
+                }
+                // filterCloudsByPlane(largest_plane, "x", "up", dist_threshold);
             }
-            // filterCloudsByPlane(largest_plane, "x", "up", height_threshold);
         }
         else
         {
             // No planes found, return the original cloud
             *last_result_.remaining_cloud = *input_cloud;
             RCLCPP_INFO(logger_, "No planes found to remove");
+            ;
         }
 
         // Calculate and log execution time
@@ -204,14 +235,13 @@ namespace pose_estimation
         return last_result_;
     }
 
-    // TODO: Improve this into checkPlaneType that returns the plane type (floor, ceiling, wall) and the distance to remove
-    bool PlaneSegmentation::checkFloorPlane(
+    bool PlaneSegmentation::getPlaneDistance(
         const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &plane_cloud,
         const pcl::ModelCoefficients::Ptr &coefficients,
-        float &height_threshold,
-        float offset = 0.15f )
+        float &dist_threshold,
+        const Eigen::Vector3f &plane_axis,
+        float offset)
     {
-
         if (!plane_cloud || plane_cloud->empty() || coefficients->values.size() < 4)
         {
             RCLCPP_WARN(logger_, "Invalid plane data for floor check");
@@ -226,61 +256,28 @@ namespace pose_estimation
                 coefficients->values[1],
                 coefficients->values[2]);
 
-            // Normalize the vector
-            normal_camera.normalize();
+            // Check if it's below the camera (floor) or above (ceiling)
+            // Use the centroid of the plane to determine this
+            Eigen::Vector4f centroid_camera;
+            pcl::compute3DCentroid(*plane_cloud, centroid_camera);
 
-            // Extract rotation matrix from the transform (upper-left 3x3)
-            Eigen::Matrix3f rotation_matrix = camera_to_map_transform_.block<3, 3>(0, 0);
+            // Transform centroid to map frame
+            Eigen::Vector4f centroid_map = camera_to_map_transform_ * centroid_camera;
+            Eigen::Vector3f camera_position = camera_to_map_transform_.block<3, 1>(0, 3);
 
-            // Transform normal from camera frame to map frame
-            Eigen::Vector3f normal_map = rotation_matrix * normal_camera;
-
-            // Z axis in map frame
-            const Eigen::Vector3f z_axis(0.0, 0.0, 1.0);
-
-            // Compute the dot product between the normal and z axis
-            float dot_product = normal_map.dot(z_axis);
-
-            // Compute the angle in degrees
-            float angle_degrees = std::acos(std::abs(dot_product)) * 180.0f / M_PI;
-
-            // Check if the plane is roughly horizontal (aligned with Z or negative Z)
-            const float threshold_degrees = 10.0f; // Planes within 10 degrees of horizontal
-            bool is_horizontal = angle_degrees < threshold_degrees;
-
-            if (is_horizontal)
+            auto dist = centroid_map[0];
+            bool below_camera = false;
+            if (plane_axis == Eigen::Vector3f(0, 0, 1))
             {
-                // Check if it's below the camera (floor) or above (ceiling)
-                // Use the centroid of the plane to determine this
-                Eigen::Vector4f centroid_camera;
-                pcl::compute3DCentroid(*plane_cloud, centroid_camera);
-
-                // Transform centroid to map frame
-                Eigen::Vector4f centroid_map = camera_to_map_transform_ * centroid_camera;
-
-                // Extract camera position in map frame (translation part of the transform)
-                Eigen::Vector3f camera_position = camera_to_map_transform_.block<3, 1>(0, 3);
-
-                // If the plane is below the camera/robot, it's likely the floor
-                bool below_camera = centroid_map[2] < camera_position[2];
-                height_threshold = centroid_map[2] + offset; // floor height + offset
-
-                if (below_camera)
-                {
-                    RCLCPP_DEBUG(logger_, "Detected floor plane! Normal angle to Z: %.2f degrees", angle_degrees);
-                    return true;
-                }
-                else
-                {
-                    RCLCPP_DEBUG(logger_, "Detected ceiling plane! Normal angle to Z: %.2f degrees", angle_degrees);
-                    return false;
-                }
+                dist = centroid_map[2];
+                below_camera = centroid_map[2] < camera_position[2];
             }
-            else
-            {
-                RCLCPP_DEBUG(logger_, "Detected vertical plane. Normal angle to Z: %.2f degrees", angle_degrees);
-                return false;
-            }
+            else if (plane_axis == Eigen::Vector3f(0, 1, 0))
+                dist = centroid_map[1];
+
+            dist_threshold = dist + offset; // plane distance + offset
+
+            return below_camera;
         }
         catch (const std::exception &e)
         {
@@ -293,9 +290,8 @@ namespace pose_estimation
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr &cloud,
         const std::string &plane_axis,
         const std::string &plane_direction,
-        const float height_threshold)
+        const float dist_threshold)
     {
-
         // Transform the entire point cloud to map frame in one operation
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_in_map_frame(new pcl::PointCloud<pcl::PointXYZRGB>());
         pcl::transformPointCloud(*cloud, *cloud_in_map_frame, camera_to_map_transform_);
@@ -308,11 +304,11 @@ namespace pose_estimation
         // Set filter limits based on direction - ternary operator for efficiency
         if (plane_direction == "up")
         {
-            pass.setFilterLimits(height_threshold, std::numeric_limits<float>::max());
+            pass.setFilterLimits(dist_threshold, std::numeric_limits<float>::max());
         }
         else
         {
-            pass.setFilterLimits(-std::numeric_limits<float>::max(), height_threshold);
+            pass.setFilterLimits(-std::numeric_limits<float>::max(), dist_threshold);
         }
 
         // Filter and store result
