@@ -85,17 +85,6 @@ void saveToPCD(
     const std::string& filename,
     const rclcpp::Logger& logger);
 
-/**
- * @brief Load a model PCD file
- * 
- * @param filename PCD file path
- * @param logger Logger for output messages
- * @return pcl::PointCloud<pcl::PointXYZRGB>::Ptr Loaded point cloud
- */
-pcl::PointCloud<pcl::PointXYZRGB>::Ptr loadModelPCD(
-    const std::string& filename,
-    const rclcpp::Logger& logger = rclcpp::get_logger("load_model_pcd"));
-
 
 } // namespace pcl_utils
 

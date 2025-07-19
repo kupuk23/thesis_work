@@ -16,7 +16,7 @@ pose_estimation_pcl:
     preprocess:
       voxel_size: 0.012 # 0.012 for grapple, 0.01 for docking
       max_depth: 2.0 # in meter
-      cluster_pc: false
+      cluster_pc: true
 
 
     gen_icp:
@@ -37,6 +37,7 @@ pose_estimation_pcl:
       cluster_tolerance: 0.03 #in meters, default is 0.03
       min_cluster_size: 150 #250
       max_cluster_size: 75000 #50000
+
       
 
     3d_decriptors:

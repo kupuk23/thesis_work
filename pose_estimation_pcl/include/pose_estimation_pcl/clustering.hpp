@@ -4,9 +4,8 @@
 #include <rclcpp/rclcpp.hpp>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
-#include <pcl/features/normal_3d.h>
-#include <pcl/features/fpfh.h>
-#include <memory>
+#include <pcl/features/normal_3d_omp.h>
+#include <pcl/features/fpfh_omp.h>
 #include <string>
 #include <vector>
 
@@ -80,13 +79,6 @@ public:
      * @return Current configuration
      */
     const Config& getConfig() const;
-    
-    /**
-     * @brief Load model point cloud from file
-     * @param file_path Path to the model PCD file
-     * @return Loaded point cloud
-     */
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr loadModel(const std::string& file_path);
     
     /**
      * @brief Set model and compute its features

@@ -31,22 +31,6 @@ const CloudClustering::Config& CloudClustering::getConfig() const {
     return config_;
 }
 
-pcl::PointCloud<pcl::PointXYZRGB>::Ptr CloudClustering::loadModel(const std::string& file_path) {
-    
-    
-    // Load model point cloud
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr model_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-    if (pcl::io::loadPCDFile<pcl::PointXYZRGB>(file_path, *model_cloud) == -1) {
-        RCLCPP_ERROR(logger_, "Failed to load model PCD file: %s", file_path.c_str());
-    } else {
-        RCLCPP_INFO(logger_, "Loaded model PCD with %ld points", model_cloud->size());
-        
-        // Store the model and compute its features
-        setModel(model_cloud);
-    }
-    return model_cloud;
-}
-
 void CloudClustering::setModel(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& model_cloud) {
     if (!model_cloud || model_cloud->empty()) {
         RCLCPP_ERROR(logger_, "Cannot set empty model");
@@ -104,12 +88,17 @@ CloudClustering::HistogramMatchingResult CloudClustering::MatchClustersByHistogr
             );
         }
         result.cluster_similarities[i] = similarity;
+
+        RCLCPP_INFO(logger_, "New cluster found: %ld with similarity %.4f", 
+                      i, similarity);
         
         // Update best match if this cluster has better similarity
         if (similarity > best_similarity_score) {
             best_cluster_index = i;
             best_similarity_score = similarity;
+            
         }
+
     }
     
     // Check if the best match exceeds the threshold
@@ -121,8 +110,8 @@ CloudClustering::HistogramMatchingResult CloudClustering::MatchClustersByHistogr
         result.best_matching_index = best_cluster_index;
         result.best_similarity = best_similarity_score;
         
-        RCLCPP_INFO(logger_, "Best matching cluster: %d with similarity score: %.4f", 
-                  best_cluster_index, best_similarity_score);
+        // RCLCPP_INFO(logger_, "Best matching cluster: %d with similarity score: %.4f", 
+        //           best_cluster_index, best_similarity_score);
     } else {
         RCLCPP_WARN(logger_, "Best cluster (idx: %d) similarity %.4f below threshold %.4f, rejecting match",
                   best_cluster_index, best_similarity_score, similarity_threshold);
@@ -151,7 +140,7 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr CloudClustering::findBestCluster(
     RCLCPP_DEBUG(logger_, "Clustering input cloud with %ld points", input_cloud->size());
     
     // Perform clustering
-    performClustering(input_cloud);
+    performClustering(input_cloud); // will update clusters_
     
     if (clusters_.empty()) {
         RCLCPP_WARN(logger_, "No clusters found in input cloud");
