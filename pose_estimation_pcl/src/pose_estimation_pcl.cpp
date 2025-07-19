@@ -84,6 +84,10 @@ public:
         fpfh_radius_ = this->declare_parameter<double>("3d_decriptors.fpfh_radius", 0.05);
         similarity_threshold_ = this->declare_parameter<double>("3d_decriptors.similarity_threshold", 0.6);
 
+        // Super4PCS parameters
+        super4pcs_delta_ = this->declare_parameter<double>("super4pcs.delta", 0.005);
+        super4pcs_overlap_ = this->declare_parameter<double>("super4pcs.overlap", 0.5);
+        super4pcs_max_iterations_ = this->declare_parameter<int>("super4pcs.max_iterations", 100);
         // Plane segmentation parameters
         distance_threshold_ = this->declare_parameter("plane_detection.distance_threshold", 0.01);
         max_iterations_ = this->declare_parameter("plane_detection.max_iterations", 100);
@@ -184,6 +188,9 @@ private:
         config.normal_radius = this->get_parameter("3d_decriptors.normal_radius").as_double();
         config.fpfh_radius = this->get_parameter("3d_decriptors.fpfh_radius").as_double();
         config.similarity_threshold = this->get_parameter("3d_decriptors.similarity_threshold").as_double();
+        config.super4pcs_delta = this->get_parameter("super4pcs.delta").as_double();
+        config.super4pcs_overlap = this->get_parameter("super4pcs.overlap").as_double();
+        config.super4pcs_max_iterations = this->get_parameter("super4pcs.max_iterations").as_int();
         return config;
     }
 
@@ -792,19 +799,31 @@ private:
             }
             else if (param.get_name() == "3d_decriptors.visualize_normals")
             {
-                visualize_normals_ = param.as_bool();
+                cloud_clusterer_->setConfig(loadCloudClustererConfig());
             }
             else if (param.get_name() == "3d_decriptors.normal_radius")
             {
-                normal_radius_ = param.as_double();
+                cloud_clusterer_->setConfig(loadCloudClustererConfig());
             }
             else if (param.get_name() == "3d_decriptors.fpfh_radius")
             {
-                fpfh_radius_ = param.as_double();
+                cloud_clusterer_->setConfig(loadCloudClustererConfig());
             }
             else if (param.get_name() == "3d_decriptors.similarity_threshold")
             {
-                similarity_threshold_ = param.as_double();
+                cloud_clusterer_->setConfig(loadCloudClustererConfig());
+            }
+            else if (param.get_name() == "super4pcs.delta")
+            {
+                cloud_clusterer_->setConfig(loadCloudClustererConfig());
+            }
+            else if (param.get_name() == "super4pcs.overlap")
+            {
+                cloud_clusterer_->setConfig(loadCloudClustererConfig());
+            }
+            else if (param.get_name() == "super4pcs.max_iterations")
+            {
+                cloud_clusterer_->setConfig(loadCloudClustererConfig());
             }
             else if (param.get_name() == "plane_detection.distance_threshold")
             {
@@ -919,6 +938,11 @@ private:
     double similarity_threshold_;
     bool cluster_pc_;
 
+    // Super4PCS parameters
+    double super4pcs_delta_;
+    double super4pcs_overlap_;
+    int super4pcs_max_iterations_;
+    
     // Plane segmentation parameters
     double distance_threshold_;
     int max_iterations_;

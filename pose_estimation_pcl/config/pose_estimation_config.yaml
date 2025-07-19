@@ -45,6 +45,11 @@ pose_estimation_pcl:
       normal_radius: 0.1 # the highger the more neighbor to consider, improving the normal vector
       fpfh_radius: 0.07 # the highger the more neighbor to consider, improving the descriptor
       similarity_threshold : 0.5 #0.5
+
+    super4pcs:
+      delta: 0.008 # accuracy parameter, adjust based on point cloud resolution
+      overlap: 0.8 # expected overlap (0-1, adjust)
+      max_iterations: 250 # maximum iterations (can adjust)
     
     plane_detection:
       distance_threshold: 0.02
