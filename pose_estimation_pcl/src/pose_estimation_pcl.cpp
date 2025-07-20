@@ -617,7 +617,8 @@ private:
 
         // auto segmented_cloud_wall = plane_segmentation_->removeMainPlanes(preprocessed_cloud, Eigen::Vector3f(0, 0, 1), 10.0f); // Remove floors
         auto segmented_cloud_wall = plane_segmentation_->removeMainPlanes(preprocessed_cloud, Eigen::Vector3f(1, 0, 0), 10.0f); // Remove walls
-        
+        // auto segmented_cloud_wall = plane_segmentation_->removeMainPlanes(preprocessed_cloud, Eigen::Vector3f(0, 1, 0), 10.0f); // Remove walls
+        // auto segmented_cloud_wall = preprocessed_cloud; //DEBUG
         
         auto segmentation_result = plane_segmentation_->getLastResult();
 
@@ -648,12 +649,13 @@ private:
             }
         }
 
+        // publish the downsampled pointcloud
+        ros_utils::publish_debug_cloud(preprocessed_cloud, cloud_msg, cloud_debug_pub_, save_debug_clouds_);
+
         // If you want to publish the planes cloud:
         if (save_debug_clouds_ && segmentation_result.planes_cloud->size() > 0)
         {
-            // publish the downsampled pointcloud
-            ros_utils::publish_debug_cloud(preprocessed_cloud, cloud_msg, cloud_debug_pub_, save_debug_clouds_);
-
+            
             // publish the detected planes
             ros_utils::publish_debug_cloud(segmentation_result.planes_cloud, cloud_msg, plane_debug_pub_, save_debug_clouds_);
             // publish the largest detected plane

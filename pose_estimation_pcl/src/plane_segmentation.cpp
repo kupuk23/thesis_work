@@ -90,8 +90,8 @@ namespace pose_estimation
         seg.setAxis(axis);                       // Set the axis to consider for plane detection
         seg.setEpsAngle(eps_deg * M_PI / 180.f); // Set angular tolerance
 
-        RCLCPP_INFO(logger_, "Plane segmentation started with axis: [%f, %f, %f] and eps_angle: %.2f degrees",
-                    axis.x(), axis.y(), axis.z(), eps_deg);
+        // RCLCPP_INFO(logger_, "Plane segmentation started with axis: [%f, %f, %f] and eps_angle: %.2f degrees",
+        //             axis.x(), axis.y(), axis.z(), eps_deg);
 
         int plane_count = 0;
         size_t remaining_points = working_cloud->size();
@@ -213,14 +213,14 @@ namespace pose_estimation
                 if (axis == Eigen::Vector3f(0, 1, 0))
                 {
                     getPlaneDistance(
-                        last_result_.largest_plane_cloud, largest_coeff, dist_threshold, axis, 0.2f);
+                        last_result_.largest_plane_cloud, largest_coeff, dist_threshold, axis, 0.3f);
                     filterCloudsByPlane(last_result_.remaining_cloud, "y", "up", dist_threshold);
                 }
                 else if (axis == Eigen::Vector3f(1, 0, 0))
                 {
                     getPlaneDistance(
-                        last_result_.largest_plane_cloud, largest_coeff, dist_threshold, axis, 0.14f);
-                    filterCloudsByPlane(last_result_.remaining_cloud, "x", "up", dist_threshold);
+                        last_result_.largest_plane_cloud, largest_coeff, dist_threshold, axis, 0.3f);
+                    filterCloudsByPlane(last_result_.remaining_cloud, "x", "down", dist_threshold);
                 }
                 else if (axis == Eigen::Vector3f(0, 0, 1) && !measuring_dist)
                 {
@@ -294,6 +294,10 @@ namespace pose_estimation
             else if (plane_axis == Eigen::Vector3f(0, 1, 0))
                 dist = centroid_map[1];
 
+            if (dist > 0.0f)
+            {
+                offset = -offset; // If the plane is above the camera, we need to subtract the offset 
+            }
             dist_threshold = dist + offset; // plane distance + offset
 
             return below_camera;
@@ -320,7 +324,7 @@ namespace pose_estimation
         pass.setInputCloud(cloud_in_map_frame);
         pass.setFilterFieldName(plane_axis);
 
-        // Set filter limits based on direction - ternary operator for efficiency
+        // Set filter limits based on direction
         if (plane_direction == "up")
         {
             RCLCPP_INFO(logger_, "Filtering points above threshold: %.2f", dist_threshold);

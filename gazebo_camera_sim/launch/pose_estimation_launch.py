@@ -32,7 +32,7 @@ def generate_launch_description():
             "3.14",
             "0.0",
             "0.0",
-            "map", #robot_base_imu
+            "robot_base_imu", #robot_base_imu
             "zed_camera_link",
         ],
     )
@@ -49,6 +49,6 @@ def generate_launch_description():
 
     launchDescriptionObject = LaunchDescription()
     launchDescriptionObject.add_action(pose_estimation_node)
-    launchDescriptionObject.add_action(tf_camera_link_pub)
+    # launchDescriptionObject.add_action(tf_camera_link_pub)
 
     return launchDescriptionObject
