@@ -1,6 +1,8 @@
 #include "pose_estimation_pcl/clustering.hpp"
 #include "pose_estimation_pcl/utils/pcl_utils.hpp"
 
+#include <pcl/registration/correspondence_estimation.h>
+#include <pcl/registration/correspondence_rejection_sample_consensus.h>
 #include <pcl/segmentation/extract_clusters.h>
 #include <pcl/registration/super4pcs.h>
 #include <pcl/features/normal_3d_omp.h>
@@ -138,6 +140,8 @@ namespace pose_estimation
         const pcl::PointCloud<pcl::PointXYZRGB>::Ptr &input_cloud)
     {
 
+        int best_index = -1;
+        float best_correspondence_ratio = 0.0f;
         auto start_time = std::chrono::high_resolution_clock::now();
         best_cluster_.reset(new pcl::PointCloud<pcl::PointXYZRGB>());
 
@@ -197,9 +201,29 @@ namespace pose_estimation
         // auto matching_histogram_result = MatchClustersByHistogram(
         //     model_features_,
         //     cluster_features,
-        //     config_.similarity_threshold
-        // );
-        auto best_index = computeSuper4PCSSimilarity(model_features_, cluster_features);
+        //     config_.similarity_threshold);
+
+        for (const auto &features : cluster_features)
+        {
+            float correspondence_ratio = 0.0f;
+            RCLCPP_DEBUG(logger_, "Cluster histogram size: %zu", features.histogram.size());
+            calculateFPFHCorrespondences(
+                model_features_,
+                features,
+                correspondence_ratio);
+            if (correspondence_ratio < best_correspondence_ratio)
+            {
+                RCLCPP_INFO(logger_, "Cluster does not match model (ratio: %.4f)", correspondence_ratio);
+            }
+            else
+            {
+                RCLCPP_INFO(logger_, "Cluster matches model (ratio: %.4f)", correspondence_ratio);
+                best_correspondence_ratio = correspondence_ratio;
+                best_index = &features - &cluster_features[0]; // Get index of the current
+            }
+        }
+
+        // auto best_index = computeSuper4PCSSimilarity(model_features_, cluster_features);
 
         // auto best_index = matching_histogram_result.best_matching_index;
 
@@ -381,31 +405,28 @@ namespace pose_estimation
             // Calculate average FPFH histogram with proper normalization
             std::vector<float> avg_histogram(33, 0.0f);
 
+            if (fpfhs->empty())
+            {
+                RCLCPP_WARN(logger_, "FPFH features are empty, cannot compute histogram");
+                return features;
+            }
+
+            // Accumulate all histograms WITHOUT individual normalization
             for (const auto &fpfh_point : fpfhs->points)
             {
-                // First normalize this individual histogram
-                float point_sum = 0.0f;
                 for (int i = 0; i < 33; i++)
                 {
-                    point_sum += fpfh_point.histogram[i];
-                }
-
-                if (point_sum > 0)
-                { // Avoid division by zero
-                    for (int i = 0; i < 33; i++)
-                    {
-                        // Add normalized value to average
-                        avg_histogram[i] += fpfh_point.histogram[i] / point_sum;
-                    }
+                    avg_histogram[i] += fpfh_point.histogram[i];
                 }
             }
 
-            // Finalize the average
-            if (!fpfhs->empty())
+            // Normalize the final averaged histogram
+            float total_sum = std::accumulate(avg_histogram.begin(), avg_histogram.end(), 0.0f);
+            if (total_sum > 0)
             {
-                for (int i = 0; i < 33; i++)
+                for (auto &val : avg_histogram)
                 {
-                    avg_histogram[i] /= static_cast<float>(fpfhs->size());
+                    val /= total_sum;
                 }
             }
 
@@ -448,61 +469,28 @@ namespace pose_estimation
         return features_vec;
     }
 
-    // Function to compute similarity using Super4PCS
-    int CloudClustering::computeSuper4PCSSimilarity(const ClusterFeatures &model_features,
-                                                    const std::vector<ClusterFeatures> &cluster_features)
+    void CloudClustering::calculateFPFHCorrespondences(
+        const ClusterFeatures &source, const ClusterFeatures &target, float &correspondence_ratio)
     {
-        pcl::Super4PCS<pcl::PointXYZRGB, pcl::PointXYZRGB> super4pcs;
-        int best_cluster_index = -1;
-        double best_score = 0.0;
-        double score = 0.0;
 
-        super4pcs.setInputSource(model_features.points);
+        pcl::registration::CorrespondenceEstimation<pcl::FPFHSignature33, pcl::FPFHSignature33> ce;
+        ce.setInputSource(source.fpfhs);
+        ce.setInputTarget(target.fpfhs);
+        pcl::CorrespondencesPtr all_correspondences(new pcl::Correspondences());
+        ce.determineCorrespondences(*all_correspondences);
 
-        // Set parameters (adjust based on your cloud size and scale)
-        super4pcs.setOverlap(config_.super4pcs_overlap);           // expected overlap (0-1, adjust)
-        super4pcs.setDelta(config_.super4pcs_delta);            // accuracy parameter (adjust based on point cloud resolution)
-        super4pcs.setMaximumIterations(config_.super4pcs_max_iterations); // maximum iterations (can adjust)
+        // Reject correspondences using RANSAC (geometric consistency)
+        pcl::registration::CorrespondenceRejectorSampleConsensus<pcl::PointXYZRGB> crsc;
+        crsc.setInputSource(source.points);
+        crsc.setInputTarget(target.points);
+        crsc.setInlierThreshold(0.2); // Adjust threshold appropriately
+        crsc.setInputCorrespondences(all_correspondences);
+        pcl::CorrespondencesPtr inlier_correspondences(new pcl::Correspondences());
+        crsc.getCorrespondences(*inlier_correspondences);
 
-        pcl::PointCloud<pcl::PointXYZRGB> aligned_cloud;
-
-        for (size_t i = 0; i < cluster_features.size(); ++i)
-        {
-            const auto &cluster = cluster_features[i].points;
-            if (cluster->empty())
-                continue;
-
-            // Set target cloud for this cluster
-            super4pcs.setInputTarget(cluster);
-
-            // Align the source to the target cluster
-            super4pcs.align(aligned_cloud);
-
-            score = super4pcs.getFitnessScore();
-
-            if (!super4pcs.hasConverged())
-            {
-                RCLCPP_WARN(logger_, "Super4PCS did not converge for cluster %zu", i);
-                continue;
-            }
-            // RCLCPP_INFO(logger_, "Super4PCS converged for cluster %zu with score: %.4f", i, score);
-            if (score > best_score)
-            {
-                // store the best score and cluster
-                RCLCPP_INFO(logger_, "Cluster %zu matched with score: %.4f", i, score);
-                best_score = score;
-                best_cluster_index = i;
-            }
-            else
-            {
-                RCLCPP_WARN(logger_, "Cluster %zu did not match well, score: %.4f", i, score);
-            }
-        }
-
-        // Score is the estimated overlap between source and target (0 - 1, higher is better)
-
-        return best_cluster_index;
-        ;
+        // Similarity measure (higher ratio = more similarity)
+        correspondence_ratio = (float)inlier_correspondences->size() / all_correspondences->size();
+        // return inlier_correspondences->size();
     }
 
     const std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr> &CloudClustering::getClusters() const

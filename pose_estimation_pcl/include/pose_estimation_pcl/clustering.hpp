@@ -60,7 +60,7 @@ namespace pose_estimation
             // FPFH feature parameters
             float normal_radius = 0.03f;
             float fpfh_radius = 0.05f;
-            float similarity_threshold = 0.8f;
+            float similarity_threshold = 0.5f;
             int num_threads = 4;
             bool visualize_normals = false;
 
@@ -115,6 +115,23 @@ namespace pose_estimation
          */
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr getColoredClustersCloud() const;
 
+
+
+        /**
+         * @brief Compute FPFH correspondences between two clusters
+         * @param model_cloud Features of the model cluster
+         * @param input_cloud Features of the input cluster
+         * @param correspondence_ratio Output correspondence ratio
+         * @return Number of valid correspondences
+         */
+        void calculateFPFHCorrespondences(
+            const ClusterFeatures &model_cloud,
+            const ClusterFeatures &input_cloud,
+            float &correspondence_ratio);
+
+        
+
+            
         /**
          * @brief Get model cloud
          * @return Model point cloud
