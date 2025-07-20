@@ -15,7 +15,8 @@ Eigen::Matrix4f GoICPWrapper::registerPointClouds(
     bool debug,
     int dt_size,
     float dt_expand_factor,
-    float mse_thresh) {
+    float mse_thresh,
+    float trim_fraction) {
     
     auto start = std::chrono::high_resolution_clock::now();
 
@@ -72,7 +73,7 @@ Eigen::Matrix4f GoICPWrapper::registerPointClouds(
     
     // Set Go-ICP parameters
     goicp.MSEThresh = mse_thresh;  // Mean Square Error threshold
-    goicp.trimFraction = 0.0;  // Trimming fraction (0.0 = no trimming)
+    goicp.trimFraction = trim_fraction;  // Trimming fraction (0.0 = no trimming)
     goicp.doTrim = (goicp.trimFraction >= 0.001);
     
     // Prepare data for Go-ICP
