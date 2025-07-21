@@ -85,11 +85,14 @@ RUN python3 -m venv $home/env \
 ENV ACADOS_SOURCE_DIR="$home/acados"
 ENV LD_LIBRARY_PATH=$ACADOS_SOURCE_DIR/lib:$LD_LIBRARY_PATH
 # Add the path to the acados Python interface
-ENV PYTHONPATH=$PYTHONPATH:$ACADOS_SOURCE_DIR/interfaces/acados_template/:$home/env/lib/python3.10/site-packages
+ENV PYTHONPATH=$PYTHONPATH:$ACADOS_SOURCE_DIR/interfaces/acados_template/:
+ENV PYTHONPATH=$PYTHONPATH:$home/env/lib/python3.10/site-packages
 ENV PATH=$home/env/bin:$PATH
 
 
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --upgrade transforms3d
 
 # Install workspace dependencies and build (uncomment if needed)
 # RUN . /opt/ros/$ROS_DISTRO/setup.sh && \
