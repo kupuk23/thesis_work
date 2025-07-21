@@ -219,7 +219,7 @@ namespace pose_estimation
                 else if (axis == Eigen::Vector3f(1, 0, 0))
                 {
                     getPlaneDistance(
-                        last_result_.largest_plane_cloud, largest_coeff, dist_threshold, axis, 0.14f);
+                        last_result_.largest_plane_cloud, largest_coeff, dist_threshold, axis, 0.25f);
                     filterCloudsByPlane(last_result_.remaining_cloud, "x", "up", dist_threshold);
                 }
                 else if (axis == Eigen::Vector3f(0, 0, 1) && !measuring_dist)

@@ -138,16 +138,6 @@ namespace pose_estimation
          */
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr getModelCloud() const;
 
-        /**
-         * @brief Compute similarity using Super4PCS algorithm
-         * @param model_features ClusterFeatures struct of the model
-         * @param cluster_features Features of the clusters to match against
-         * @return Index of the best matching cluster, or -1 if no match found
-         */
-        int computeSuper4PCSSimilarity(
-            const ClusterFeatures &model_features,
-            const std::vector<ClusterFeatures> &cluster_features
-        );
 
     private:
         /**

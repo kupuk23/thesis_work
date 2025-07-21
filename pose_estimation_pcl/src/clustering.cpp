@@ -4,7 +4,6 @@
 #include <pcl/registration/correspondence_estimation.h>
 #include <pcl/registration/correspondence_rejection_sample_consensus.h>
 #include <pcl/segmentation/extract_clusters.h>
-#include <pcl/registration/super4pcs.h>
 #include <pcl/features/normal_3d_omp.h>
 #include <pcl/features/fpfh_omp.h>
 #include <pcl/io/pcd_io.h>
@@ -222,8 +221,6 @@ namespace pose_estimation
                 best_index = &features - &cluster_features[0]; // Get index of the current
             }
         }
-
-        // auto best_index = computeSuper4PCSSimilarity(model_features_, cluster_features);
 
         // auto best_index = matching_histogram_result.best_matching_index;
 
