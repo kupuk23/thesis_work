@@ -15,8 +15,8 @@ pose_estimation_pcl:
 
     preprocess:
       voxel_size: 0.012 # 0.012 for grapple, 0.01 for docking
-      max_depth: 2.0 # in meter
-      cluster_pc: true
+      max_depth: 3.0 # in meter
+      cluster_pc: false
 
 
     gen_icp:
@@ -30,9 +30,9 @@ pose_estimation_pcl:
     go_icp:
       use_goicp : false
       mse_threshold: 4e-4 # 5e-4 for grapple, 4e-4 for docking
-      dt_size: 50 # 25 for grapple, 50 for docking
-      dt_expandFactor: 3.0 # lowering will increase orientation accuracy a lot, 4.0 for grapple, 3.0 for docking
-
+      dt_size: 100 # 25 for grapple, 50 for docking
+      dt_expandFactor: 2.0 # lowering will increase orientation accuracy a lot, 4.0 for grapple, 3.0 for docking
+      trim_fraction: 0.4 # 0.0 for no trimming
     clustering:
       cluster_tolerance: 0.03 #in meters, default is 0.03
       min_cluster_size: 150 #250

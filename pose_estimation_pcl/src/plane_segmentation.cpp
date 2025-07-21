@@ -56,6 +56,12 @@ namespace pose_estimation
             return input_cloud;
         }
 
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_in_map_frame(new pcl::PointCloud<pcl::PointXYZRGB>());
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr plane_filtered_cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr largest_plane_cam(new pcl::PointCloud<pcl::PointXYZRGB>());
+
+        pcl::transformPointCloud(*input_cloud, *cloud_in_map_frame, camera_to_map_transform_);
+
         // Start timing
         auto start_time = std::chrono::high_resolution_clock::now();
 
@@ -68,7 +74,7 @@ namespace pose_estimation
         size_t largest_plane_size = 0;
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr largest_plane(new pcl::PointCloud<pcl::PointXYZRGB>());
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr with_largest_plane_removed(new pcl::PointCloud<pcl::PointXYZRGB>());
-        pcl::PointCloud<pcl::PointXYZRGB>::Ptr working_cloud(new pcl::PointCloud<pcl::PointXYZRGB>(*input_cloud));
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr working_cloud(new pcl::PointCloud<pcl::PointXYZRGB>(*cloud_in_map_frame));
 
         // Plane segmentation setup
         pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients());
@@ -90,15 +96,15 @@ namespace pose_estimation
         seg.setAxis(axis);                       // Set the axis to consider for plane detection
         seg.setEpsAngle(eps_deg * M_PI / 180.f); // Set angular tolerance
 
-        RCLCPP_INFO(logger_, "Plane segmentation started with axis: [%f, %f, %f] and eps_angle: %.2f degrees",
-                    axis.x(), axis.y(), axis.z(), eps_deg);
+        // RCLCPP_INFO(logger_, "Plane segmentation started with axis: [%f, %f, %f] and eps_angle: %.2f degrees",
+        //             axis.x(), axis.y(), axis.z(), eps_deg);
 
         int plane_count = 0;
         size_t remaining_points = working_cloud->size();
 
         // Detect planes
         while (plane_count < config_.max_planes &&
-               remaining_points > (config_.min_remaining_percent * input_cloud->size()) &&
+               remaining_points > (config_.min_remaining_percent * cloud_in_map_frame->size()) &&
                remaining_points > config_.min_plane_points)
         {
 
@@ -126,8 +132,6 @@ namespace pose_estimation
                 RCLCPP_DEBUG(logger_, "No inliers found, breaking plane detection");
                 break;
             }
-
-            
 
             // Get the points in the plane
             pcl::PointCloud<pcl::PointXYZRGB>::Ptr plane_cloud(new pcl::PointCloud<pcl::PointXYZRGB>());
@@ -169,9 +173,12 @@ namespace pose_estimation
                     colored_plane->points[i].g = g;
                     colored_plane->points[i].b = b;
                 }
-
+                
+                pcl::PointCloud<pcl::PointXYZRGB>::Ptr colored_plane_cam(new pcl::PointCloud<pcl::PointXYZRGB>());
                 // Add this colored plane to our composite cloud
-                *last_result_.planes_cloud += *colored_plane;
+                pcl::transformPointCloud(*colored_plane, *colored_plane_cam, camera_to_map_transform_.inverse());
+
+                *last_result_.planes_cloud += *colored_plane_cam;
             }
 
             auto indices_size = inliers->indices.size();
@@ -205,29 +212,32 @@ namespace pose_estimation
         // remove only the largest plane from the input cloud
         if (largest_plane_size > 0)
         {
-            {
-                *last_result_.largest_plane_cloud = *largest_plane;
-                *last_result_.remaining_cloud = *with_largest_plane_removed;
 
-                // If we found a floor plane, filter points close to the floor
-                if (axis == Eigen::Vector3f(0, 1, 0))
-                {
-                    getPlaneDistance(
-                        last_result_.largest_plane_cloud, largest_coeff, dist_threshold, axis, 0.2f);
-                    filterCloudsByPlane(last_result_.remaining_cloud, "y", "up", dist_threshold);
-                }
-                else if (axis == Eigen::Vector3f(1, 0, 0))
-                {
-                    getPlaneDistance(
-                        last_result_.largest_plane_cloud, largest_coeff, dist_threshold, axis, 0.25f);
-                    filterCloudsByPlane(last_result_.remaining_cloud, "x", "up", dist_threshold);
-                }
-                else if (axis == Eigen::Vector3f(0, 0, 1) && !measuring_dist)
-                {
-                    filterCloudsByPlane(last_result_.remaining_cloud, "z", "up", highest_floor);
-                }
-                // filterCloudsByPlane(largest_plane, "x", "up", dist_threshold);
+            // If we found a floor plane, filter points close to the floor
+            if (axis == Eigen::Vector3f(0, 1, 0))
+            {
+                getPlaneDistance(
+                    largest_plane, largest_coeff, dist_threshold, axis, 0.3f);
+                filterCloudsByPlane(with_largest_plane_removed, "y", "up", dist_threshold);
             }
+            else if (axis == Eigen::Vector3f(1, 0, 0))
+            {
+                getPlaneDistance(
+                    largest_plane, largest_coeff, dist_threshold, axis, 0.3f);
+                filterCloudsByPlane(with_largest_plane_removed, "x", "up", dist_threshold);
+            }
+            else if (axis == Eigen::Vector3f(0, 0, 1) && !measuring_dist)
+            {
+                filterCloudsByPlane(with_largest_plane_removed, "z", "up", highest_floor);
+            }
+            // filterCloudsByPlane(largest_plane, "x", "up", dist_threshold);
+
+            // Transform the largest plane and remaining cloud back to camera frame
+            pcl::transformPointCloud(*with_largest_plane_removed, *plane_filtered_cloud, camera_to_map_transform_.inverse());
+            pcl::transformPointCloud(*largest_plane, *largest_plane_cam, camera_to_map_transform_.inverse());
+
+            *last_result_.largest_plane_cloud = *largest_plane_cam;
+            *last_result_.remaining_cloud = *plane_filtered_cloud;
         }
         else
         {
@@ -269,31 +279,30 @@ namespace pose_estimation
 
         try
         {
-            // Get the plane normal in camera frame (a, b, c from plane equation)
-            Eigen::Vector3f normal_camera(
-                coefficients->values[0],
-                coefficients->values[1],
-                coefficients->values[2]);
 
             // Check if it's below the camera (floor) or above (ceiling)
             // Use the centroid of the plane to determine this
-            Eigen::Vector4f centroid_camera;
-            pcl::compute3DCentroid(*plane_cloud, centroid_camera);
+            Eigen::Vector4f centroid_plane_map;
+            pcl::compute3DCentroid(*plane_cloud, centroid_plane_map);
 
             // Transform centroid to map frame
-            Eigen::Vector4f centroid_map = camera_to_map_transform_ * centroid_camera;
+            // Eigen::Vector4f centroid_map = camera_to_map_transform_ * centroid_plane_map;
             Eigen::Vector3f camera_position = camera_to_map_transform_.block<3, 1>(0, 3);
 
-            auto dist = centroid_map[0];
+            auto dist = centroid_plane_map[0];
             bool below_camera = false;
             if (plane_axis == Eigen::Vector3f(0, 0, 1))
             {
-                dist = centroid_map[2];
-                below_camera = centroid_map[2] < camera_position[2];
+                dist = centroid_plane_map[2];
+                below_camera = centroid_plane_map[2] < camera_position[2];
             }
             else if (plane_axis == Eigen::Vector3f(0, 1, 0))
-                dist = centroid_map[1];
+                dist = centroid_plane_map[1];
 
+            if (dist > 0.0f)
+            {
+                offset = -offset; // If the plane is above the camera, we need to subtract the offset
+            }
             dist_threshold = dist + offset; // plane distance + offset
 
             return below_camera;
@@ -312,18 +321,19 @@ namespace pose_estimation
         const float dist_threshold)
     {
         // Transform the entire point cloud to map frame in one operation
-        pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_in_map_frame(new pcl::PointCloud<pcl::PointXYZRGB>());
-        pcl::transformPointCloud(*cloud, *cloud_in_map_frame, camera_to_map_transform_);
+        // pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_in_map_frame(new pcl::PointCloud<pcl::PointXYZRGB>());
+        // pcl::transformPointCloud(*cloud, *cloud_in_map_frame, camera_to_map_transform_);
 
         // Use PCL's PassThrough filter for efficient filtering on specified axis
         pcl::PassThrough<pcl::PointXYZRGB> pass;
-        pass.setInputCloud(cloud_in_map_frame);
+        pass.setInputCloud(cloud);
         pass.setFilterFieldName(plane_axis);
 
-        // Set filter limits based on direction - ternary operator for efficiency
+        RCLCPP_INFO(logger_, "Filtering points along %s axis with direction %s at threshold: %.2f",
+                    plane_axis.c_str(), plane_direction.c_str(), dist_threshold);
+        // Set filter limits based on direction
         if (plane_direction == "up")
         {
-            RCLCPP_INFO(logger_, "Filtering points above threshold: %.2f", dist_threshold);
             pass.setFilterLimits(dist_threshold, std::numeric_limits<float>::max());
         }
         else
@@ -335,8 +345,10 @@ namespace pose_estimation
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_in_map(new pcl::PointCloud<pcl::PointXYZRGB>());
         pass.filter(*filtered_in_map);
 
-        // Transform back to camera frame
-        pcl::transformPointCloud(*filtered_in_map, *cloud, camera_to_map_transform_.inverse());
+        cloud = filtered_in_map;
+
+        // // Transform back to camera frame
+        // pcl::transformPointCloud(*filtered_in_map, *cloud, camera_to_map_transform_.inverse());
     }
 
 } // namespace pose_estimation

@@ -66,7 +66,7 @@ namespace pose_estimation
         //     RCLCPP_DEBUG(logger_, "Clustering skipped - clusterer not initialized");
         // }
 
-        RCLCPP_DEBUG(logger_, "Processing complete, output cloud has %zu points", filtered_cloud->size());
+        RCLCPP_INFO(logger_, "Processing complete, output cloud has %zu points", filtered_cloud->size());
 
         // end time
         auto end_time = std::chrono::high_resolution_clock::now();
@@ -141,8 +141,8 @@ namespace pose_estimation
         // Filter by X coordinate (forward distance)
         pcl::PassThrough<pcl::PointXYZRGB> pass_x;
         pass_x.setInputCloud(cloud_in_map_frame);
-        pass_x.setFilterFieldName("x");
-        pass_x.setFilterLimits(-config_.x_max, std::numeric_limits<float>::max()); // Keep points within x_max
+        pass_x.setFilterFieldName("y");
+        pass_x.setFilterLimits(-config_.x_max, FLT_MAX); // Keep points within x_max
         pass_x.filter(*filtered_cloud_x);
 
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_cloud_z(new pcl::PointCloud<pcl::PointXYZRGB>);

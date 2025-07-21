@@ -70,6 +70,7 @@ public:
         // GO ICP params
         use_goicp_ = this->declare_parameter("go_icp.use_goicp", false);
         goicp_mse_thresh_ = this->declare_parameter("go_icp.mse_threshold", 0.001);
+        goicp_trim_fraction_ = this->declare_parameter("go_icp.trim_fraction", 0.0);
         goicp_dt_size_ = this->declare_parameter("go_icp.dt_size", 25);
         goicp_expand_factor_ = this->declare_parameter("go_icp.dt_expandFactor", 4.0);
 
@@ -542,7 +543,8 @@ private:
             goicp_debug_,
             goicp_dt_size_,
             goicp_expand_factor_,
-            goicp_mse_thresh_);
+            goicp_mse_thresh_,
+            goicp_trim_fraction_);
 
         // Get Go-ICP statistics
         float goicp_error = goicp_wrapper_->getLastError();
@@ -616,8 +618,9 @@ private:
         }
 
         // auto segmented_cloud_wall = plane_segmentation_->removeMainPlanes(preprocessed_cloud, Eigen::Vector3f(0, 0, 1), 10.0f); // Remove floors
-        auto segmented_cloud_wall = plane_segmentation_->removeMainPlanes(preprocessed_cloud, Eigen::Vector3f(1, 0, 0), 10.0f); // Remove walls
-        
+        // auto segmented_cloud_wall = plane_segmentation_->removeMainPlanes(preprocessed_cloud, Eigen::Vector3f(1, 0, 0), 10.0f); // Remove walls
+        auto segmented_cloud_wall = plane_segmentation_->removeMainPlanes(preprocessed_cloud, Eigen::Vector3f(0, 1, 0), 10.0f); // Remove walls
+        // auto segmented_cloud_wall = preprocessed_cloud; //DEBUG
         
         auto segmentation_result = plane_segmentation_->getLastResult();
 
@@ -648,12 +651,13 @@ private:
             }
         }
 
+        // publish the downsampled pointcloud
+        ros_utils::publish_debug_cloud(preprocessed_cloud, cloud_msg, cloud_debug_pub_, save_debug_clouds_);
+
         // If you want to publish the planes cloud:
         if (save_debug_clouds_ && segmentation_result.planes_cloud->size() > 0)
         {
-            // publish the downsampled pointcloud
-            ros_utils::publish_debug_cloud(preprocessed_cloud, cloud_msg, cloud_debug_pub_, save_debug_clouds_);
-
+            
             // publish the detected planes
             ros_utils::publish_debug_cloud(segmentation_result.planes_cloud, cloud_msg, plane_debug_pub_, save_debug_clouds_);
             // publish the largest detected plane
@@ -752,6 +756,10 @@ private:
             else if (param.get_name() == "go_icp.mse_threshold")
             {
                 goicp_mse_thresh_ = param.as_double();
+            }
+            else if (param.get_name() == "go_icp.trim_fraction")
+            {
+                goicp_trim_fraction_ = param.as_double();
             }
             else if (param.get_name() == "go_icp.dt_size")
             {
@@ -916,6 +924,7 @@ private:
     bool goicp_debug_;
     bool use_goicp_;
     double goicp_mse_thresh_;
+    double goicp_trim_fraction_;
     int goicp_dt_size_;
     double goicp_expand_factor_;
     bool object_detected_ = false;

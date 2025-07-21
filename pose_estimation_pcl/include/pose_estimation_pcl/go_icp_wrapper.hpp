@@ -41,7 +41,8 @@ public:
         bool debug = false,
         int dt_size = 25,
         float dt_expand_factor = 4.0,
-        float mse_thresh = 0.001);
+        float mse_thresh = 0.001,
+        float trim_fraction = 0.0);
 
     /**
      * @brief Get the last registration error

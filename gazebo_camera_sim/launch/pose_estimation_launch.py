@@ -32,7 +32,7 @@ def generate_launch_description():
             "3.14",
             "0.0",
             "0.0",
-            "map", #robot_base_imu
+            "robot_base_imu", #robot_base_imu
             "zed_camera_link",
         ],
     )
