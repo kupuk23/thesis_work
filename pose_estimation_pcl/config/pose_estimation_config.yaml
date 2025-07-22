@@ -1,17 +1,17 @@
 pose_estimation_pcl:
   ros__parameters:
     general:
-      camera_frame : "zed_camera_link"
+      camera_frame: "zed_camera_link"
       pcd_dir: "/home/px4space/o3d_files"
-      pc_topic : "/zed/zed_node/point_cloud/cloud_registered"
+      pc_topic: "/zed/zed_node/point_cloud/cloud_registered"
       processing_period_ms: 100 #50
-      goicp_debug : true
-      save_debug_clouds : true
+      goicp_debug: true
+      save_debug_clouds: true
       object_frame: "custom_docking_st"
-      debug_grapple : false
-      save_to_pcd_ : false
-      suffix_name_pcd : "_center_test"
-      debug_time : false
+      debug_grapple: false
+      save_to_pcd_: false
+      suffix_name_pcd: "_center_test"
+      debug_time: false
 
     preprocess:
       voxel_size: 0.012 # 0.012 for grapple, 0.01 for docking
