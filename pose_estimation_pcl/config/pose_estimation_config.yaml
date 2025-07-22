@@ -31,8 +31,8 @@ pose_estimation_pcl:
       use_goicp : false
       mse_threshold: 4e-4 # 5e-4 for grapple, 4e-4 for docking
       dt_size: 100 # 25 for grapple, 50 for docking
-      dt_expandFactor: 2.0 # lowering will increase orientation accuracy a lot, 4.0 for grapple, 3.0 for docking
-      trim_fraction: 0.4 # 0.0 for no trimming
+      dt_expandFactor: 3.0 # lowering will increase orientation accuracy a lot, 4.0 for grapple, 3.0 for docking
+      trim_fraction: 0.5 # 0.0 for no trimming
     clustering:
       cluster_tolerance: 0.03 #in meters, default is 0.03
       min_cluster_size: 150 #250

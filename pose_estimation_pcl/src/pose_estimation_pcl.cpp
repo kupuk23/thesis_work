@@ -42,7 +42,7 @@ public:
 
         // Frame and topic name definition
         camera_frame_ = this->declare_parameter("general.camera_frame", "camera_link");
-        pc_topic_ = this->declare_parameter("general.pc_topic", "/camera/points");
+        pc_topic_ = this->declare_parameter("general.pc_topic", "/zed/zed_node/point_cloud/cloud_registered");
 
         // General parameters
         pcd_dir_ = this->declare_parameter("general.pcd_dir", "/home/tafarrel/o3d_logs/");
