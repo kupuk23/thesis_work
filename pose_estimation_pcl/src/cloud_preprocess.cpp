@@ -41,7 +41,7 @@ namespace pose_estimation
 
         // Step 2: Apply passthrough filters
         auto filtered_cloud = applyPassthroughFilters(downsampled_cloud, floor_height);
-
+        // auto filtered_cloud  = downsampled_cloud; // DEBUG: Use downsampled cloud directly
         if (filtered_cloud->empty())
         {
             RCLCPP_WARN(logger_, "Downsampled cloud is empty after passthrough filter");
@@ -160,7 +160,7 @@ namespace pose_estimation
         
         // Transform back to camera frame
         pcl::transformPointCloud(*filtered_cloud_z, *filtered_cloud, camera_to_map_transform_.inverse());
-
+        
         return filtered_cloud;
     }
 

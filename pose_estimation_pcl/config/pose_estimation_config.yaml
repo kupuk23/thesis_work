@@ -1,8 +1,8 @@
 pose_estimation_pcl:
   ros__parameters:
     general:
-      camera_frame: "zed_camera_link"
-      pcd_dir: "/home/px4space/o3d_files"
+      camera_frame: "zed_left_camera_frame"
+      pcd_dir: "/home/discower/o3d_logs"
       pc_topic: "/zed/zed_node/point_cloud/cloud_registered"
       processing_period_ms: 100 #50
       goicp_debug: true
