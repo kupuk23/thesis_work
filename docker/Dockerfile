@@ -76,10 +76,12 @@ RUN git clone https://github.com/acados/acados.git \
     && make  install -j$NB_THREADS
 
 
-# INSTALL and setting VIRTUALENV 
+# setting VIRTUALENV and install python packages , #TODO: TRY INSTALLING PIP PACKAGES WITHOUT VENV.
 RUN python3 -m venv $home/env \
     && $home/env/bin/pip install --upgrade pip \
-    && $home/env/bin/pip install -e $home/acados/interfaces/acados_template
+    && $home/env/bin/pip install -e $home/acados/interfaces/acados_template \
+    && $home/env/bin/pip install catkin_pkg empy==3.3.4 lark 
+
 
 # Add the path to the compiled shared libraries
 ENV ACADOS_SOURCE_DIR="$home/acados"

@@ -1,9 +1,9 @@
 pose_estimation_pcl:
   ros__parameters:
     general:
-      camera_frame : "zed_camera_link"
-      pcd_dir: "/home/px4space/o3d_files"
-      pc_topic : "/zed/zed_node/point_cloud/cloud_registered"
+      camera_frame : "camera_link" # "camera_link" for sitl, "zed2i_left_camera_frame" for hardware
+      pcd_dir: "/home/tafarrel/o3d_logs" #"/home/tafarrel/o3d_logs" for sitl, "/home/px4_space/o3d_files" for hardware
+      pc_topic : "/camera/points" #"/zed/zed_node/point_cloud/cloud_registered"
       processing_period_ms: 100 #50
       goicp_debug : true
       save_debug_clouds : true
@@ -29,10 +29,11 @@ pose_estimation_pcl:
 
     go_icp:
       use_goicp : false
-      mse_threshold: 4e-4 # 5e-4 for grapple, 4e-4 for docking
-      dt_size: 100 # 25 for grapple, 50 for docking
-      dt_expandFactor: 2.0 # lowering will increase orientation accuracy a lot, 4.0 for grapple, 3.0 for docking
-      trim_fraction: 0.4 # 0.0 for no trimming
+      mse_threshold: 6e-4 # 5e-4 for grapple, 4e-4 for docking
+      dt_size: 50 # 25 for grapple, 50 for docking
+      dt_expandFactor: 3.0 # lowering will increase orientation accuracy a lot, 4.0 for grapple, 3.0 for docking
+      trim_fraction: 0.25 # 0.55 for experiment, 0.0 for no trimming
+      
     clustering:
       cluster_tolerance: 0.03 #in meters, default is 0.03
       min_cluster_size: 150 #250
@@ -54,5 +55,5 @@ pose_estimation_pcl:
     plane_detection:
       distance_threshold: 0.02
       max_iterations: 100
-      min_plane_points: 500
+      min_plane_points: 1000
       max_planes: 3

@@ -7,7 +7,6 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/common/centroid.h>
-#include <pcl_conversions/pcl_conversions.h>
 #include <pcl/filters/passthrough.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/registration/gicp.h>
@@ -42,7 +41,7 @@ public:
 
         // Frame and topic name definition
         camera_frame_ = this->declare_parameter("general.camera_frame", "camera_link");
-        pc_topic_ = this->declare_parameter("general.pc_topic", "/camera/points");
+        pc_topic_ = this->declare_parameter("general.pc_topic", "/zed/zed_node/point_cloud/cloud_registered");
 
         // General parameters
         pcd_dir_ = this->declare_parameter("general.pcd_dir", "/home/tafarrel/o3d_logs/");
@@ -148,6 +147,7 @@ public:
         cloud_debug_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(
             "/ds_pc", 1);
         plane_debug_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/planes_pc", 1);
+        input_cloud_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/input_cloud", 1);
         filtered_plane_debug_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/filtered_plane_pc", 1);
         largest_plane_debug_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/largest_plane_pc", 1);
         clustered_plane_debug_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/clustered_plane_pc", 1);
@@ -604,7 +604,21 @@ private:
         {
             std::lock_guard<std::mutex> lock(transform_mutex_);
             current_transform = camera_to_map_transform_; // This is your class member
+            // unpack the current transform into translation and rotation
+            Eigen::Vector3f translation = current_transform.block<3, 1>(0, 3);
+            Eigen::Matrix3f rotation = current_transform.block<3, 3>(0, 0);
+            // Print the current transform for debugging
+            // RCLCPP_INFO(this->get_logger(), "Current translation: [%.2f, %.2f, %.2f]",
+            //             translation.x(), translation.y(), translation.z());
+            // RCLCPP_INFO(this->get_logger(), "Current rotation: [%.2f, %.2f, %.2f; %.2f, %.2f, %.2f; %.2f, %.2f, %.2f]",
+            //             rotation(0, 0), rotation(0, 1), rotation(0, 2),
+            //             rotation(1, 0), rotation(1, 1), rotation(1, 2),
+            //             rotation(2, 0), rotation(2, 1), rotation(2, 2));
+
+            // RCLCPP_INFO(this->get_logger(), "Current transform: \n%s", current_transform.format(Eigen::IOFormat(FullPrecision, 0, ", ", "\n", "[", "]")).c_str());
         }
+
+        ros_utils::publish_debug_cloud(input_cloud, cloud_msg, input_cloud_pub_, save_debug_clouds_);
 
         plane_segmentation_->setTransform(current_transform);
         preprocessor_->setTransform(current_transform);
@@ -617,9 +631,7 @@ private:
             RCLCPP_INFO(this->get_logger(), "measureFloorDist found at height: %.2f", floor_height);
         }
 
-        // auto segmented_cloud_wall = plane_segmentation_->removeMainPlanes(preprocessed_cloud, Eigen::Vector3f(0, 0, 1), 10.0f); // Remove floors
-        // auto segmented_cloud_wall = plane_segmentation_->removeMainPlanes(preprocessed_cloud, Eigen::Vector3f(1, 0, 0), 10.0f); // Remove walls
-        auto segmented_cloud_wall = plane_segmentation_->removeMainPlanes(preprocessed_cloud, Eigen::Vector3f(0, 1, 0), 10.0f); // Remove walls
+        auto segmented_cloud_wall = plane_segmentation_->removeMainPlanes(preprocessed_cloud, Eigen::Vector3f(1, 0, 0), 10.0f); // Remove walls
         // auto segmented_cloud_wall = preprocessed_cloud; //DEBUG
         
         auto segmentation_result = plane_segmentation_->getLastResult();
@@ -694,7 +706,7 @@ private:
                     std::bind(&PoseEstimationPCL::process_data, this),
                     callback_group_processing_);
             }
-            else if (param.get_name() == "general.pcd_dir_")
+            else if (param.get_name() == "general.pcd_dir")
             {
                 pcd_dir_ = param.as_bool();
             }
@@ -890,6 +902,7 @@ private:
     rclcpp::TimerBase::SharedPtr processing_timer_;
     rclcpp::TimerBase::SharedPtr transform_update_timer_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr plane_debug_pub_;
+    rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr input_cloud_pub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr filtered_plane_debug_pub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr largest_plane_debug_pub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr clustered_plane_debug_pub_;

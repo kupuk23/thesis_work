@@ -151,7 +151,7 @@ namespace pcl_utils
         }
         else if (object_name == "custom_docking_st")
         {
-            model_path = pcd_dir_ + "/custom_docking_st_v7.pcd";
+            model_path = pcd_dir_ + "/custom_docking_st_v6.pcd";
         }
         else
         {
