@@ -608,12 +608,12 @@ private:
             Eigen::Vector3f translation = current_transform.block<3, 1>(0, 3);
             Eigen::Matrix3f rotation = current_transform.block<3, 3>(0, 0);
             // Print the current transform for debugging
-            RCLCPP_INFO(this->get_logger(), "Current translation: [%.2f, %.2f, %.2f]",
-                        translation.x(), translation.y(), translation.z());
-            RCLCPP_INFO(this->get_logger(), "Current rotation: [%.2f, %.2f, %.2f; %.2f, %.2f, %.2f; %.2f, %.2f, %.2f]",
-                        rotation(0, 0), rotation(0, 1), rotation(0, 2),
-                        rotation(1, 0), rotation(1, 1), rotation(1, 2),
-                        rotation(2, 0), rotation(2, 1), rotation(2, 2));
+            // RCLCPP_INFO(this->get_logger(), "Current translation: [%.2f, %.2f, %.2f]",
+            //             translation.x(), translation.y(), translation.z());
+            // RCLCPP_INFO(this->get_logger(), "Current rotation: [%.2f, %.2f, %.2f; %.2f, %.2f, %.2f; %.2f, %.2f, %.2f]",
+            //             rotation(0, 0), rotation(0, 1), rotation(0, 2),
+            //             rotation(1, 0), rotation(1, 1), rotation(1, 2),
+            //             rotation(2, 0), rotation(2, 1), rotation(2, 2));
 
             // RCLCPP_INFO(this->get_logger(), "Current transform: \n%s", current_transform.format(Eigen::IOFormat(FullPrecision, 0, ", ", "\n", "[", "]")).c_str());
         }

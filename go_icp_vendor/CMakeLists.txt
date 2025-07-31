@@ -3,6 +3,9 @@ project(go_icp_vendor LANGUAGES CXX)
 
 find_package(ament_cmake REQUIRED)
 
+# Add optimization flags
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -O3 -fno-fast-math")
+
 # ---------- 1. Build the original sources as a STATIC library ----------
 add_library(go_icp_ros STATIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src/go_icp_src/jly_3ddt.cpp
