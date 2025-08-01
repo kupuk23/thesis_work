@@ -631,7 +631,7 @@ private:
             RCLCPP_INFO(this->get_logger(), "measureFloorDist found at height: %.2f", floor_height);
         }
 
-        auto segmented_cloud_wall = plane_segmentation_->removeMainPlanes(preprocessed_cloud, Eigen::Vector3f(1, 0, 0), 10.0f); // Remove walls
+        auto segmented_cloud_wall = plane_segmentation_->removeMainPlanes(preprocessed_cloud, Eigen::Vector3f(0, 1, 0), 10.0f); // Remove walls
         // auto segmented_cloud_wall = preprocessed_cloud; //DEBUG
         
         auto segmentation_result = plane_segmentation_->getLastResult();

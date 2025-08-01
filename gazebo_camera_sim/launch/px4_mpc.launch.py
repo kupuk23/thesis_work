@@ -91,8 +91,15 @@ def generate_launch_description():
     package='tf2_ros',
     executable='static_transform_publisher',
     name='spacecraft_to_camera_tf',
-    arguments=['-0.09', '0.0', '0.58', '3.14', '0.0', '0.0', 'robot_base_imu', 'camera_link']
+    arguments=['-0.09', '0.0', '0.58', '3.14159265', '0.0', '0.0', 'robot_base_imu', 'camera_link']
 )
+    
+    tf_cam_optical = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='camera_link_to_optical_frame',
+        arguments=['0.0', '0.0', '0.0', '-1.5708', '0.0', '-1.5708', 'camera_link', 'camera_optical_frame']
+    )
     # add perception pipeline with config file
     
     perception_pkg_dir = get_package_share_directory('pose_estimation_pcl')
@@ -146,6 +153,7 @@ def generate_launch_description():
     # launchDescriptionObject.add_action(tf_broadcaster)
     launchDescriptionObject.add_action(pose_estimation_node)
     launchDescriptionObject.add_action(tf_camera_link_pub)
+    launchDescriptionObject.add_action(tf_cam_optical)
     # launchDescriptionObject.add_action(tf_world_publisher)
 
     return launchDescriptionObject
