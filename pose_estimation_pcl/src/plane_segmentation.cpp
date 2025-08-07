@@ -195,7 +195,7 @@ namespace pose_estimation
 
                 // if we are looking for a floor plane, append the floor coefficients and check for the highest floor, then get the height threshold
                 if (getPlaneDistance(
-                        plane_cloud, coefficients, dist_threshold, axis, 0.14f)) // 0.14f is the offset for floor height
+                        plane_cloud, coefficients, dist_threshold, axis, 0.11f)) // 0.14f is the offset for floor height
                 {
                     highest_floor = dist_threshold > highest_floor ? dist_threshold : highest_floor; // Store the highest floor
                     floor_height_ = highest_floor;

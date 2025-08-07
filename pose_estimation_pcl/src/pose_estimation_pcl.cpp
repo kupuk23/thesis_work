@@ -168,7 +168,7 @@ public:
             callback_group_processing_);
 
         transform_update_timer_ = this->create_wall_timer(
-            std::chrono::milliseconds(50), // 10 Hz
+            std::chrono::milliseconds(50), // 20 Hz
             std::bind(&PoseEstimationPCL::update_transform, this),
             callback_group_processing_); // Use the same or different callback group
 
@@ -420,10 +420,10 @@ private:
                             std::chrono::duration<double>(end_time - start_time).count());
 
             end_time = std::chrono::high_resolution_clock::now();
-            if (debug_time_)
-                RCLCPP_INFO(this->get_logger(),
-                            "Total processing time: %.3f s",
-                            std::chrono::duration<double>(end_time - first_start_time).count());
+            
+            RCLCPP_INFO(this->get_logger(),
+                        "Total processing time: %.3f s",
+                        std::chrono::duration<double>(end_time - first_start_time).count());
         }
         catch (const std::exception &e)
         {
@@ -625,7 +625,7 @@ private:
 
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr preprocessed_cloud = preprocessor_->process(input_cloud, floor_height);
 
-        if (floor_height <= -50.0f)
+        if (floor_height <= 0.0f)
         {
             floor_height = plane_segmentation_->measureFloorDist(preprocessed_cloud, 10.0f);
             RCLCPP_INFO(this->get_logger(), "measureFloorDist found at height: %.2f", floor_height);
