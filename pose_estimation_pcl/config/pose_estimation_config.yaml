@@ -29,10 +29,10 @@ pose_estimation_pcl:
 
     go_icp:
       use_goicp : false
-      mse_threshold: 5e-4 # 5e-4 for grapple, 4e-4 for docking
+      mse_threshold: 6e-4 # 5e-4 for grapple, 4e-4 for docking
       dt_size: 50 # 25 for grapple, 50 for docking, lower will increase accuracy but slower
       dt_expandFactor: 2.0 # lowering will increase orientation accuracy a lot, 4.0 for grapple, 3.0 for docking
-      trim_fraction: 0.4 # 0.0 for no trimming, BEST IS 0.55 for onboard but very slow. 0.56 is a bit faster but not as accurate
+      trim_fraction: 0.25 # 0.0 for no trimming, BEST IS 0.55 for onboard but very slow. 0.56 is a bit faster but not as accurate
 
     clustering:
       cluster_tolerance: 0.03 #in meters, default is 0.03
