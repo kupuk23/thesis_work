@@ -43,6 +43,7 @@ public:
         
         // Passthrough filter parameters
         float x_max = 0.0f; 
+        float y_max = 0.0f; 
     };
     
     /**

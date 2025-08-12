@@ -133,23 +133,32 @@ namespace pose_estimation
 
         // Transform the entire point cloud to map frame in one operation
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_in_map_frame(new pcl::PointCloud<pcl::PointXYZRGB>());
-        pcl::transformPointCloud(*input_cloud, *cloud_in_map_frame, camera_to_map_transform_);
-        pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
 
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_cloud_x(new pcl::PointCloud<pcl::PointXYZRGB>);
 
-        // Filter by X coordinate (forward distance)
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_cloud_y(new pcl::PointCloud<pcl::PointXYZRGB>);
+
+        pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
         pcl::PassThrough<pcl::PointXYZRGB> pass_x;
-        pass_x.setInputCloud(cloud_in_map_frame);
-        pass_x.setFilterFieldName("y");
-        pass_x.setFilterLimits(-config_.x_max, FLT_MAX); // Keep points within x_max
+        pass_x.setInputCloud(input_cloud);
+        pass_x.setFilterFieldName("x");
+        pass_x.setFilterLimits(-FLT_MAX, config_.x_max); // Keep points within x_max
         pass_x.filter(*filtered_cloud_x);
+
+        pcl::PassThrough<pcl::PointXYZRGB> pass_y;
+        pass_y.setInputCloud(filtered_cloud_x);
+        pass_y.setFilterFieldName("y");
+        pass_y.setFilterLimits(-config_.y_max, config_.y_max); // Keep points within x_max
+        pass_y.filter(*filtered_cloud_y);
+
+
+        pcl::transformPointCloud(*filtered_cloud_y, *cloud_in_map_frame, camera_to_map_transform_);
 
         pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_cloud_z(new pcl::PointCloud<pcl::PointXYZRGB>);
 
         pcl::PassThrough<pcl::PointXYZRGB> pass_z;
         // Filter by Z coordinate (height)
-        pass_z.setInputCloud(filtered_cloud_x);
+        pass_z.setInputCloud(cloud_in_map_frame);
         pass_z.setFilterFieldName("z");
         pass_z.setFilterLimits(floor_height, FLT_MAX); // Keep points above floor_height
         pass_z.filter(*filtered_cloud_z);

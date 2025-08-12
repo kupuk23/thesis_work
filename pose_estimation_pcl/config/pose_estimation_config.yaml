@@ -16,6 +16,7 @@ pose_estimation_pcl:
     preprocess:
       voxel_size: 0.012 # 0.012 for grapple, 0.01 for docking
       max_depth: 3.0 # in meter
+      max_width: 0.8
       cluster_pc: false
 
 

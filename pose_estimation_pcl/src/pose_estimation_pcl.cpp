@@ -56,6 +56,7 @@ public:
         // Preprocessing params
         voxel_size_ = this->declare_parameter("preprocess.voxel_size", 0.05);
         max_depth_ = this->declare_parameter("preprocess.max_depth", 2.0);
+        max_width_ = this->declare_parameter("preprocess.max_width", 1.0);
         cluster_pc_ = this->declare_parameter("preprocess.cluster_pc", true);
 
         // Gen ICP params
@@ -199,7 +200,8 @@ private:
     {
         pose_estimation::PointCloudPreprocess::Config config;
         config.voxel_size = this->get_parameter("preprocess.voxel_size").as_double();
-        config.x_max = this->get_parameter("preprocess.max_depth").as_double();
+        config.x_max = max_depth_;
+        config.y_max = max_width_;
         config.enable_plane_removal = true; // hardcode this or get from parameter
         config.enable_clustering = this->get_parameter("preprocess.cluster_pc").as_bool();
         return config;
@@ -757,6 +759,10 @@ private:
             {
                 max_depth_ = param.as_double();
             }
+            else if (param.get_name() == "preprocess.max_width")
+            {
+                max_width_ = param.as_double();
+            }
             else if (param.get_name() == "preprocess.cluster_pc")
             {
                 cluster_pc_ = param.as_bool();
@@ -926,6 +932,7 @@ private:
     std::string pc_topic_;
     double voxel_size_;
     double max_depth_;
+    double max_width_;
     bool save_debug_clouds_;
     std::string object_frame_;
     int processing_period_ms_;
